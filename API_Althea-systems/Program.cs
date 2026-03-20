@@ -1,4 +1,5 @@
 using API_Althea_systems.Extensions;
+using API_Althea_systems.Middleware;
 
 namespace API_Althea_systems;
 
@@ -23,7 +24,13 @@ public class Program
 
         // ── Pipeline ──────────────────────────────────────────
 
-        // Middleware custom (ErrorHandler, DebugHandler) will be added in Phase 3
+        // Custom middleware (order matters: Error wraps everything, Debug logs, JWT extracts user)
+        app.UseMiddleware<ErrorHandlerMiddleware>();
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseMiddleware<DebugHandlerMiddleware>();
+        }
+        app.UseMiddleware<JwtMiddleware>();
 
         if (app.Environment.IsDevelopment())
         {
