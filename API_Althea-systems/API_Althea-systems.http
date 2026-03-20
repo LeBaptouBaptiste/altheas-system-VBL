@@ -1,0 +1,7 @@
+@host = http://localhost:5207
+
+### Health check (à implémenter en Phase 10)
+GET {{host}}/api/health
+Accept: application/json
+
+###
