@@ -1,9 +1,16 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
-import type { CartItem } from '@/mock/types';
-import { products } from '@/mock/products';
-import { VAT_RATES } from '@/lib/constants';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
+import type { CartItem, ProductDto } from '@/lib/api-types';
+import { productsService } from '@/lib/api-services';
+
+// Map API enum strings to VAT rate values
+const VAT_RATE_VALUES: Record<string, number> = {
+  Standard: 0.20,
+  Intermediate: 0.10,
+  Reduced: 0.055,
+  Zero: 0,
+};
 
 interface CartContextType {
   items: CartItem[];
@@ -16,6 +23,8 @@ interface CartContextType {
   totalVAT: number;
   totalTTC: number;
   hasUnavailableItems: boolean;
+  loading: boolean;
+  productCache: Map<string, ProductDto>;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -38,11 +47,30 @@ function saveCart(items: CartItem[]) {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(loadCart);
+  const [productCache, setProductCache] = useState<Map<string, ProductDto>>(new Map());
+  const [loading, setLoading] = useState(false);
 
-  const persist = (newItems: CartItem[]) => {
-    setItems(newItems);
-    saveCart(newItems);
-  };
+  // Fetch product details for items not yet in cache
+  useEffect(() => {
+    const missingIds = items
+      .map(i => i.productId)
+      .filter(id => !productCache.has(id));
+
+    if (missingIds.length === 0) return;
+
+    setLoading(true);
+    Promise.all(missingIds.map(id => productsService.getById(id).catch(() => null)))
+      .then(results => {
+        setProductCache(prev => {
+          const next = new Map(prev);
+          for (const product of results) {
+            if (product) next.set(product.id, product);
+          }
+          return next;
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [items, productCache]);
 
   const addItem = useCallback((productId: string, qty: number = 1) => {
     setItems(prev => {
@@ -75,7 +103,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   }, [removeItem]);
 
-  const clearCart = useCallback(() => persist([]), []);
+  const clearCart = useCallback(() => {
+    setItems([]);
+    saveCart([]);
+  }, []);
 
   const { subtotalHT, totalVAT, totalTTC, hasUnavailableItems } = useMemo(() => {
     let ht = 0;
@@ -83,11 +114,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     let unavailable = false;
 
     for (const item of items) {
-      const product = products.find(p => p.id === item.productId);
+      const product = productCache.get(item.productId);
       if (!product) continue;
-      if (product.stockStatus === 'out_of_stock') unavailable = true;
+      if (product.stockStatus === 'OutOfStock') unavailable = true;
       const lineHT = product.priceHT * item.quantity;
-      const lineVAT = lineHT * VAT_RATES[product.vatRate];
+      const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
+      const lineVAT = lineHT * vatRate;
       ht += lineHT;
       vat += lineVAT;
     }
@@ -98,7 +130,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       totalTTC: Math.round((ht + vat) * 100) / 100,
       hasUnavailableItems: unavailable,
     };
-  }, [items]);
+  }, [items, productCache]);
 
   const itemCount = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
 
@@ -106,6 +138,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     <CartContext.Provider value={{
       items, addItem, removeItem, updateQuantity, clearCart,
       itemCount, subtotalHT, totalVAT, totalTTC, hasUnavailableItems,
+      loading, productCache,
     }}>
       {children}
     </CartContext.Provider>
