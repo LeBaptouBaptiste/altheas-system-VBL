@@ -16,8 +16,8 @@ export default function LoginPage() {
   const { t } = useI18n();
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState('sophie.martin@hopital-lyon.fr');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,11 +48,6 @@ export default function LoginPage() {
             <Button type="submit" className="w-full bg-brand-primary hover:bg-brand-hover text-white">{t('auth.login')}</Button>
           </form>
           <p className="text-sm text-center mt-4 text-muted-foreground">{t('auth.no_account')} <Link href="/register" className="text-brand-primary hover:underline">{t('auth.register')}</Link></p>
-          <div className="mt-4 p-3 bg-muted rounded text-xs text-muted-foreground">
-            <p className="font-medium mb-1">Demo accounts:</p>
-            <p>Customer: sophie.martin@hopital-lyon.fr / password123</p>
-            <p>Admin: admin@altheasystems.com / admin123</p>
-          </div>
         </CardContent>
       </Card>
     </div>

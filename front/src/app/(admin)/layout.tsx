@@ -29,7 +29,7 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { t, locale, setLocale } = useI18n();
-  const { isAdmin, isAuthenticated, logout } = useAuth();
+  const { isAdmin, isAuthenticated, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -43,12 +43,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (verified === 'true') setTwoFAVerified(true);
   }, []);
 
-  // If not admin, redirect
+  // If not admin, redirect (wait for auth to finish loading first)
   useEffect(() => {
-    if (!isAuthenticated || !isAdmin) {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
       router.push('/login');
     }
-  }, [isAuthenticated, isAdmin, router]);
+  }, [authLoading, isAuthenticated, isAdmin, router]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !isAdmin) return null;
 

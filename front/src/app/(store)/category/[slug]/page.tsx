@@ -14,10 +14,11 @@ import { categoriesService, productsService } from '@/lib/api-services';
 import type { CategoryDto, ProductDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getCategoryImageUrl } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
+import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20, [VatRate.Intermediate]: 0.10, [VatRate.Reduced]: 0.055, [VatRate.Zero]: 0,
 };
 
 export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -44,10 +45,10 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
   }, [slug]);
 
   const sortedProducts = useMemo(() => {
-    const filtered = allProducts.filter(p => p.status === 'Active');
+    const filtered = allProducts.filter(p => p.status === ProductStatus.Active);
     filtered.sort((a, b) => {
-      if (a.stockStatus === 'OutOfStock' && b.stockStatus !== 'OutOfStock') return 1;
-      if (b.stockStatus === 'OutOfStock' && a.stockStatus !== 'OutOfStock') return -1;
+      if (a.stockStatus === StockStatus.OutOfStock && b.stockStatus !== StockStatus.OutOfStock) return 1;
+      if (b.stockStatus === StockStatus.OutOfStock && a.stockStatus !== StockStatus.OutOfStock) return -1;
       if (sort === 'priority') {
         if (a.priorityRank > 0 && b.priorityRank === 0) return -1;
         if (b.priorityRank > 0 && a.priorityRank === 0) return 1;
@@ -105,7 +106,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
           {paginatedProducts.map((product) => {
             const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
             const priceTTC = product.priceHT * (1 + vatRate);
-            const isOOS = product.stockStatus === 'OutOfStock';
+            const isOOS = product.stockStatus === StockStatus.OutOfStock;
             const name = localized(toLocalized(product.nameFr, product.nameEn));
             return (
               <Card key={product.id} className={`overflow-hidden hover:shadow-lg transition-shadow group ${isOOS ? 'opacity-60' : ''}`}>
@@ -114,8 +115,8 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                     <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                     <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
                       {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
-                      {product.stockStatus === 'InStock' && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
-                      {product.stockStatus === 'LowStock' && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
+                      {product.stockStatus === StockStatus.InStock && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
+                      {product.stockStatus === StockStatus.LowStock && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
                       {isOOS && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}
                     </div>
                   </div>

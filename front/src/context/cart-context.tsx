@@ -2,14 +2,15 @@
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
 import type { CartItem, ProductDto } from '@/lib/api-types';
+import { StockStatus, VatRate } from '@/lib/enums';
 import { productsService } from '@/lib/api-services';
 
-// Map API enum strings to VAT rate values
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20,
-  Intermediate: 0.10,
-  Reduced: 0.055,
-  Zero: 0,
+// Map API enum values to VAT rate percentages
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20,
+  [VatRate.Intermediate]: 0.10,
+  [VatRate.Reduced]: 0.055,
+  [VatRate.Zero]: 0,
 };
 
 interface CartContextType {
@@ -116,7 +117,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     for (const item of items) {
       const product = productCache.get(item.productId);
       if (!product) continue;
-      if (product.stockStatus === 'OutOfStock') unavailable = true;
+      if (product.stockStatus === StockStatus.OutOfStock) unavailable = true;
       const lineHT = product.priceHT * item.quantity;
       const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
       const lineVAT = lineHT * vatRate;

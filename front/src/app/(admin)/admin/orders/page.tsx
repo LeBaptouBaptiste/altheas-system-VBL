@@ -14,25 +14,32 @@ import { ordersService } from '@/lib/api-services';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
+import { OrderStatus, PaymentStatus, VatRate } from '@/lib/enums';
+import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = { Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0 };
-
-const STATUS_COLORS: Record<string, string> = {
-  Pending: 'bg-warning/10 text-warning border-warning/20',
-  Confirmed: 'bg-blue-50 text-blue-600 border-blue-200',
-  Processing: 'bg-blue-50 text-blue-600 border-blue-200',
-  Shipped: 'bg-brand-primary/10 text-brand-primary border-brand-primary/20',
-  Delivered: 'bg-success/10 text-success border-success/20',
-  Cancelled: 'bg-error/10 text-error border-error/20',
-  Returned: 'bg-gray-100 text-muted-foreground',
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20,
+  [VatRate.Intermediate]: 0.10,
+  [VatRate.Reduced]: 0.055,
+  [VatRate.Zero]: 0,
 };
 
-const PAYMENT_COLORS: Record<string, string> = {
-  Paid: 'text-success',
-  Pending: 'text-warning',
-  Failed: 'text-error',
-  Refunded: 'text-muted-foreground',
+const STATUS_COLORS: Record<number, string> = {
+  [OrderStatus.Pending]: 'bg-warning/10 text-warning border-warning/20',
+  [OrderStatus.Confirmed]: 'bg-blue-50 text-blue-600 border-blue-200',
+  [OrderStatus.Processing]: 'bg-blue-50 text-blue-600 border-blue-200',
+  [OrderStatus.Shipped]: 'bg-brand-primary/10 text-brand-primary border-brand-primary/20',
+  [OrderStatus.Delivered]: 'bg-success/10 text-success border-success/20',
+  [OrderStatus.Cancelled]: 'bg-error/10 text-error border-error/20',
+  [OrderStatus.Returned]: 'bg-gray-100 text-muted-foreground',
+};
+
+const PAYMENT_COLORS: Record<number, string> = {
+  [PaymentStatus.Paid]: 'text-success',
+  [PaymentStatus.Pending]: 'text-warning',
+  [PaymentStatus.Failed]: 'text-error',
+  [PaymentStatus.Refunded]: 'text-muted-foreground',
 };
 
 type OrderStatusValue = OrderDto['status'];
@@ -69,7 +76,7 @@ export default function AdminOrdersPage() {
       const q = search.toLowerCase();
       list = list.filter(o => o.id.toLowerCase().includes(q) || o.userName.toLowerCase().includes(q));
     }
-    if (statusFilter !== 'all') list = list.filter(o => o.status === statusFilter);
+    if (statusFilter !== 'all') list = list.filter(o => o.status === Number(statusFilter));
     return list;
   }, [ordersList, search, statusFilter]);
 
@@ -88,19 +95,6 @@ export default function AdminOrdersPage() {
       console.error('Failed to update order status', err);
       toast.error(locale === 'fr' ? 'Erreur lors de la mise à jour' : 'Failed to update status');
     }
-  };
-
-  const statusLabel = (s: string) => {
-    const labels: Record<string, Record<string, string>> = {
-      Pending: { fr: 'En attente', en: 'Pending' },
-      Confirmed: { fr: 'Confirmée', en: 'Confirmed' },
-      Processing: { fr: 'En traitement', en: 'Processing' },
-      Shipped: { fr: 'Expédiée', en: 'Shipped' },
-      Delivered: { fr: 'Livrée', en: 'Delivered' },
-      Cancelled: { fr: 'Annulée', en: 'Cancelled' },
-      Returned: { fr: 'Retournée', en: 'Returned' },
-    };
-    return labels[s]?.[locale] || s;
   };
 
   if (loading) {
@@ -122,11 +116,11 @@ export default function AdminOrdersPage() {
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
-            <SelectItem value="Pending">{statusLabel('Pending')}</SelectItem>
-            <SelectItem value="Processing">{statusLabel('Processing')}</SelectItem>
-            <SelectItem value="Shipped">{statusLabel('Shipped')}</SelectItem>
-            <SelectItem value="Delivered">{statusLabel('Delivered')}</SelectItem>
-            <SelectItem value="Cancelled">{statusLabel('Cancelled')}</SelectItem>
+            <SelectItem value={String(OrderStatus.Pending)}>{enumLabel('OrderStatus', OrderStatus.Pending, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Processing)}>{enumLabel('OrderStatus', OrderStatus.Processing, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Shipped)}>{enumLabel('OrderStatus', OrderStatus.Shipped, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Delivered)}>{enumLabel('OrderStatus', OrderStatus.Delivered, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Cancelled)}>{enumLabel('OrderStatus', OrderStatus.Cancelled, locale)}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -163,23 +157,23 @@ export default function AdminOrdersPage() {
                     <td className="p-3 text-right font-medium">{fmt(order.totalTTC)}</td>
                     <td className="p-3 text-center">
                       <span className={`text-xs font-medium ${PAYMENT_COLORS[order.paymentStatus] || ''}`}>
-                        {order.paymentStatus}
+                        {enumLabel('PaymentStatus', order.paymentStatus, locale)}
                       </span>
                     </td>
                     <td className="p-3 text-center">
                       <Badge variant="outline" className={STATUS_COLORS[order.status] || ''}>
-                        {statusLabel(order.status)}
+                        {enumLabel('OrderStatus', order.status, locale)}
                       </Badge>
                     </td>
                     <td className="p-3 text-right">
-                      <Select value={order.status} onValueChange={v => handleStatusChange(order.id, v as OrderStatusValue)}>
+                      <Select value={String(order.status)} onValueChange={v => handleStatusChange(order.id, Number(v) as OrderStatusValue)}>
                         <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Pending">{statusLabel('Pending')}</SelectItem>
-                          <SelectItem value="Processing">{statusLabel('Processing')}</SelectItem>
-                          <SelectItem value="Shipped">{statusLabel('Shipped')}</SelectItem>
-                          <SelectItem value="Delivered">{statusLabel('Delivered')}</SelectItem>
-                          <SelectItem value="Cancelled">{statusLabel('Cancelled')}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Pending)}>{enumLabel('OrderStatus', OrderStatus.Pending, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Processing)}>{enumLabel('OrderStatus', OrderStatus.Processing, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Shipped)}>{enumLabel('OrderStatus', OrderStatus.Shipped, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Delivered)}>{enumLabel('OrderStatus', OrderStatus.Delivered, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Cancelled)}>{enumLabel('OrderStatus', OrderStatus.Cancelled, locale)}</SelectItem>
                         </SelectContent>
                       </Select>
                     </td>
@@ -256,9 +250,9 @@ export default function AdminOrdersPage() {
                       {detailOrder.statusHistory.map((sh, i) => (
                         <div key={i} className="flex items-center gap-3 text-xs">
                           <span className="text-muted-foreground w-24">{new Date(sh.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
-                          <Badge variant="outline" className={STATUS_COLORS[sh.from] || ''}>{statusLabel(sh.from)}</Badge>
+                          <Badge variant="outline" className={STATUS_COLORS[sh.from] || ''}>{enumLabel('OrderStatus', sh.from, locale)}</Badge>
                           <ChevronDown className="w-3 h-3 -rotate-90" />
-                          <Badge variant="outline" className={STATUS_COLORS[sh.to] || ''}>{statusLabel(sh.to)}</Badge>
+                          <Badge variant="outline" className={STATUS_COLORS[sh.to] || ''}>{enumLabel('OrderStatus', sh.to, locale)}</Badge>
                         </div>
                       ))}
                     </div>

@@ -11,10 +11,11 @@ import { productsService } from '@/lib/api-services';
 import type { ProductDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice, calculateTTC } from '@/lib/money';
+import { StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20, [VatRate.Intermediate]: 0.10, [VatRate.Reduced]: 0.055, [VatRate.Zero]: 0,
 };
 
 interface Message { role: 'user' | 'bot'; content: string; }
@@ -44,7 +45,7 @@ export default function ChatbotPage() {
         const name = localized(toLocalized(p.nameFr, p.nameEn));
         const vatRate = VAT_RATE_VALUES[p.vatRate] ?? 0.20;
         const price = calculateTTC(p.priceHT, vatRate);
-        const stock = p.stockStatus === 'InStock' ? (locale === 'fr' ? 'en stock' : 'in stock') : p.stockStatus === 'LowStock' ? (locale === 'fr' ? 'stock faible' : 'low stock') : (locale === 'fr' ? 'rupture' : 'out of stock');
+        const stock = p.stockStatus === StockStatus.InStock ? (locale === 'fr' ? 'en stock' : 'in stock') : p.stockStatus === StockStatus.LowStock ? (locale === 'fr' ? 'stock faible' : 'low stock') : (locale === 'fr' ? 'rupture' : 'out of stock');
         const desc = localized(toLocalized(p.descriptionFr, p.descriptionEn));
         return locale === 'fr'
           ? `Le ${name} est proposé à ${fmt(price)} TTC. Statut : ${stock}. ${desc}`

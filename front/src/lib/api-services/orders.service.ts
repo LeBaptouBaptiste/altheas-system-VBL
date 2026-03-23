@@ -14,12 +14,12 @@ export const ordersService = {
   create: (data: {
     billingAddressId: string;
     shippingAddressId: string;
-    shippingMethod: string;
-    paymentMethod: string;
+    shippingMethod: number;
+    paymentMethod: number;
     items: { productId: string; quantity: number }[];
   }) =>
     api.post<OrderDto>('/orders', data),
 
-  updateStatus: (id: string, status: string) =>
+  updateStatus: (id: string, status: number) =>
     api.put<OrderDto>(`/orders/${id}/status`, { status }),
 };

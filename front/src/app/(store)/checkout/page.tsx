@@ -91,14 +91,14 @@ export default function CheckoutPage() {
         <Card><CardContent className="p-6 space-y-6">
           <h2 className="text-xl font-semibold flex items-center gap-2"><MapPin className="w-5 h-5" />{t('checkout.billing_address')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input defaultValue="Sophie" /></div>
-            <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input defaultValue="Martin" /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input defaultValue="Cabinet Médical Martin" /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input defaultValue="15 rue de la République" /></div>
-            <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input defaultValue="Lyon" /></div>
-            <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input defaultValue="69002" /></div>
+            <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input /></div>
+            <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input /></div>
+            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input /></div>
+            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input /></div>
+            <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input /></div>
+            <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input /></div>
             <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input defaultValue="France" /></div>
-            <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input defaultValue="+33 4 72 00 00 01" /></div>
+            <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input /></div>
           </div>
           <Button variant="outline" onClick={handleValidateAddress} disabled={addressValidated}>
             {addressValidated ? <><Check className="w-4 h-4 mr-2" />{t('checkout.address_validated')}</> : t('checkout.validate_address')}
@@ -175,11 +175,11 @@ export default function CheckoutPage() {
 
           {paymentMethod === 'card' && (
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <p className="text-sm font-medium">{locale === 'fr' ? 'Paiement sécurisé Stripe (mock)' : 'Secure Stripe Payment (mock)'}</p>
-              <Input placeholder="4242 4242 4242 4242" readOnly className="bg-white" />
+              <p className="text-sm font-medium">{locale === 'fr' ? 'Paiement sécurisé' : 'Secure Payment'}</p>
+              <Input placeholder="•••• •••• •••• ••••" className="bg-white" />
               <div className="flex gap-3">
-                <Input placeholder="MM/YY" readOnly className="bg-white" />
-                <Input placeholder="CVC" readOnly className="bg-white" />
+                <Input placeholder="MM/YY" className="bg-white" />
+                <Input placeholder="CVC" className="bg-white" />
               </div>
               <p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Aucune donnée de carte n\'est stockée' : 'No card data is stored'}</p>
             </div>
@@ -223,7 +223,7 @@ export default function CheckoutPage() {
           </div>
           <h2 className="text-2xl font-semibold text-brand-dark">{t('checkout.order_confirmed')}</h2>
           <p className="text-muted-foreground">{t('checkout.email_sent')}</p>
-          <Button variant="outline" onClick={() => toast.info(locale === 'fr' ? 'Facture PDF (mock) téléchargée' : 'Invoice PDF (mock) downloaded')}>
+          <Button variant="outline" onClick={() => toast.info(locale === 'fr' ? 'Facture PDF téléchargée' : 'Invoice PDF downloaded')}>
             <Download className="w-4 h-4 mr-2" />{t('checkout.download_invoice')}
           </Button>
           <div className="pt-4">

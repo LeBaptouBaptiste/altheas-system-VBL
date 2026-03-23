@@ -11,15 +11,16 @@ import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { contentService, productsService, categoriesService } from '@/lib/api-services';
 import type { HeroSlideDto, ProductDto, CategoryDto } from '@/lib/api-types';
-import { toLocalized, getProductImageUrl, getCategoryImageUrl } from '@/lib/api-types';
+import { toLocalized, getProductImageUrl, getCategoryImageUrl, getImageUrl } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
+import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20,
-  Intermediate: 0.10,
-  Reduced: 0.055,
-  Zero: 0,
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20,
+  [VatRate.Intermediate]: 0.10,
+  [VatRate.Reduced]: 0.055,
+  [VatRate.Zero]: 0,
 };
 
 export default function HomePage() {
@@ -39,7 +40,7 @@ export default function HomePage() {
     ])
       .then(([slidesData, productsData, categoriesData]) => {
         setSlides(slidesData);
-        setTopProducts(productsData.data.filter(p => p.status === 'Active').slice(0, 8));
+        setTopProducts(productsData.data.filter(p => p.status === ProductStatus.Active).slice(0, 8));
         setCategories(categoriesData.filter(c => c.active).sort((a, b) => a.displayOrder - b.displayOrder));
       })
       .catch(() => toast.error(t('common.error')))
@@ -70,7 +71,7 @@ export default function HomePage() {
           {slides.map((slide, index) => (
             <div key={slide.id} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/90 to-brand-dark/40 z-10" />
-              <Image src={slide.image || 'https://images.unsplash.com/photo-1587010580103-fd86b8ea14ca?w=1200'} alt={localized(toLocalized(slide.titleFr, slide.titleEn))} fill className="object-cover" priority={index === 0} />
+              <Image src={getImageUrl(slide.image)} alt={localized(toLocalized(slide.titleFr, slide.titleEn))} fill className="object-cover" priority={index === 0} />
               <div className="absolute inset-0 z-20 flex items-center">
                 <div className="container mx-auto px-4">
                   <div className="max-w-2xl text-white">
@@ -148,8 +149,8 @@ export default function HomePage() {
                       <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                       <div className="absolute top-2 left-2 flex gap-1">
                         {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
-                        {product.stockStatus === 'LowStock' && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
-                        {product.stockStatus === 'OutOfStock' && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}
+                        {product.stockStatus === StockStatus.LowStock && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
+                        {product.stockStatus === StockStatus.OutOfStock && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}
                       </div>
                     </div>
                   </Link>
@@ -165,7 +166,7 @@ export default function HomePage() {
                       <Button
                         size="sm"
                         className="bg-brand-primary hover:bg-brand-hover text-white"
-                        disabled={product.stockStatus === 'OutOfStock'}
+                        disabled={product.stockStatus === StockStatus.OutOfStock}
                         onClick={(e) => { e.preventDefault(); handleAddToCart(product.id, name); }}
                         aria-label={`${t('product.add_to_cart')} - ${name}`}
                       >

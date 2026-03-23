@@ -10,9 +10,10 @@ import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { toLocalized, getProductImageUrl } from '@/lib/api-types';
 import { formatPrice, calculateTTC } from '@/lib/money';
+import { StockStatus, VatRate } from '@/lib/enums';
 
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20, [VatRate.Intermediate]: 0.10, [VatRate.Reduced]: 0.055, [VatRate.Zero]: 0,
 };
 
 export default function CartPage() {
@@ -45,7 +46,7 @@ export default function CartPage() {
             const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
             const priceTTC = calculateTTC(product.priceHT, vatRate);
             const lineTTC = priceTTC * item.quantity;
-            const isOOS = product.stockStatus === 'OutOfStock';
+            const isOOS = product.stockStatus === StockStatus.OutOfStock;
             const name = localized(toLocalized(product.nameFr, product.nameEn));
             return (
               <Card key={item.productId} className={isOOS ? 'border-error/50 bg-error/5' : ''}>

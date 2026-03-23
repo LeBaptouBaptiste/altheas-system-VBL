@@ -12,11 +12,13 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { usersService, ordersService } from '@/lib/api-services';
 import type { UserDto, OrderDto } from '@/lib/api-types';
+import { UserRole, UserStatus } from '@/lib/enums';
+import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const STATUS_COLORS: Record<string, string> = {
-  Active: 'text-success border-success',
-  Inactive: 'text-muted-foreground',
+const STATUS_COLORS: Record<number, string> = {
+  [UserStatus.Active]: 'text-success border-success',
+  [UserStatus.Inactive]: 'text-muted-foreground',
 };
 
 export default function AdminUsersPage() {
@@ -54,8 +56,8 @@ export default function AdminUsersPage() {
       const q = search.toLowerCase();
       list = list.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
     }
-    if (statusFilter !== 'all') list = list.filter(u => u.status === statusFilter);
-    if (roleFilter !== 'all') list = list.filter(u => u.role === roleFilter);
+    if (statusFilter !== 'all') list = list.filter(u => u.status === Number(statusFilter));
+    if (roleFilter !== 'all') list = list.filter(u => u.role === Number(roleFilter));
     return list;
   }, [usersList, search, statusFilter, roleFilter]);
 
@@ -93,16 +95,16 @@ export default function AdminUsersPage() {
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
-            <SelectItem value="Active">{locale === 'fr' ? 'Actif' : 'Active'}</SelectItem>
-            <SelectItem value="Inactive">{locale === 'fr' ? 'Inactif' : 'Inactive'}</SelectItem>
+            <SelectItem value={String(UserStatus.Active)}>{enumLabel('UserStatus', UserStatus.Active, locale)}</SelectItem>
+            <SelectItem value={String(UserStatus.Inactive)}>{enumLabel('UserStatus', UserStatus.Inactive, locale)}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
           <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous rôles' : 'All roles'}</SelectItem>
-            <SelectItem value="Customer">Client</SelectItem>
-            <SelectItem value="Admin">Admin</SelectItem>
+            <SelectItem value={String(UserRole.Customer)}>{enumLabel('UserRole', UserRole.Customer, locale)}</SelectItem>
+            <SelectItem value={String(UserRole.Admin)}>{enumLabel('UserRole', UserRole.Admin, locale)}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -133,15 +135,15 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="p-3 text-muted-foreground">{user.email}</td>
                     <td className="p-3 text-center">
-                      {user.role === 'Admin' ? (
+                      {user.role === UserRole.Admin ? (
                         <Badge className="bg-brand-primary/10 text-brand-primary"><Shield className="w-3 h-3 mr-1" />Admin</Badge>
                       ) : (
-                        <Badge variant="outline">Client</Badge>
+                        <Badge variant="outline">{enumLabel('UserRole', user.role, locale)}</Badge>
                       )}
                     </td>
                     <td className="p-3 text-center">
                       <Badge variant="outline" className={STATUS_COLORS[user.status] || ''}>
-                        {user.status === 'Active' ? (locale === 'fr' ? 'Actif' : 'Active') : (locale === 'fr' ? 'Inactif' : 'Inactive')}
+                        {enumLabel('UserStatus', user.status, locale)}
                       </Badge>
                     </td>
                     <td className="p-3 text-center">{getUserOrders(user.id).length}</td>
@@ -151,7 +153,7 @@ export default function AdminUsersPage() {
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDetailUser(user)}>
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
-                        {!user.anonymized && user.role !== 'Admin' && (
+                        {!user.anonymized && user.role !== UserRole.Admin && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-warning" onClick={() => setConfirmAnon(user.id)}>
                             <UserX className="w-3.5 h-3.5" />
                           </Button>
@@ -177,8 +179,8 @@ export default function AdminUsersPage() {
               <div className="space-y-3 text-sm">
                 <div className="grid grid-cols-2 gap-3">
                   <div><p className="text-muted-foreground">Email</p><p>{detailUser.email}</p></div>
-                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Rôle' : 'Role'}</p><p className="capitalize">{detailUser.role}</p></div>
-                  <div><p className="text-muted-foreground">Status</p><p className="capitalize">{detailUser.status}</p></div>
+                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Rôle' : 'Role'}</p><p>{enumLabel('UserRole', detailUser.role, locale)}</p></div>
+                  <div><p className="text-muted-foreground">Status</p><p>{enumLabel('UserStatus', detailUser.status, locale)}</p></div>
                   <div><p className="text-muted-foreground">{locale === 'fr' ? 'Email confirmé' : 'Email confirmed'}</p><p>{detailUser.emailConfirmed ? 'Yes' : 'No'}</p></div>
                   <div><p className="text-muted-foreground">{locale === 'fr' ? 'Créé le' : 'Created'}</p><p>{new Date(detailUser.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</p></div>
                   <div><p className="text-muted-foreground">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</p><p>{detailUser.lastLogin ? new Date(detailUser.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US') : '-'}</p></div>
@@ -196,7 +198,7 @@ export default function AdminUsersPage() {
                 <div>
                   <p className="font-medium mb-1">{locale === 'fr' ? 'Commandes' : 'Orders'} ({getUserOrders(detailUser.id).length})</p>
                   {getUserOrders(detailUser.id).map(o => (
-                    <div key={o.id} className="text-xs text-muted-foreground">#{o.id.split('-').pop()} - {o.status} - {new Date(o.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</div>
+                    <div key={o.id} className="text-xs text-muted-foreground">#{o.id.split('-').pop()} - {enumLabel('OrderStatus', o.status, locale)} - {new Date(o.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</div>
                   ))}
                 </div>
               </div>

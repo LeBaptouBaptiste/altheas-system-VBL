@@ -18,8 +18,8 @@ export const messagesService = {
   create: (data: { email: string; subject: string; message: string }) =>
     api.post<ContactMessageDto>('/messages', data),
 
-  updateStatus: (id: string, status: string) =>
-    api.put<void>(`/messages/${id}/status`, JSON.stringify(status)),
+  updateStatus: (id: string, status: number) =>
+    api.put<void>(`/messages/${id}/status`, status),
 
   delete: (id: string) =>
     api.delete(`/messages/${id}`),
@@ -50,6 +50,6 @@ export const messagesService = {
   getTicket: (id: string) =>
     api.get<SupportTicketDto>(`/tickets/${id}`),
 
-  updateTicket: (id: string, status: string) =>
+  updateTicket: (id: string, status: number) =>
     api.put<SupportTicketDto>(`/tickets/${id}`, { status }),
 };

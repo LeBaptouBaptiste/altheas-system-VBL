@@ -16,9 +16,16 @@ import { productsService, categoriesService } from '@/lib/api-services';
 import type { ProductDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
+import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
+import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = { Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0 };
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20,
+  [VatRate.Intermediate]: 0.10,
+  [VatRate.Reduced]: 0.055,
+  [VatRate.Zero]: 0,
+};
 
 type SortField = 'name' | 'priceHT' | 'stockQty' | 'status' | 'updatedAt';
 
@@ -43,8 +50,9 @@ export default function AdminProductsPage() {
 
   // Form state
   const [formData, setFormData] = useState({
-    nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: 'Standard' as string,
-    stockQty: '', status: 'Draft' as 'Active' | 'Draft', categoryId: '',
+    nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: String(VatRate.Standard),
+    stockQty: '', status: String(ProductStatus.Draft),
+    categoryId: '',
     priorityRank: '0', isNew: false,
   });
 
@@ -73,7 +81,7 @@ export default function AdminProductsPage() {
       list = list.filter(p => localized(toLocalized(p.nameFr, p.nameEn)).toLowerCase().includes(q) || p.slug.includes(q));
     }
     if (categoryFilter !== 'all') list = list.filter(p => p.categories.some(c => c.id === categoryFilter));
-    if (statusFilter !== 'all') list = list.filter(p => p.status === statusFilter);
+    if (statusFilter !== 'all') list = list.filter(p => p.status === Number(statusFilter));
 
     list.sort((a, b) => {
       let cmp = 0;
@@ -81,7 +89,7 @@ export default function AdminProductsPage() {
         case 'name': cmp = localized(toLocalized(a.nameFr, a.nameEn)).localeCompare(localized(toLocalized(b.nameFr, b.nameEn))); break;
         case 'priceHT': cmp = a.priceHT - b.priceHT; break;
         case 'stockQty': cmp = a.stockQty - b.stockQty; break;
-        case 'status': cmp = a.status.localeCompare(b.status); break;
+        case 'status': cmp = a.status - b.status; break;
         case 'updatedAt': cmp = a.updatedAt.localeCompare(b.updatedAt); break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
@@ -123,7 +131,7 @@ export default function AdminProductsPage() {
         setProductsList(prev => prev.filter(p => !selected.has(p.id)));
         toast.success(`${selected.size} ${locale === 'fr' ? 'produit(s) supprimé(s)' : 'product(s) deleted'}`);
       } else {
-        const newStatus = action === 'publish' ? 'Active' : 'Draft';
+        const newStatus = action === 'publish' ? ProductStatus.Active : ProductStatus.Draft;
         await Promise.all(Array.from(selected).map(id => productsService.update(id, { status: newStatus })));
         setProductsList(prev => prev.map(p => {
           if (!selected.has(p.id)) return p;
@@ -143,8 +151,8 @@ export default function AdminProductsPage() {
     setFormData({
       nameFr: product.nameFr, nameEn: product.nameEn,
       descFr: product.descriptionFr, descEn: product.descriptionEn,
-      priceHT: String(product.priceHT), vatRate: product.vatRate,
-      stockQty: String(product.stockQty), status: product.status === 'Active' ? 'Active' : 'Draft',
+      priceHT: String(product.priceHT), vatRate: String(product.vatRate),
+      stockQty: String(product.stockQty), status: product.status === ProductStatus.Active ? String(ProductStatus.Active) : String(ProductStatus.Draft),
       categoryId: product.categories[0]?.id || '', priorityRank: String(product.priorityRank),
       isNew: product.isNew,
     });
@@ -154,8 +162,8 @@ export default function AdminProductsPage() {
   const openNewDialog = () => {
     setEditProduct(null);
     setFormData({
-      nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: 'Standard',
-      stockQty: '', status: 'Draft', categoryId: categories[0]?.id || '', priorityRank: '0', isNew: true,
+      nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: String(VatRate.Standard),
+      stockQty: '', status: String(ProductStatus.Draft), categoryId: categories[0]?.id || '', priorityRank: '0', isNew: true,
     });
     setShowDialog(true);
   };
@@ -163,16 +171,16 @@ export default function AdminProductsPage() {
   const handleSave = async () => {
     const slug = formData.nameFr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const qty = parseInt(formData.stockQty) || 0;
-    const stockStatus = qty === 0 ? 'OutOfStock' : qty <= 5 ? 'LowStock' : 'InStock';
+    const stockStatus = qty === 0 ? StockStatus.OutOfStock : qty <= 5 ? StockStatus.LowStock : StockStatus.InStock;
 
     const payload = {
       nameFr: formData.nameFr, nameEn: formData.nameEn,
       descriptionFr: formData.descFr, descriptionEn: formData.descEn,
       longDescriptionFr: formData.descFr, longDescriptionEn: formData.descEn,
       priceHT: parseFloat(formData.priceHT) || 0,
-      vatRate: formData.vatRate,
+      vatRate: Number(formData.vatRate),
       stockQty: qty, stockStatus,
-      status: formData.status === 'Active' ? 'Active' : 'Draft',
+      status: Number(formData.status) === ProductStatus.Active ? ProductStatus.Active : ProductStatus.Draft,
       categoryIds: formData.categoryId ? [formData.categoryId] : [],
       priorityRank: parseInt(formData.priorityRank) || 0,
       isNew: formData.isNew,
@@ -199,7 +207,7 @@ export default function AdminProductsPage() {
   const exportCSV = () => {
     const header = 'ID,Name,Price HT,Stock,Status,Category\n';
     const rows = filtered.map(p =>
-      `${p.id},"${localized(toLocalized(p.nameFr, p.nameEn))}",${p.priceHT},${p.stockQty},${p.status},${p.categories.map(c => c.id).join(';')}`
+      `${p.id},"${localized(toLocalized(p.nameFr, p.nameEn))}",${p.priceHT},${p.stockQty},${enumLabel('ProductStatus', p.status, locale)},${p.categories.map(c => c.id).join(';')}`
     ).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -234,8 +242,8 @@ export default function AdminProductsPage() {
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
-            <SelectItem value="Active">{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
-            <SelectItem value="Draft">{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
+            <SelectItem value={String(ProductStatus.Active)}>{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
+            <SelectItem value={String(ProductStatus.Draft)}>{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
           </SelectContent>
         </Select>
         <Button size="sm" variant="outline" onClick={exportCSV}><Download className="w-4 h-4 mr-1" />{t('admin.export_csv')}</Button>
@@ -294,14 +302,14 @@ export default function AdminProductsPage() {
                     </td>
                     <td className="p-3 text-right font-medium">{fmt(p.priceHT)}</td>
                     <td className="p-3 text-center">
-                      <Badge variant={p.stockStatus === 'InStock' ? 'default' : p.stockStatus === 'LowStock' ? 'secondary' : 'destructive'}
-                        className={p.stockStatus === 'InStock' ? 'bg-success/10 text-success border-success/20' : p.stockStatus === 'LowStock' ? 'bg-warning/10 text-warning border-warning/20' : ''}>
+                      <Badge variant={p.stockStatus === StockStatus.InStock ? 'default' : p.stockStatus === StockStatus.LowStock ? 'secondary' : 'destructive'}
+                        className={p.stockStatus === StockStatus.InStock ? 'bg-success/10 text-success border-success/20' : p.stockStatus === StockStatus.LowStock ? 'bg-warning/10 text-warning border-warning/20' : ''}>
                         {p.stockQty}
                       </Badge>
                     </td>
                     <td className="p-3 text-center">
-                      <Badge variant="outline" className={p.status === 'Active' ? 'text-success border-success' : 'text-muted-foreground'}>
-                        {p.status === 'Active' ? (locale === 'fr' ? 'Publié' : 'Published') : (locale === 'fr' ? 'Brouillon' : 'Draft')}
+                      <Badge variant="outline" className={p.status === ProductStatus.Active ? 'text-success border-success' : 'text-muted-foreground'}>
+                        {enumLabel('ProductStatus', p.status, locale)}
                       </Badge>
                     </td>
                     <td className="p-3 text-center text-xs text-muted-foreground">
@@ -383,10 +391,10 @@ export default function AdminProductsPage() {
                 <Select value={formData.vatRate} onValueChange={v => setFormData(d => ({ ...d, vatRate: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Standard">20%</SelectItem>
-                    <SelectItem value="Intermediate">10%</SelectItem>
-                    <SelectItem value="Reduced">5,5%</SelectItem>
-                    <SelectItem value="Zero">0%</SelectItem>
+                    <SelectItem value={String(VatRate.Standard)}>20%</SelectItem>
+                    <SelectItem value={String(VatRate.Intermediate)}>10%</SelectItem>
+                    <SelectItem value={String(VatRate.Reduced)}>5,5%</SelectItem>
+                    <SelectItem value={String(VatRate.Zero)}>0%</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -407,11 +415,11 @@ export default function AdminProductsPage() {
               </div>
               <div>
                 <Label>Status</Label>
-                <Select value={formData.status} onValueChange={v => setFormData(d => ({ ...d, status: v as 'Active' | 'Draft' }))}>
+                <Select value={formData.status} onValueChange={v => setFormData(d => ({ ...d, status: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Active">{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
-                    <SelectItem value="Draft">{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
+                    <SelectItem value={String(ProductStatus.Active)}>{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
+                    <SelectItem value={String(ProductStatus.Draft)}>{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -15,10 +15,11 @@ import { productsService } from '@/lib/api-services';
 import type { ProductDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getImageUrl } from '@/lib/api-types';
 import { formatPrice, calculateTTC, calculateVAT } from '@/lib/money';
+import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20, [VatRate.Intermediate]: 0.10, [VatRate.Reduced]: 0.055, [VatRate.Zero]: 0,
 };
 
 export default function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -44,7 +45,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         if (prod.categories.length > 0) {
           try {
             const catProds = await productsService.getAll(1, 7, prod.categories[0].id);
-            setSimilar(catProds.data.filter(p => p.id !== prod.id && p.status === 'Active').slice(0, 6));
+            setSimilar(catProds.data.filter(p => p.id !== prod.id && p.status === ProductStatus.Active).slice(0, 6));
           } catch { setSimilar([]); }
         }
       })
@@ -58,7 +59,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
   const priceTTC = calculateTTC(product.priceHT, vatRate);
   const vatAmount = calculateVAT(product.priceHT, vatRate);
-  const isOOS = product.stockStatus === 'OutOfStock';
+  const isOOS = product.stockStatus === StockStatus.OutOfStock;
   const name = localized(toLocalized(product.nameFr, product.nameEn));
 
   const handleAddToCart = () => {
@@ -102,8 +103,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         <div>
           <div className="flex flex-wrap gap-2 mb-3">
             {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
-            {product.stockStatus === 'InStock' && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
-            {product.stockStatus === 'LowStock' && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
+            {product.stockStatus === StockStatus.InStock && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
+            {product.stockStatus === StockStatus.LowStock && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
             {isOOS && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}
           </div>
 

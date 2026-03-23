@@ -21,10 +21,11 @@ import { productsService, categoriesService } from '@/lib/api-services';
 import type { ProductDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl } from '@/lib/api-types';
 import { formatPrice, calculateTTC } from '@/lib/money';
+import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const VAT_RATE_VALUES: Record<string, number> = {
-  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+const VAT_RATE_VALUES: Record<number, number> = {
+  [VatRate.Standard]: 0.20, [VatRate.Intermediate]: 0.10, [VatRate.Reduced]: 0.055, [VatRate.Zero]: 0,
 };
 
 function SearchContent() {
@@ -62,12 +63,12 @@ function SearchContent() {
       }
 
       // Client-side filters
-      let filtered = data.filter(p => p.status === 'Active');
+      let filtered = data.filter(p => p.status === ProductStatus.Active);
       if (selectedCategories.length > 0) {
         filtered = filtered.filter(p => p.categories.some(c => selectedCategories.includes(c.id)));
       }
       if (availableOnly) {
-        filtered = filtered.filter(p => p.stockStatus !== 'OutOfStock');
+        filtered = filtered.filter(p => p.stockStatus !== StockStatus.OutOfStock);
       }
       if (priceMin) {
         const min = parseFloat(priceMin);
@@ -175,7 +176,7 @@ function SearchContent() {
                   {results.map(product => {
                     const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
                     const price = calculateTTC(product.priceHT, vatRate);
-                    const isOOS = product.stockStatus === 'OutOfStock';
+                    const isOOS = product.stockStatus === StockStatus.OutOfStock;
                     const name = localized(toLocalized(product.nameFr, product.nameEn));
                     return (
                       <Card key={product.id} className={`overflow-hidden hover:shadow-md transition-shadow ${isOOS ? 'opacity-60' : ''}`}>

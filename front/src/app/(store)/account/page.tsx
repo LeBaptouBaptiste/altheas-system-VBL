@@ -17,16 +17,17 @@ import { ordersService } from '@/lib/api-services';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
+import { OrderStatus, enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const statusColors: Record<string, string> = {
-  Pending: 'bg-warning text-white',
-  Confirmed: 'bg-blue-400 text-white',
-  Processing: 'bg-brand-primary text-white',
-  Shipped: 'bg-blue-500 text-white',
-  Delivered: 'bg-success text-white',
-  Cancelled: 'bg-error text-white',
-  Returned: 'bg-gray-500 text-white',
+const statusColors: Record<number, string> = {
+  [OrderStatus.Pending]: 'bg-warning text-white',
+  [OrderStatus.Confirmed]: 'bg-blue-400 text-white',
+  [OrderStatus.Processing]: 'bg-brand-primary text-white',
+  [OrderStatus.Shipped]: 'bg-blue-500 text-white',
+  [OrderStatus.Delivered]: 'bg-success text-white',
+  [OrderStatus.Cancelled]: 'bg-error text-white',
+  [OrderStatus.Returned]: 'bg-gray-500 text-white',
 };
 
 export default function AccountPage() {
@@ -117,9 +118,9 @@ export default function AccountPage() {
                             <span className="text-sm text-muted-foreground ml-3">{order.date.slice(0, 10)}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <Badge className={statusColors[order.status] || 'bg-gray-200'}>{order.status}</Badge>
+                            <Badge className={statusColors[order.status] || 'bg-gray-200'}>{enumLabel('OrderStatus', order.status, locale)}</Badge>
                             <span className="font-bold">{fmt(order.totalTTC)}</span>
-                            <Button variant="outline" size="sm" onClick={() => toast.info('Invoice PDF (mock)')}>
+                            <Button variant="outline" size="sm" onClick={() => toast.info(locale === 'fr' ? 'Téléchargement de la facture...' : 'Downloading invoice...')}>
                               <Download className="w-3 h-3 mr-1" />{t('account.download_invoice')}
                             </Button>
                           </div>

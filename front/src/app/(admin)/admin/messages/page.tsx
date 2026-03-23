@@ -11,20 +11,22 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { messagesService } from '@/lib/api-services';
 import type { ContactMessageDto, ChatConversationDto, SupportTicketDto } from '@/lib/api-types';
+import { MessageStatus, TicketStatus } from '@/lib/enums';
+import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const MSG_STATUS_COLORS: Record<string, string> = {
-  Unread: 'bg-error/10 text-error border-error/20',
-  Read: 'bg-blue-50 text-blue-600 border-blue-200',
-  Replied: 'bg-success/10 text-success border-success/20',
-  Archived: 'bg-gray-100 text-muted-foreground',
+const MSG_STATUS_COLORS: Record<number, string> = {
+  [MessageStatus.Unread]: 'bg-error/10 text-error border-error/20',
+  [MessageStatus.Read]: 'bg-blue-50 text-blue-600 border-blue-200',
+  [MessageStatus.Replied]: 'bg-success/10 text-success border-success/20',
+  [MessageStatus.Archived]: 'bg-gray-100 text-muted-foreground',
 };
 
-const TICKET_STATUS_COLORS: Record<string, string> = {
-  Open: 'bg-error/10 text-error border-error/20',
-  InProgress: 'bg-warning/10 text-warning border-warning/20',
-  Resolved: 'bg-success/10 text-success border-success/20',
-  Closed: 'bg-gray-100 text-muted-foreground',
+const TICKET_STATUS_COLORS: Record<number, string> = {
+  [TicketStatus.Open]: 'bg-error/10 text-error border-error/20',
+  [TicketStatus.InProgress]: 'bg-warning/10 text-warning border-warning/20',
+  [TicketStatus.Resolved]: 'bg-success/10 text-success border-success/20',
+  [TicketStatus.Closed]: 'bg-gray-100 text-muted-foreground',
 };
 
 export default function AdminMessagesPage() {
@@ -57,7 +59,7 @@ export default function AdminMessagesPage() {
     load();
   }, []);
 
-  const handleMessageStatus = async (id: string, status: string) => {
+  const handleMessageStatus = async (id: string, status: number) => {
     try {
       await messagesService.updateStatus(id, status);
       setMessages(prev => prev.map(m => m.id === id ? { ...m, status: status as ContactMessageDto['status'] } : m));
@@ -68,7 +70,7 @@ export default function AdminMessagesPage() {
     }
   };
 
-  const handleTicketStatus = async (id: string, status: string) => {
+  const handleTicketStatus = async (id: string, status: number) => {
     try {
       const updated = await messagesService.updateTicket(id, status);
       setTickets(prev => prev.map(t => t.id === id ? updated : t));
@@ -104,9 +106,9 @@ export default function AdminMessagesPage() {
     );
   }
 
-  const unreadCount = messages.filter(m => m.status === 'Unread').length;
+  const unreadCount = messages.filter(m => m.status === MessageStatus.Unread).length;
   const escalatedCount = chats.filter(c => c.escalated).length;
-  const openTickets = tickets.filter(t => t.status !== 'Closed' && t.status !== 'Resolved').length;
+  const openTickets = tickets.filter(t => t.status !== TicketStatus.Closed && t.status !== TicketStatus.Resolved).length;
 
   return (
     <div className="space-y-4">
@@ -155,28 +157,28 @@ export default function AdminMessagesPage() {
                 </thead>
                 <tbody>
                   {[...messages].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(msg => (
-                    <tr key={msg.id} className={`border-b hover:bg-gray-50/50 ${msg.status === 'Unread' ? 'bg-blue-50/30' : ''}`}>
+                    <tr key={msg.id} className={`border-b hover:bg-gray-50/50 ${msg.status === MessageStatus.Unread ? 'bg-blue-50/30' : ''}`}>
                       <td className="p-3">
                         <button className="text-brand-primary hover:underline text-xs" onClick={() => copyEmail(msg.email)}>
                           {msg.email} <Copy className="w-3 h-3 inline ml-1" />
                         </button>
                       </td>
                       <td className="p-3">
-                        <button onClick={() => { setViewMessage(msg); if (msg.status === 'Unread') handleMessageStatus(msg.id, 'Read'); }} className="text-left hover:text-brand-primary">
-                          <span className={msg.status === 'Unread' ? 'font-semibold' : ''}>{msg.subject}</span>
+                        <button onClick={() => { setViewMessage(msg); if (msg.status === MessageStatus.Unread) handleMessageStatus(msg.id, MessageStatus.Read); }} className="text-left hover:text-brand-primary">
+                          <span className={msg.status === MessageStatus.Unread ? 'font-semibold' : ''}>{msg.subject}</span>
                         </button>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">{new Date(msg.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
                       <td className="p-3 text-center">
-                        <Badge variant="outline" className={MSG_STATUS_COLORS[msg.status] || ''}>{msg.status}</Badge>
+                        <Badge variant="outline" className={MSG_STATUS_COLORS[msg.status] || ''}>{enumLabel('MessageStatus', msg.status, locale)}</Badge>
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setViewMessage(msg); if (msg.status === 'Unread') handleMessageStatus(msg.id, 'Read'); }}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setViewMessage(msg); if (msg.status === MessageStatus.Unread) handleMessageStatus(msg.id, MessageStatus.Read); }}>
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
-                          {msg.status !== 'Replied' && msg.status !== 'Archived' && (
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-success" onClick={() => handleMessageStatus(msg.id, 'Replied')}>
+                          {msg.status !== MessageStatus.Replied && msg.status !== MessageStatus.Archived && (
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-success" onClick={() => handleMessageStatus(msg.id, MessageStatus.Replied)}>
                               <CheckCircle className="w-3.5 h-3.5" />
                             </Button>
                           )}
@@ -237,24 +239,24 @@ export default function AdminMessagesPage() {
                       <td className="p-3 text-muted-foreground text-xs">{ticket.email}</td>
                       <td className="p-3 text-center">
                         <Badge variant="outline" className={TICKET_STATUS_COLORS[ticket.status] || ''}>
-                          {ticket.status === 'Open' ? (locale === 'fr' ? 'Ouvert' : 'Open') : ticket.status === 'InProgress' ? (locale === 'fr' ? 'En cours' : 'In Progress') : ticket.status === 'Resolved' ? (locale === 'fr' ? 'Résolu' : 'Resolved') : (locale === 'fr' ? 'Fermé' : 'Closed')}
+                          {enumLabel('TicketStatus', ticket.status, locale)}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">{new Date(ticket.updatedAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {ticket.status === 'Open' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, 'InProgress')}>
+                          {ticket.status === TicketStatus.Open && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, TicketStatus.InProgress)}>
                               {locale === 'fr' ? 'Prendre en charge' : 'Take over'}
                             </Button>
                           )}
-                          {ticket.status === 'InProgress' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-success" onClick={() => handleTicketStatus(ticket.id, 'Closed')}>
+                          {ticket.status === TicketStatus.InProgress && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-success" onClick={() => handleTicketStatus(ticket.id, TicketStatus.Closed)}>
                               {locale === 'fr' ? 'Fermer' : 'Close'}
                             </Button>
                           )}
-                          {ticket.status === 'Closed' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, 'Open')}>
+                          {ticket.status === TicketStatus.Closed && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, TicketStatus.Open)}>
                               {locale === 'fr' ? 'Réouvrir' : 'Reopen'}
                             </Button>
                           )}
@@ -289,8 +291,8 @@ export default function AdminMessagesPage() {
                   <Button size="sm" variant="outline" onClick={() => copyEmail(viewMessage.email)}>
                     <Copy className="w-3.5 h-3.5 mr-1" />{t('admin.copy_email')}
                   </Button>
-                  {viewMessage.status !== 'Replied' && viewMessage.status !== 'Archived' && (
-                    <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => { handleMessageStatus(viewMessage.id, 'Replied'); setViewMessage(null); }}>
+                  {viewMessage.status !== MessageStatus.Replied && viewMessage.status !== MessageStatus.Archived && (
+                    <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => { handleMessageStatus(viewMessage.id, MessageStatus.Replied); setViewMessage(null); }}>
                       <CheckCircle className="w-3.5 h-3.5 mr-1" />{t('admin.mark_treated')}
                     </Button>
                   )}
@@ -311,8 +313,8 @@ export default function AdminMessagesPage() {
               </DialogHeader>
               <div className="flex-1 overflow-y-auto space-y-2 py-2">
                 {viewChat.messages.map(msg => (
-                  <div key={msg.id} className={`flex ${msg.role === 'User' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${msg.role === 'User' ? 'bg-brand-primary text-white' : 'bg-gray-100'}`}>
+                  <div key={msg.id} className={`flex ${msg.role === 0 ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${msg.role === 0 ? 'bg-brand-primary text-white' : 'bg-gray-100'}`}>
                       {msg.content}
                     </div>
                   </div>

@@ -37,8 +37,8 @@ export interface UserDto {
   id: string;
   name: string;
   email: string;
-  role: 'Customer' | 'Admin';
-  status: 'Active' | 'Inactive';
+  role: number;
+  status: number;
   anonymized: boolean;
   emailConfirmed: boolean;
   twoFactorEnabled: boolean;
@@ -80,13 +80,13 @@ export interface ProductDto {
   longDescriptionFr: string;
   longDescriptionEn: string;
   priceHT: number;
-  vatRate: 'Standard' | 'Intermediate' | 'Reduced' | 'Zero';
+  vatRate: number;
   stockQty: number;
-  stockStatus: 'InStock' | 'LowStock' | 'OutOfStock';
+  stockStatus: number;
   isNew: boolean;
   priorityRank: number;
   images: string[];
-  status: 'Active' | 'Inactive' | 'Draft';
+  status: number;
   createdAt: string;
   updatedAt: string;
   categories: CategorySummaryDto[];
@@ -128,12 +128,12 @@ export interface OrderDto {
   userId: string;
   userName: string;
   date: string;
-  status: 'Pending' | 'Confirmed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Returned';
-  paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
-  paymentMethod: 'Card' | 'BankTransfer' | 'PayPal';
+  status: number;
+  paymentStatus: number;
+  paymentMethod: number;
   billingAddress: AddressDto;
   shippingAddress: AddressDto;
-  shippingMethod: 'Standard' | 'Express' | 'Overnight';
+  shippingMethod: number;
   shippingCost: number;
   totalHT: number;
   totalVAT: number;
@@ -150,12 +150,12 @@ export interface OrderItemDto {
   productNameEn: string;
   quantity: number;
   priceHT: number;
-  vatRate: string;
+  vatRate: number;
 }
 
 export interface OrderStatusChangeDto {
-  from: string;
-  to: string;
+  from: number;
+  to: number;
   date: string;
   userId: string;
 }
@@ -169,8 +169,8 @@ export interface InvoiceDto {
   amountHT: number;
   vatAmount: number;
   amountTTC: number;
-  status: 'Paid' | 'Pending' | 'Overdue' | 'Cancelled';
-  type: 'Invoice' | 'CreditNote';
+  status: number;
+  type: number;
   relatedInvoiceId: string | null;
 }
 
@@ -181,7 +181,7 @@ export interface ContactMessageDto {
   email: string;
   subject: string;
   message: string;
-  status: 'Unread' | 'Read' | 'Replied' | 'Archived';
+  status: number;
   createdAt: string;
 }
 
@@ -197,7 +197,7 @@ export interface ChatConversationDto {
 
 export interface ChatMessageDto {
   id: string;
-  role: 'User' | 'Bot';
+  role: number;
   content: string;
   timestamp: string;
 }
@@ -208,7 +208,7 @@ export interface SupportTicketDto {
   contactMessageId: string | null;
   email: string;
   subject: string;
-  status: 'Open' | 'InProgress' | 'Resolved' | 'Closed';
+  status: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -281,6 +281,11 @@ export interface HealthResponse {
 // ── Image helpers (moved from mock/images.ts) ─────────
 
 const IMAGE_MAP: Record<string, string> = {
+  // Hero slides
+  'hero-1': 'https://images.unsplash.com/photo-1587010580103-fd86b8ea14ca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
+  'hero-2': 'https://images.unsplash.com/photo-1721114989769-0423619f03d2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
+  'hero-3': 'https://images.unsplash.com/photo-1758653500328-1c4474a8adfe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
+  // Products
   'imaging-1': 'https://images.unsplash.com/photo-1587010580103-fd86b8ea14ca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
   'monitors-1': 'https://images.unsplash.com/photo-1721114989769-0423619f03d2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
   'sterilization-1': 'https://images.unsplash.com/photo-1758653500328-1c4474a8adfe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
