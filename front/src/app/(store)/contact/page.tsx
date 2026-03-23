@@ -18,10 +18,16 @@ export default function ContactPage() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSent(true);
-    toast.success(t('contact.success'));
+    try {
+      const { messagesService } = await import('@/lib/api-services');
+      await messagesService.create({ email, subject, message });
+      setSent(true);
+      toast.success(t('contact.success'));
+    } catch {
+      toast.error(t('common.error'));
+    }
   };
 
   if (sent) {

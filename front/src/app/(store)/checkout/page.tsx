@@ -13,9 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
-import { products } from '@/mock';
-import { formatPrice, calculateTTC } from '@/lib/money';
-import { VAT_RATES, SHIPPING_METHODS } from '@/lib/constants';
+import { formatPrice } from '@/lib/money';
+import { SHIPPING_METHODS } from '@/lib/constants';
 import { toast } from 'sonner';
 
 const STEPS = ['auth', 'address', 'shipping', 'payment', 'confirmation'] as const;
