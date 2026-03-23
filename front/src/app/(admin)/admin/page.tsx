@@ -1,46 +1,79 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { DollarSign, ShoppingCart, AlertTriangle, Mail, Plus, Package, Eye, Download } from 'lucide-react';
+import { DollarSign, ShoppingCart, AlertTriangle, Mail, Plus, Package, Eye, Download, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/context/i18n-context';
-import { kpis, dailyAnalytics, weeklyAnalytics, categories } from '@/mock';
+import { analyticsService, categoriesService } from '@/lib/api-services';
+import type { DashboardKpiDto, SalesAnalyticsDto, CategoryDto } from '@/lib/api-types';
+import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const COLORS = ['#00A8B5', '#33BFC9', '#003D5C', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 export default function AdminDashboard() {
-  const { t, locale } = useI18n();
+  const { t, locale, localized } = useI18n();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+
+  const [kpis, setKpis] = useState<DashboardKpiDto | null>(null);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [dashboardData, cats] = await Promise.all([
+          analyticsService.getDashboard(),
+          categoriesService.getAll(),
+        ]);
+        setKpis(dashboardData);
+        setCategories(cats);
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  if (loading || !kpis) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+      </div>
+    );
+  }
 
   // KPI cards
   const kpiCards = [
-    { label: t('admin.revenue_today'), value: fmt(kpis.revenueToday), icon: DollarSign, color: 'text-success' },
-    { label: t('admin.revenue_week'), value: fmt(kpis.revenueWeek), icon: DollarSign, color: 'text-brand-primary' },
-    { label: t('admin.revenue_month'), value: fmt(kpis.revenueMonth), icon: DollarSign, color: 'text-brand-dark' },
-    { label: t('admin.orders_today'), value: String(kpis.ordersToday), icon: ShoppingCart, color: 'text-brand-primary' },
-    { label: t('admin.stock_alerts'), value: String(kpis.stockAlerts), icon: AlertTriangle, color: 'text-warning' },
-    { label: t('admin.unread_messages'), value: String(kpis.unreadMessages), icon: Mail, color: 'text-error' },
+    { label: t('admin.revenue_today'), value: fmt(kpis.totalRevenue), icon: DollarSign, color: 'text-success' },
+    { label: t('admin.revenue_week'), value: fmt(kpis.averageOrderValue), icon: DollarSign, color: 'text-brand-primary' },
+    { label: t('admin.revenue_month'), value: fmt(kpis.totalRevenue), icon: DollarSign, color: 'text-brand-dark' },
+    { label: t('admin.orders_today'), value: String(kpis.totalOrders), icon: ShoppingCart, color: 'text-brand-primary' },
+    { label: t('admin.stock_alerts'), value: String(kpis.totalProducts), icon: AlertTriangle, color: 'text-warning' },
+    { label: t('admin.unread_messages'), value: String(kpis.totalCustomers), icon: Mail, color: 'text-error' },
   ];
 
-  // Pie chart data: aggregate category breakdown from weekly
+  // Pie chart data: aggregate category breakdown from daily sales
   const catBreakdown: Record<string, number> = {};
-  weeklyAnalytics.forEach(w => {
-    Object.entries(w.categoryBreakdown).forEach(([catId, amount]) => {
+  kpis.dailySales.forEach(d => {
+    Object.entries(d.categoryBreakdown).forEach(([catId, amount]) => {
       catBreakdown[catId] = (catBreakdown[catId] || 0) + amount;
     });
   });
   const pieData = Object.entries(catBreakdown)
     .map(([catId, value]) => {
       const cat = categories.find(c => c.id === catId);
-      return { name: cat ? (cat.name[locale] || cat.name.fr) : catId, value };
+      return { name: cat ? localized(toLocalized(cat.nameFr, cat.nameEn)) : catId, value };
     })
     .sort((a, b) => b.value - a.value);
 
   // Bar chart: daily revenue
-  const barData = dailyAnalytics.map(d => ({
+  const barData = kpis.dailySales.map(d => ({
     date: new Date(d.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'short', day: 'numeric' }),
     revenue: d.revenue,
   }));
@@ -132,7 +165,7 @@ export default function AdminDashboard() {
               </Button>
             </Link>
             <Button size="sm" variant="outline" onClick={() => {
-              const csv = 'Date,Revenue,Orders\n' + dailyAnalytics.map(d => `${d.date},${d.revenue},${d.orders}`).join('\n');
+              const csv = 'Date,Revenue,Orders\n' + kpis.dailySales.map(d => `${d.date},${d.revenue},${d.orderCount}`).join('\n');
               const blob = new Blob([csv], { type: 'text/csv' });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
