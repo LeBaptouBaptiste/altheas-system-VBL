@@ -1,0 +1,69 @@
+services:
+  api:
+    build:
+      context: ./API_Althea-systems
+      dockerfile: Dockerfile
+    container_name: althea-api
+    restart: unless-stopped
+    ports:
+      - "5207:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__PostgreSQL: "Host=postgres;Port=5432;Database=althea_systems_dev;Username=postgres;Password=althea_dev_2026"
+      ConnectionStrings__MongoDB: "mongodb://mongodb:27017/althea_systems_dev"
+      ConnectionStrings__Redis: "redis:6379"
+      JwtSettings__SecretKey: "CHANGE_THIS_TO_A_SECURE_SECRET_KEY_AT_LEAST_32_CHARACTERS_LONG"
+      JwtSettings__Issuer: "AltheaSystems"
+      JwtSettings__Audience: "AltheaSystemsClient"
+    depends_on:
+      - postgres
+      - mongodb
+      - redis
+    networks:
+      - althea-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: althea-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: althea_systems_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: althea_dev_2026
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - althea-network
+
+  mongodb:
+    image: mongo:7
+    container_name: althea-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - althea-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: althea-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - althea-network
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+
+networks:
+  althea-network:
+    driver: bridge

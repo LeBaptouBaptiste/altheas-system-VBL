@@ -24,44 +24,11 @@ public static class DataSeeder
                 Id = adminId,
                 Name = "Admin Althea",
                 Email = "admin@altheasystems.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin1234!"),
                 Role = UserRole.Admin,
                 Status = UserStatus.Active,
                 EmailConfirmed = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-            },
-            new()
-            {
-                Id = user1Id,
-                Name = "Dr. Sophie Martin",
-                Email = "sophie.martin@hopital-lyon.fr",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
-                Role = UserRole.Customer,
-                Status = UserStatus.Active,
-                EmailConfirmed = true,
-                CreatedAt = new DateTime(2025, 3, 15, 0, 0, 0, DateTimeKind.Utc)
-            },
-            new()
-            {
-                Id = user2Id,
-                Name = "Pierre Dubois",
-                Email = "p.dubois@clinique-paris.fr",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
-                Role = UserRole.Customer,
-                Status = UserStatus.Active,
-                EmailConfirmed = true,
-                CreatedAt = new DateTime(2025, 6, 20, 0, 0, 0, DateTimeKind.Utc)
-            },
-            new()
-            {
-                Id = user3Id,
-                Name = "Marie Lefevre",
-                Email = "marie.lefevre@chu-bordeaux.fr",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
-                Role = UserRole.Customer,
-                Status = UserStatus.Active,
-                EmailConfirmed = true,
-                CreatedAt = new DateTime(2025, 1, 10, 0, 0, 0, DateTimeKind.Utc)
             }
         };
 
