@@ -1,0 +1,15 @@
+using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Models.Users;
+
+namespace API_Althea_systems.Controllers.IControllers;
+
+public interface IAuthController
+{
+    Task<ActionResult<AuthResponse>> Register(RegisterRequest request);
+    Task<ActionResult<AuthResponse>> Login(LoginRequest request);
+    Task<ActionResult<UserDto>> GetMe();
+    Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request);
+    Task<IActionResult> ForgotPassword(ForgotPasswordRequest request);
+    Task<IActionResult> ResetPassword(ResetPasswordRequest request);
+    Task<IActionResult> Verify2Fa(Verify2FaRequest request);
+}
