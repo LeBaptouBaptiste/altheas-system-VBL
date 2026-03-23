@@ -20,10 +20,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const result = login(email, password);
+    const result = await login(email, password);
     if (result.success) {
       toast.success(t('auth.login') + ' ✓');
       router.push('/');

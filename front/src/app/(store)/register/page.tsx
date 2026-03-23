@@ -23,12 +23,12 @@ export default function RegisterPage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (password !== confirmPw) { setError('Passwords do not match'); return; }
     if (password.length < 8) { setError(t('auth.password_rules')); return; }
-    const result = register(name, email, password);
+    const result = await register(name, email, password);
     if (result.success) {
       setStep('confirm');
     } else {
@@ -36,8 +36,8 @@ export default function RegisterPage() {
     }
   };
 
-  const handleConfirm = () => {
-    confirmEmail();
+  const handleConfirm = async () => {
+    await confirmEmail(email);
     toast.success(t('auth.login') + ' ✓');
     router.push('/');
   };

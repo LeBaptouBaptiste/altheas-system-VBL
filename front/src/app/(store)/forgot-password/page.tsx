@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     <div className="container mx-auto px-4 py-16 max-w-md">
       <Card><CardContent className="p-6">
         <h1 className="text-2xl text-brand-dark mb-6 text-center">{t('auth.reset_password')}</h1>
-        <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} className="space-y-4">
+        <form onSubmit={async (e) => { e.preventDefault(); const { authService } = await import('@/lib/api-services'); await authService.forgotPassword(email); setSent(true); }} className="space-y-4">
           <div><Label htmlFor="email">{t('auth.email')}</Label><Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div>
           <Button type="submit" className="w-full bg-brand-primary hover:bg-brand-hover text-white">{t('auth.reset_password')}</Button>
         </form>

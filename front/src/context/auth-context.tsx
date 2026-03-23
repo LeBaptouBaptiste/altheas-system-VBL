@@ -1,124 +1,136 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import type { User } from '@/mock/types';
-import { users } from '@/mock/users';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { setToken, clearToken } from '@/lib/api';
+import { authService, usersService } from '@/lib/api-services';
+import type { UserDto } from '@/lib/api-types';
 
 interface AuthContextType {
-  user: User | null;
+  user: UserDto | null;
+  loading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
-  register: (name: string, email: string, password: string) => { success: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  confirmEmail: () => void;
+  confirmEmail: (token: string) => Promise<void>;
   twoFactorVerified: boolean;
-  verifyTwoFactor: (code: string) => boolean;
-  updateUser: (updates: Partial<User>) => void;
-  anonymizeAccount: () => void;
+  verifyTwoFactor: (code: string) => Promise<boolean>;
+  updateUser: (updates: { name?: string; email?: string }) => Promise<void>;
+  anonymizeAccount: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('althea-user');
-      if (saved) {
-        try { return JSON.parse(saved); } catch { /* ignore */ }
-      }
-    }
-    return null;
-  });
+  const [user, setUser] = useState<UserDto | null>(null);
+  const [loading, setLoading] = useState(true);
   const [twoFactorVerified, setTwoFactorVerified] = useState(false);
 
-  const persistUser = (u: User | null) => {
-    setUser(u);
-    if (typeof window !== 'undefined') {
-      if (u) localStorage.setItem('althea-user', JSON.stringify(u));
-      else localStorage.removeItem('althea-user');
+  // On mount: check if token exists and validate it
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('althea-token') : null;
+    if (!token) {
+      setLoading(false);
+      return;
     }
-  };
 
-  const login = useCallback((email: string, password: string) => {
-    const found = users.find(u => u.email === email && u.password === password);
-    if (!found) return { success: false, error: 'auth.email_not_confirmed' };
-    if (!found.emailConfirmed) return { success: false, error: 'auth.email_not_confirmed' };
-    if (found.anonymized) return { success: false, error: 'common.error' };
-    persistUser(found);
-    setTwoFactorVerified(false);
-    return { success: true };
+    authService.getMe()
+      .then((u) => setUser(u))
+      .catch(() => {
+        clearToken();
+        // Also clean up legacy localStorage key
+        localStorage.removeItem('althea-user');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const register = useCallback((name: string, email: string, _password: string) => {
-    const exists = users.find(u => u.email === email);
-    if (exists) return { success: false, error: 'Email already exists' };
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      name, email,
-      status: 'pending',
-      anonymized: false,
-      emailConfirmed: false,
-      role: 'customer',
-      addresses: [],
-      paymentMethods: [],
-      lastLogin: new Date().toISOString(),
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    persistUser(newUser);
-    return { success: true };
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const response = await authService.login(email, password);
+      setToken(response.accessToken);
+      setUser(response.user);
+      setTwoFactorVerified(false);
+      // Clean up legacy key
+      localStorage.removeItem('althea-user');
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'common.error';
+      return { success: false, error: message };
+    }
+  }, []);
+
+  const register = useCallback(async (name: string, email: string, password: string) => {
+    try {
+      const response = await authService.register(name, email, password, password);
+      setToken(response.accessToken);
+      setUser(response.user);
+      localStorage.removeItem('althea-user');
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'common.error';
+      return { success: false, error: message };
+    }
   }, []);
 
   const logout = useCallback(() => {
-    persistUser(null);
+    clearToken();
+    setUser(null);
     setTwoFactorVerified(false);
+    localStorage.removeItem('althea-user');
   }, []);
 
-  const confirmEmail = useCallback(() => {
-    if (user) {
-      const updated = { ...user, emailConfirmed: true, status: 'active' as const };
-      persistUser(updated);
-    }
-  }, [user]);
+  const confirmEmail = useCallback(async (token: string) => {
+    await authService.confirmEmail(token);
+    // Refresh user to get updated emailConfirmed status
+    const updated = await authService.getMe();
+    setUser(updated);
+  }, []);
 
-  const verifyTwoFactor = useCallback((code: string) => {
-    if (code === '123456') {
+  const verifyTwoFactor = useCallback(async (code: string) => {
+    try {
+      await authService.verify2fa(code);
       setTwoFactorVerified(true);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }, []);
 
-  const updateUser = useCallback((updates: Partial<User>) => {
-    if (user) {
-      const updated = { ...user, ...updates };
-      persistUser(updated);
-    }
+  const updateUser = useCallback(async (updates: { name?: string; email?: string }) => {
+    if (!user) return;
+    const updated = await usersService.update(user.id, updates);
+    setUser(updated);
   }, [user]);
 
-  const anonymizeAccount = useCallback(() => {
-    if (user) {
-      const anonymized: User = {
-        ...user,
-        name: 'Anonymisé',
-        email: `anon-${user.id}@deleted.local`,
-        anonymized: true,
-        status: 'inactive',
-        addresses: [],
-        paymentMethods: [],
-      };
-      persistUser(anonymized);
-    }
+  const anonymizeAccount = useCallback(async () => {
+    if (!user) return;
+    await usersService.anonymize(user.id);
+    clearToken();
+    setUser(null);
+    localStorage.removeItem('althea-user');
   }, [user]);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const updated = await authService.getMe();
+      setUser(updated);
+    } catch {
+      clearToken();
+      setUser(null);
+    }
+  }, []);
 
   return (
     <AuthContext.Provider value={{
       user,
+      loading,
       isAuthenticated: !!user && user.emailConfirmed,
-      isAdmin: user?.role === 'admin',
+      isAdmin: user?.role === 'Admin',
       login, register, logout, confirmEmail,
       twoFactorVerified, verifyTwoFactor,
-      updateUser, anonymizeAccount,
+      updateUser, anonymizeAccount, refreshUser,
     }}>
       {children}
     </AuthContext.Provider>
