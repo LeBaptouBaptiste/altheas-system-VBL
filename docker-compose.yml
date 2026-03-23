@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: althea-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: althea_systems_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: althea_dev_2026
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - althea-network
+
+  mongodb:
+    image: mongo:7
+    container_name: althea-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - althea-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: althea-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - althea-network
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+
+networks:
+  althea-network:
+    driver: bridge

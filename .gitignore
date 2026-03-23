@@ -61,6 +61,10 @@ front/out/
 .env.*
 !.env.example
 
+# ASP.NET sensitive config
+**/appsettings.Development.json
+!**/appsettings.Development.example.json
+
 # Misc
 *.log
 *.tmp
