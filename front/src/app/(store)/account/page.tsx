@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
-import { ordersService } from '@/lib/api-services';
+import { ordersService, usersService, authService } from '@/lib/api-services';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
@@ -32,17 +32,28 @@ const statusColors: Record<number, string> = {
 
 export default function AccountPage() {
   const { t, locale, localized } = useI18n();
-  const { user, isAuthenticated, anonymizeAccount, logout, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, anonymizeAccount, logout, refreshUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
   const [userOrders, setUserOrders] = useState<OrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name);
+      setEditEmail(user.email);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -78,11 +89,30 @@ export default function AccountPage() {
         {/* Settings */}
         <TabsContent value="settings">
           <Card><CardContent className="p-6 space-y-4">
-            <div><Label>{t('auth.full_name')}</Label><Input defaultValue={user.name} /></div>
-            <div><Label>{t('auth.email')}</Label><Input defaultValue={user.email} /><p className="text-xs text-muted-foreground mt-1">{locale === 'fr' ? 'Modifier l\'email nécessite une confirmation' : 'Changing email requires confirmation'}</p></div>
+            <div><Label>{t('auth.full_name')}</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
+            <div><Label>{t('auth.email')}</Label><Input value={editEmail} onChange={e => setEditEmail(e.target.value)} /><p className="text-xs text-muted-foreground mt-1">{locale === 'fr' ? 'Modifier l\'email nécessite une confirmation' : 'Changing email requires confirmation'}</p></div>
             <Separator />
-            <div><Label>{t('auth.password')}</Label><Input type="password" placeholder="••••••••" /><p className="text-xs text-muted-foreground mt-1">{t('auth.password_rules')}</p></div>
-            <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => toast.success(t('account.save') + ' ✓')}>{t('account.save')}</Button>
+            <div><Label>{t('auth.password')}</Label><Input type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} /><p className="text-xs text-muted-foreground mt-1">{t('auth.password_rules')}</p></div>
+            <Button className="bg-brand-primary hover:bg-brand-hover text-white" disabled={saving} onClick={async () => {
+              setSaving(true);
+              try {
+                // Update name/email if changed
+                if (editName !== user.name || editEmail !== user.email) {
+                  await usersService.update(user.id, { name: editName, email: editEmail });
+                }
+                // Update password if provided
+                if (newPassword) {
+                  await authService.resetPassword(user.email, newPassword, newPassword);
+                  setNewPassword('');
+                }
+                await refreshUser();
+                toast.success(t('account.save') + ' ✓');
+              } catch {
+                toast.error(t('common.error'));
+              } finally {
+                setSaving(false);
+              }
+            }}>{saving ? '...' : t('account.save')}</Button>
             <Separator />
             <Dialog>
               <DialogTrigger asChild>
