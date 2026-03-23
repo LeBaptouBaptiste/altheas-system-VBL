@@ -1,4 +1,27 @@
 services:
+  api:
+    build:
+      context: ./API_Althea-systems
+      dockerfile: Dockerfile
+    container_name: althea-api
+    restart: unless-stopped
+    ports:
+      - "5207:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__PostgreSQL: "Host=postgres;Port=5432;Database=althea_systems_dev;Username=postgres;Password=althea_dev_2026"
+      ConnectionStrings__MongoDB: "mongodb://mongodb:27017/althea_systems_dev"
+      ConnectionStrings__Redis: "redis:6379"
+      JwtSettings__SecretKey: "CHANGE_THIS_TO_A_SECURE_SECRET_KEY_AT_LEAST_32_CHARACTERS_LONG"
+      JwtSettings__Issuer: "AltheaSystems"
+      JwtSettings__Audience: "AltheaSystemsClient"
+    depends_on:
+      - postgres
+      - mongodb
+      - redis
+    networks:
+      - althea-network
+
   postgres:
     image: postgres:16-alpine
     container_name: althea-postgres
