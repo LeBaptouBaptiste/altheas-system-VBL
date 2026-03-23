@@ -1,3 +1,5 @@
+using API_Althea_systems.Data;
+using API_Althea_systems.Data.Seed;
 using API_Althea_systems.Extensions;
 using API_Althea_systems.Middleware;
 
@@ -5,7 +7,7 @@ namespace API_Althea_systems;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +52,14 @@ public class Program
 
         app.MapControllers();
 
-        app.Run();
+        // Seed database in development
+        if (app.Environment.IsDevelopment())
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AltheaDbContext>();
+            await DataSeeder.SeedAsync(db);
+        }
+
+        await app.RunAsync();
     }
 }
