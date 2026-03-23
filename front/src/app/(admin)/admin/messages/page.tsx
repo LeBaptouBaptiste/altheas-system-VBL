@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Mail, MessageSquare, Ticket, Copy, CheckCircle, Eye, Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Mail, MessageSquare, Ticket, Copy, CheckCircle, Eye, Send, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,40 +9,74 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
-import { contactMessages as initMessages, chatConversations as initChats, supportTickets as initTickets } from '@/mock';
-import type { ContactMessage, ChatConversation, SupportTicket } from '@/mock';
-import type { MessageStatus, TicketStatus } from '@/lib/constants';
+import { messagesService } from '@/lib/api-services';
+import type { ContactMessageDto, ChatConversationDto, SupportTicketDto } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 const MSG_STATUS_COLORS: Record<string, string> = {
-  unread: 'bg-error/10 text-error border-error/20',
-  read: 'bg-blue-50 text-blue-600 border-blue-200',
-  treated: 'bg-success/10 text-success border-success/20',
+  Unread: 'bg-error/10 text-error border-error/20',
+  Read: 'bg-blue-50 text-blue-600 border-blue-200',
+  Replied: 'bg-success/10 text-success border-success/20',
+  Archived: 'bg-gray-100 text-muted-foreground',
 };
 
 const TICKET_STATUS_COLORS: Record<string, string> = {
-  open: 'bg-error/10 text-error border-error/20',
-  in_progress: 'bg-warning/10 text-warning border-warning/20',
-  closed: 'bg-success/10 text-success border-success/20',
+  Open: 'bg-error/10 text-error border-error/20',
+  InProgress: 'bg-warning/10 text-warning border-warning/20',
+  Resolved: 'bg-success/10 text-success border-success/20',
+  Closed: 'bg-gray-100 text-muted-foreground',
 };
 
 export default function AdminMessagesPage() {
   const { t, locale } = useI18n();
-  const [messages, setMessages] = useState<ContactMessage[]>(initMessages);
-  const [chats, setChats] = useState<ChatConversation[]>(initChats);
-  const [tickets, setTickets] = useState<SupportTicket[]>(initTickets);
-  const [viewMessage, setViewMessage] = useState<ContactMessage | null>(null);
-  const [viewChat, setViewChat] = useState<ChatConversation | null>(null);
+  const [messages, setMessages] = useState<ContactMessageDto[]>([]);
+  const [chats, setChats] = useState<ChatConversationDto[]>([]);
+  const [tickets, setTickets] = useState<SupportTicketDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMessage, setViewMessage] = useState<ContactMessageDto | null>(null);
+  const [viewChat, setViewChat] = useState<ChatConversationDto | null>(null);
   const [replyText, setReplyText] = useState('');
 
-  const handleMessageStatus = (id: string, status: MessageStatus) => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, status } : m));
-    toast.success(locale === 'fr' ? 'Statut mis à jour' : 'Status updated');
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [msgsRes, chatsRes, ticketsRes] = await Promise.all([
+          messagesService.getAll(1, 100),
+          messagesService.getConversations(1, 100),
+          messagesService.getTickets(1, 100),
+        ]);
+        setMessages(msgsRes.data);
+        setChats(chatsRes.data);
+        setTickets(ticketsRes.data);
+      } catch (err) {
+        console.error('Failed to load messages', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleMessageStatus = async (id: string, status: string) => {
+    try {
+      await messagesService.updateStatus(id, status);
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, status: status as ContactMessageDto['status'] } : m));
+      toast.success(locale === 'fr' ? 'Statut mis à jour' : 'Status updated');
+    } catch (err) {
+      console.error('Failed to update message status', err);
+      toast.error(locale === 'fr' ? 'Erreur' : 'Error');
+    }
   };
 
-  const handleTicketStatus = (id: string, status: TicketStatus) => {
-    setTickets(prev => prev.map(t => t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t));
-    toast.success(locale === 'fr' ? 'Ticket mis à jour' : 'Ticket updated');
+  const handleTicketStatus = async (id: string, status: string) => {
+    try {
+      const updated = await messagesService.updateTicket(id, status);
+      setTickets(prev => prev.map(t => t.id === id ? updated : t));
+      toast.success(locale === 'fr' ? 'Ticket mis à jour' : 'Ticket updated');
+    } catch (err) {
+      console.error('Failed to update ticket', err);
+      toast.error(locale === 'fr' ? 'Erreur' : 'Error');
+    }
   };
 
   const copyEmail = (email: string) => {
@@ -50,9 +84,29 @@ export default function AdminMessagesPage() {
     toast.success(locale === 'fr' ? 'Email copié' : 'Email copied');
   };
 
-  const unreadCount = messages.filter(m => m.status === 'unread').length;
+  const handleSendReply = async () => {
+    if (!viewChat || !replyText.trim()) return;
+    try {
+      await messagesService.sendMessage(viewChat.id, replyText);
+      toast.success(locale === 'fr' ? 'Réponse envoyée' : 'Reply sent');
+      setReplyText('');
+    } catch (err) {
+      console.error('Failed to send reply', err);
+      toast.error(locale === 'fr' ? 'Erreur lors de l\'envoi' : 'Failed to send reply');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+      </div>
+    );
+  }
+
+  const unreadCount = messages.filter(m => m.status === 'Unread').length;
   const escalatedCount = chats.filter(c => c.escalated).length;
-  const openTickets = tickets.filter(t => t.status !== 'closed').length;
+  const openTickets = tickets.filter(t => t.status !== 'Closed' && t.status !== 'Resolved').length;
 
   return (
     <div className="space-y-4">
@@ -100,29 +154,29 @@ export default function AdminMessagesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {messages.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(msg => (
-                    <tr key={msg.id} className={`border-b hover:bg-gray-50/50 ${msg.status === 'unread' ? 'bg-blue-50/30' : ''}`}>
+                  {[...messages].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(msg => (
+                    <tr key={msg.id} className={`border-b hover:bg-gray-50/50 ${msg.status === 'Unread' ? 'bg-blue-50/30' : ''}`}>
                       <td className="p-3">
                         <button className="text-brand-primary hover:underline text-xs" onClick={() => copyEmail(msg.email)}>
                           {msg.email} <Copy className="w-3 h-3 inline ml-1" />
                         </button>
                       </td>
                       <td className="p-3">
-                        <button onClick={() => { setViewMessage(msg); if (msg.status === 'unread') handleMessageStatus(msg.id, 'read'); }} className="text-left hover:text-brand-primary">
-                          <span className={msg.status === 'unread' ? 'font-semibold' : ''}>{msg.subject}</span>
+                        <button onClick={() => { setViewMessage(msg); if (msg.status === 'Unread') handleMessageStatus(msg.id, 'Read'); }} className="text-left hover:text-brand-primary">
+                          <span className={msg.status === 'Unread' ? 'font-semibold' : ''}>{msg.subject}</span>
                         </button>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">{new Date(msg.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
                       <td className="p-3 text-center">
-                        <Badge variant="outline" className={MSG_STATUS_COLORS[msg.status]}>{msg.status}</Badge>
+                        <Badge variant="outline" className={MSG_STATUS_COLORS[msg.status] || ''}>{msg.status}</Badge>
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setViewMessage(msg); if (msg.status === 'unread') handleMessageStatus(msg.id, 'read'); }}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setViewMessage(msg); if (msg.status === 'Unread') handleMessageStatus(msg.id, 'Read'); }}>
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
-                          {msg.status !== 'treated' && (
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-success" onClick={() => handleMessageStatus(msg.id, 'treated')}>
+                          {msg.status !== 'Replied' && msg.status !== 'Archived' && (
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-success" onClick={() => handleMessageStatus(msg.id, 'Replied')}>
                               <CheckCircle className="w-3.5 h-3.5" />
                             </Button>
                           )}
@@ -139,7 +193,7 @@ export default function AdminMessagesPage() {
         {/* Chat Conversations */}
         <TabsContent value="chats" className="mt-4">
           <div className="space-y-3">
-            {chats.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(chat => (
+            {[...chats].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(chat => (
               <Card key={chat.id} className={chat.escalated ? 'border-warning' : ''}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -176,31 +230,31 @@ export default function AdminMessagesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tickets.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(ticket => (
+                  {[...tickets].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(ticket => (
                     <tr key={ticket.id} className="border-b hover:bg-gray-50/50">
                       <td className="p-3 font-medium text-brand-primary">{ticket.id}</td>
                       <td className="p-3">{ticket.subject}</td>
                       <td className="p-3 text-muted-foreground text-xs">{ticket.email}</td>
                       <td className="p-3 text-center">
-                        <Badge variant="outline" className={TICKET_STATUS_COLORS[ticket.status]}>
-                          {ticket.status === 'open' ? (locale === 'fr' ? 'Ouvert' : 'Open') : ticket.status === 'in_progress' ? (locale === 'fr' ? 'En cours' : 'In Progress') : (locale === 'fr' ? 'Fermé' : 'Closed')}
+                        <Badge variant="outline" className={TICKET_STATUS_COLORS[ticket.status] || ''}>
+                          {ticket.status === 'Open' ? (locale === 'fr' ? 'Ouvert' : 'Open') : ticket.status === 'InProgress' ? (locale === 'fr' ? 'En cours' : 'In Progress') : ticket.status === 'Resolved' ? (locale === 'fr' ? 'Résolu' : 'Resolved') : (locale === 'fr' ? 'Fermé' : 'Closed')}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">{new Date(ticket.updatedAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {ticket.status === 'open' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, 'in_progress')}>
+                          {ticket.status === 'Open' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, 'InProgress')}>
                               {locale === 'fr' ? 'Prendre en charge' : 'Take over'}
                             </Button>
                           )}
-                          {ticket.status === 'in_progress' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-success" onClick={() => handleTicketStatus(ticket.id, 'closed')}>
+                          {ticket.status === 'InProgress' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-success" onClick={() => handleTicketStatus(ticket.id, 'Closed')}>
                               {locale === 'fr' ? 'Fermer' : 'Close'}
                             </Button>
                           )}
-                          {ticket.status === 'closed' && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, 'open')}>
+                          {ticket.status === 'Closed' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, 'Open')}>
                               {locale === 'fr' ? 'Réouvrir' : 'Reopen'}
                             </Button>
                           )}
@@ -235,8 +289,8 @@ export default function AdminMessagesPage() {
                   <Button size="sm" variant="outline" onClick={() => copyEmail(viewMessage.email)}>
                     <Copy className="w-3.5 h-3.5 mr-1" />{t('admin.copy_email')}
                   </Button>
-                  {viewMessage.status !== 'treated' && (
-                    <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => { handleMessageStatus(viewMessage.id, 'treated'); setViewMessage(null); }}>
+                  {viewMessage.status !== 'Replied' && viewMessage.status !== 'Archived' && (
+                    <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => { handleMessageStatus(viewMessage.id, 'Replied'); setViewMessage(null); }}>
                       <CheckCircle className="w-3.5 h-3.5 mr-1" />{t('admin.mark_treated')}
                     </Button>
                   )}
@@ -257,8 +311,8 @@ export default function AdminMessagesPage() {
               </DialogHeader>
               <div className="flex-1 overflow-y-auto space-y-2 py-2">
                 {viewChat.messages.map(msg => (
-                  <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${msg.role === 'user' ? 'bg-brand-primary text-white' : 'bg-gray-100'}`}>
+                  <div key={msg.id} className={`flex ${msg.role === 'User' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${msg.role === 'User' ? 'bg-brand-primary text-white' : 'bg-gray-100'}`}>
                       {msg.content}
                     </div>
                   </div>
@@ -273,10 +327,7 @@ export default function AdminMessagesPage() {
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
                 />
-                <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" disabled={!replyText.trim()} onClick={() => {
-                  toast.success(locale === 'fr' ? 'Réponse envoyée (mock)' : 'Reply sent (mock)');
-                  setReplyText('');
-                }}>
+                <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" disabled={!replyText.trim()} onClick={handleSendReply}>
                   <Send className="w-3.5 h-3.5" />
                 </Button>
               </div>

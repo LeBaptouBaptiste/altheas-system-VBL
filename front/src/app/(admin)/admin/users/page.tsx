@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Search, Shield, ShieldOff, Eye, UserX } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Shield, ShieldOff, Eye, UserX, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,24 +10,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
-import { users as initialUsers, orders } from '@/mock';
-import type { User } from '@/mock';
+import { usersService, ordersService } from '@/lib/api-services';
+import type { UserDto, OrderDto } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 const STATUS_COLORS: Record<string, string> = {
-  active: 'text-success border-success',
-  inactive: 'text-muted-foreground',
-  pending: 'text-warning border-warning',
+  Active: 'text-success border-success',
+  Inactive: 'text-muted-foreground',
 };
 
 export default function AdminUsersPage() {
   const { locale } = useI18n();
-  const [usersList, setUsersList] = useState<User[]>(initialUsers);
+  const [usersList, setUsersList] = useState<UserDto[]>([]);
+  const [orders, setOrders] = useState<OrderDto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [detailUser, setDetailUser] = useState<User | null>(null);
+  const [detailUser, setDetailUser] = useState<UserDto | null>(null);
   const [confirmAnon, setConfirmAnon] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [usersRes, ordersRes] = await Promise.all([
+          usersService.getAll(1, 100),
+          ordersService.getAll(1, 200),
+        ]);
+        setUsersList(usersRes.data);
+        setOrders(ordersRes.data);
+      } catch (err) {
+        console.error('Failed to load users', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
     let list = [...usersList].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -42,23 +61,26 @@ export default function AdminUsersPage() {
 
   const getUserOrders = (userId: string) => orders.filter(o => o.userId === userId);
 
-  const handleAnonymize = (userId: string) => {
-    setUsersList(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      return {
-        ...u,
-        name: locale === 'fr' ? 'Utilisateur anonymisé' : 'Anonymized user',
-        email: `anonymous-${u.id}@deleted.local`,
-        anonymized: true,
-        status: 'inactive' as const,
-        addresses: [],
-        paymentMethods: [],
-      };
-    }));
-    setConfirmAnon(null);
-    setDetailUser(null);
-    toast.success(locale === 'fr' ? 'Utilisateur anonymisé (RGPD)' : 'User anonymized (GDPR)');
+  const handleAnonymize = async (userId: string) => {
+    try {
+      const updated = await usersService.anonymize(userId);
+      setUsersList(prev => prev.map(u => u.id === userId ? updated : u));
+      setConfirmAnon(null);
+      setDetailUser(null);
+      toast.success(locale === 'fr' ? 'Utilisateur anonymisé (RGPD)' : 'User anonymized (GDPR)');
+    } catch (err) {
+      console.error('Failed to anonymize user', err);
+      toast.error(locale === 'fr' ? 'Erreur lors de l\'anonymisation' : 'Failed to anonymize user');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -71,17 +93,16 @@ export default function AdminUsersPage() {
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
-            <SelectItem value="active">{locale === 'fr' ? 'Actif' : 'Active'}</SelectItem>
-            <SelectItem value="inactive">{locale === 'fr' ? 'Inactif' : 'Inactive'}</SelectItem>
-            <SelectItem value="pending">{locale === 'fr' ? 'En attente' : 'Pending'}</SelectItem>
+            <SelectItem value="Active">{locale === 'fr' ? 'Actif' : 'Active'}</SelectItem>
+            <SelectItem value="Inactive">{locale === 'fr' ? 'Inactif' : 'Inactive'}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
           <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous rôles' : 'All roles'}</SelectItem>
-            <SelectItem value="customer">Client</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="Customer">Client</SelectItem>
+            <SelectItem value="Admin">Admin</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -112,25 +133,25 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="p-3 text-muted-foreground">{user.email}</td>
                     <td className="p-3 text-center">
-                      {user.role === 'admin' ? (
+                      {user.role === 'Admin' ? (
                         <Badge className="bg-brand-primary/10 text-brand-primary"><Shield className="w-3 h-3 mr-1" />Admin</Badge>
                       ) : (
                         <Badge variant="outline">Client</Badge>
                       )}
                     </td>
                     <td className="p-3 text-center">
-                      <Badge variant="outline" className={STATUS_COLORS[user.status]}>
-                        {user.status === 'active' ? (locale === 'fr' ? 'Actif' : 'Active') : user.status === 'pending' ? (locale === 'fr' ? 'En attente' : 'Pending') : (locale === 'fr' ? 'Inactif' : 'Inactive')}
+                      <Badge variant="outline" className={STATUS_COLORS[user.status] || ''}>
+                        {user.status === 'Active' ? (locale === 'fr' ? 'Actif' : 'Active') : (locale === 'fr' ? 'Inactif' : 'Inactive')}
                       </Badge>
                     </td>
                     <td className="p-3 text-center">{getUserOrders(user.id).length}</td>
-                    <td className="p-3 text-muted-foreground text-xs">{new Date(user.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
+                    <td className="p-3 text-muted-foreground text-xs">{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US') : '-'}</td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDetailUser(user)}>
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
-                        {!user.anonymized && user.role !== 'admin' && (
+                        {!user.anonymized && user.role !== 'Admin' && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-warning" onClick={() => setConfirmAnon(user.id)}>
                             <UserX className="w-3.5 h-3.5" />
                           </Button>
@@ -160,7 +181,7 @@ export default function AdminUsersPage() {
                   <div><p className="text-muted-foreground">Status</p><p className="capitalize">{detailUser.status}</p></div>
                   <div><p className="text-muted-foreground">{locale === 'fr' ? 'Email confirmé' : 'Email confirmed'}</p><p>{detailUser.emailConfirmed ? 'Yes' : 'No'}</p></div>
                   <div><p className="text-muted-foreground">{locale === 'fr' ? 'Créé le' : 'Created'}</p><p>{new Date(detailUser.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</p></div>
-                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</p><p>{new Date(detailUser.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</p></div>
+                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</p><p>{detailUser.lastLogin ? new Date(detailUser.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US') : '-'}</p></div>
                 </div>
                 <Separator />
                 <div>

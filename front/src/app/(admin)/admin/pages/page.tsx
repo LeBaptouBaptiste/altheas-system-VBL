@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Pencil, Save, Eye } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Pencil, Save, Eye, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,36 +10,64 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
-import { staticPages as initialPages } from '@/mock';
-import type { StaticPage } from '@/mock';
+import { contentService } from '@/lib/api-services';
+import type { StaticPageDto } from '@/lib/api-types';
+import { toLocalized } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 export default function AdminStaticPagesPage() {
   const { locale, localized } = useI18n();
-  const [pages, setPages] = useState<StaticPage[]>(initialPages);
+  const [pages, setPages] = useState<StaticPageDto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     titleFr: '', titleEn: '', contentFr: '', contentEn: '',
   });
 
-  const startEdit = (page: StaticPage) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await contentService.getPages();
+        setPages(data);
+      } catch (err) {
+        console.error('Failed to load pages', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const startEdit = (page: StaticPageDto) => {
     setEditingId(page.id);
     setFormData({
-      titleFr: page.title.fr, titleEn: page.title.en,
-      contentFr: page.content.fr, contentEn: page.content.en,
+      titleFr: page.titleFr, titleEn: page.titleEn,
+      contentFr: page.contentFr, contentEn: page.contentEn,
     });
   };
 
-  const handleSave = (pageId: string) => {
-    setPages(prev => prev.map(p => p.id === pageId ? {
-      ...p,
-      title: { fr: formData.titleFr, en: formData.titleEn },
-      content: { fr: formData.contentFr, en: formData.contentEn },
-      updatedAt: new Date().toISOString().split('T')[0],
-    } : p));
-    setEditingId(null);
-    toast.success(locale === 'fr' ? 'Page mise à jour' : 'Page updated');
+  const handleSave = async (pageId: string) => {
+    try {
+      const updated = await contentService.updatePage(pageId, {
+        titleFr: formData.titleFr, titleEn: formData.titleEn,
+        contentFr: formData.contentFr, contentEn: formData.contentEn,
+      });
+      setPages(prev => prev.map(p => p.id === pageId ? updated : p));
+      setEditingId(null);
+      toast.success(locale === 'fr' ? 'Page mise à jour' : 'Page updated');
+    } catch (err) {
+      console.error('Failed to save page', err);
+      toast.error(locale === 'fr' ? 'Erreur lors de la sauvegarde' : 'Failed to save page');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -48,7 +76,7 @@ export default function AdminStaticPagesPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <CardTitle className="text-base">{localized(page.title)}</CardTitle>
+                <CardTitle className="text-base">{localized(toLocalized(page.titleFr, page.titleEn))}</CardTitle>
                 <Badge variant="outline" className="text-xs">/{page.slug}</Badge>
               </div>
               <div className="flex items-center gap-2">
@@ -108,7 +136,7 @@ export default function AdminStaticPagesPage() {
               </Tabs>
             ) : (
               <div className="text-sm text-muted-foreground">
-                <p className="line-clamp-3">{localized(page.content).split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ')}</p>
+                <p className="line-clamp-3">{localized(toLocalized(page.contentFr, page.contentEn)).split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ')}</p>
                 <a href={`/${page.slug}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-primary text-xs mt-2 hover:underline">
                   <Eye className="w-3 h-3" /> {locale === 'fr' ? 'Voir la page' : 'View page'}
                 </a>
