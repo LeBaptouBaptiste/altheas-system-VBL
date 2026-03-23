@@ -7,7 +7,7 @@ WORKDIR /src
 COPY ["API_Althea-systems.csproj", "."]
 RUN dotnet restore
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet publish API_Althea-systems.csproj -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
