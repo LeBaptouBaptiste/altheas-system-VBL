@@ -1,18 +1,32 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect } from 'react';
 import { notFound } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { useI18n } from '@/context/i18n-context';
-import { staticPages } from '@/mock';
+import { contentService } from '@/lib/api-services';
+import type { StaticPageDto } from '@/lib/api-types';
+import { toLocalized } from '@/lib/api-types';
 
 export default function StaticPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const { localized } = useI18n();
+  const [page, setPage] = useState<StaticPageDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFoundState, setNotFoundState] = useState(false);
 
-  const page = staticPages.find(p => p.slug === slug);
-  if (!page) notFound();
+  useEffect(() => {
+    setLoading(true);
+    contentService.getPageBySlug(slug)
+      .then(setPage)
+      .catch(() => setNotFoundState(true))
+      .finally(() => setLoading(false));
+  }, [slug]);
 
-  const content = localized(page.content);
+  if (loading) return <div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
+  if (notFoundState || !page) return notFound();
+
+  const content = localized(toLocalized(page.contentFr, page.contentEn));
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl">

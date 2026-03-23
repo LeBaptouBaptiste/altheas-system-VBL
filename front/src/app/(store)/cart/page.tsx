@@ -2,20 +2,27 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Trash2, Minus, Plus, ShoppingBag, AlertTriangle } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingBag, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
-import { products, getProductImage } from '@/mock';
+import { toLocalized, getProductImageUrl } from '@/lib/api-types';
 import { formatPrice, calculateTTC } from '@/lib/money';
-import { VAT_RATES } from '@/lib/constants';
+
+const VAT_RATE_VALUES: Record<string, number> = {
+  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+};
 
 export default function CartPage() {
   const { t, localized, locale } = useI18n();
-  const { items, updateQuantity, removeItem, subtotalHT, totalVAT, totalTTC, hasUnavailableItems } = useCart();
+  const { items, updateQuantity, removeItem, subtotalHT, totalVAT, totalTTC, hasUnavailableItems, loading, productCache } = useCart();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
+  }
 
   if (items.length === 0) {
     return (
@@ -31,25 +38,26 @@ export default function CartPage() {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl text-brand-dark mb-8">{t('cart.title')}</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4">
           {items.map(item => {
-            const product = products.find(p => p.id === item.productId);
+            const product = productCache.get(item.productId);
             if (!product) return null;
-            const priceTTC = calculateTTC(product.priceHT, VAT_RATES[product.vatRate]);
+            const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
+            const priceTTC = calculateTTC(product.priceHT, vatRate);
             const lineTTC = priceTTC * item.quantity;
-            const isOOS = product.stockStatus === 'out_of_stock';
+            const isOOS = product.stockStatus === 'OutOfStock';
+            const name = localized(toLocalized(product.nameFr, product.nameEn));
             return (
               <Card key={item.productId} className={isOOS ? 'border-error/50 bg-error/5' : ''}>
                 <CardContent className="p-4">
                   <div className="flex gap-4">
                     <Link href={`/product/${product.slug}`} className="shrink-0">
                       <div className="relative w-20 h-20 rounded overflow-hidden">
-                        <Image src={getProductImage(product.images[0])} alt={localized(product.name)} fill className="object-cover" />
+                        <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover" />
                       </div>
                     </Link>
                     <div className="flex-1 min-w-0">
-                      <Link href={`/product/${product.slug}`} className="font-medium text-brand-dark hover:text-brand-primary line-clamp-1">{localized(product.name)}</Link>
+                      <Link href={`/product/${product.slug}`} className="font-medium text-brand-dark hover:text-brand-primary line-clamp-1">{name}</Link>
                       <p className="text-sm text-muted-foreground">{fmt(priceTTC)} / {t('common.quantity').toLowerCase()}</p>
                       {isOOS && (
                         <div className="flex items-center gap-1 text-error text-sm mt-1">
@@ -82,7 +90,6 @@ export default function CartPage() {
           })}
         </div>
 
-        {/* Summary */}
         <div>
           <Card>
             <CardContent className="p-6">
@@ -98,9 +105,7 @@ export default function CartPage() {
                   {t('cart.checkout')}
                 </Button>
               </Link>
-              {hasUnavailableItems && (
-                <p className="text-sm text-error mt-2 text-center">{t('cart.unavailable_warning')}</p>
-              )}
+              {hasUnavailableItems && <p className="text-sm text-error mt-2 text-center">{t('cart.unavailable_warning')}</p>}
               <Link href="/" className="block mt-3">
                 <Button variant="outline" className="w-full">{t('cart.continue_shopping')}</Button>
               </Link>

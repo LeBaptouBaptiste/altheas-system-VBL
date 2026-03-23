@@ -4,66 +4,23 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, LifeBuoy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/context/i18n-context';
-import { products } from '@/mock';
+import { productsService } from '@/lib/api-services';
+import type { ProductDto } from '@/lib/api-types';
+import { toLocalized } from '@/lib/api-types';
 import { formatPrice, calculateTTC } from '@/lib/money';
-import { VAT_RATES } from '@/lib/constants';
 import { toast } from 'sonner';
+
+const VAT_RATE_VALUES: Record<string, number> = {
+  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+};
 
 interface Message { role: 'user' | 'bot'; content: string; }
 
-function generateBotResponse(input: string, locale: string): string {
-  const q = input.toLowerCase();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
-
-  // Product search
-  for (const p of products) {
-    const name = (p.name[locale] || p.name.fr).toLowerCase();
-    if (q.includes(name.split(' ')[0].toLowerCase()) || q.includes(p.slug.split('-')[0])) {
-      const price = calculateTTC(p.priceHT, VAT_RATES[p.vatRate]);
-      const stock = p.stockStatus === 'in_stock' ? (locale === 'fr' ? 'en stock' : 'in stock') : p.stockStatus === 'low_stock' ? (locale === 'fr' ? 'stock faible' : 'low stock') : (locale === 'fr' ? 'rupture' : 'out of stock');
-      return locale === 'fr'
-        ? `Le ${p.name.fr} est proposé à ${fmt(price)} TTC. Statut : ${stock}. ${p.description.fr}`
-        : `The ${p.name.en} is available at ${fmt(price)} incl. VAT. Status: ${stock}. ${p.description.en}`;
-    }
-  }
-
-  // Common questions
-  if (q.includes('prix') || q.includes('price') || q.includes('tarif')) {
-    return locale === 'fr'
-      ? 'Nos prix sont affichés TTC sur chaque fiche produit. Pour un devis personnalisé, contactez notre équipe commerciale.'
-      : 'Our prices are displayed including VAT on each product page. For a custom quote, contact our sales team.';
-  }
-  if (q.includes('livraison') || q.includes('delivery') || q.includes('shipping')) {
-    return locale === 'fr'
-      ? 'Nous proposons 3 modes de livraison : Standard (5-7 jours, 15€), Express (2-3 jours, 35€), 24h (75€).'
-      : 'We offer 3 shipping methods: Standard (5-7 days, €15), Express (2-3 days, €35), Overnight (€75).';
-  }
-  if (q.includes('retour') || q.includes('return') || q.includes('sav')) {
-    return locale === 'fr'
-      ? 'Pour tout retour ou SAV, contactez notre service client. Je peux créer un ticket si vous le souhaitez.'
-      : 'For any returns or after-sales service, contact our customer service. I can create a ticket if you wish.';
-  }
-  if (q.includes('horaire') || q.includes('hour') || q.includes('contact')) {
-    return locale === 'fr'
-      ? 'Notre service client est disponible du lundi au vendredi de 8h à 18h. Je suis disponible 24h/24 !'
-      : 'Our customer service is available Monday to Friday from 8am to 6pm. I\'m available 24/7!';
-  }
-  if (q.includes('bonjour') || q.includes('hello') || q.includes('hi') || q.includes('salut')) {
-    return locale === 'fr'
-      ? 'Bonjour ! Comment puis-je vous aider aujourd\'hui ?'
-      : 'Hello! How can I help you today?';
-  }
-
-  return locale === 'fr'
-    ? 'Je ne suis pas sûr de pouvoir répondre à cette question. Souhaitez-vous contacter notre support technique ? Je peux créer un ticket pour vous.'
-    : 'I\'m not sure I can answer this question. Would you like to contact our technical support? I can create a ticket for you.';
-}
-
 export default function ChatbotPage() {
-  const { t, locale } = useI18n();
+  const { t, localized, locale } = useI18n();
   const [messages, setMessages] = useState<Message[]>([
     { role: 'bot', content: t('chatbot.welcome') },
   ]);
@@ -75,17 +32,59 @@ export default function ChatbotPage() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
+  const generateResponse = async (userInput: string): Promise<string> => {
+    const q = userInput.toLowerCase();
+    const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+
+    // Try product search via API
+    try {
+      const res = await productsService.search(userInput, 1, 3);
+      if (res.data.length > 0) {
+        const p = res.data[0];
+        const name = localized(toLocalized(p.nameFr, p.nameEn));
+        const vatRate = VAT_RATE_VALUES[p.vatRate] ?? 0.20;
+        const price = calculateTTC(p.priceHT, vatRate);
+        const stock = p.stockStatus === 'InStock' ? (locale === 'fr' ? 'en stock' : 'in stock') : p.stockStatus === 'LowStock' ? (locale === 'fr' ? 'stock faible' : 'low stock') : (locale === 'fr' ? 'rupture' : 'out of stock');
+        const desc = localized(toLocalized(p.descriptionFr, p.descriptionEn));
+        return locale === 'fr'
+          ? `Le ${name} est proposé à ${fmt(price)} TTC. Statut : ${stock}. ${desc}`
+          : `The ${name} is available at ${fmt(price)} incl. VAT. Status: ${stock}. ${desc}`;
+      }
+    } catch { /* fallback to static responses */ }
+
+    // Common questions
+    if (q.includes('prix') || q.includes('price') || q.includes('tarif')) {
+      return locale === 'fr'
+        ? 'Nos prix sont affichés TTC sur chaque fiche produit. Pour un devis personnalisé, contactez notre équipe commerciale.'
+        : 'Our prices are displayed including VAT on each product page. For a custom quote, contact our sales team.';
+    }
+    if (q.includes('livraison') || q.includes('delivery') || q.includes('shipping')) {
+      return locale === 'fr'
+        ? 'Nous proposons 3 modes de livraison : Standard (5-7 jours, 15€), Express (2-3 jours, 35€), 24h (75€).'
+        : 'We offer 3 shipping methods: Standard (5-7 days, €15), Express (2-3 days, €35), Overnight (€75).';
+    }
+    if (q.includes('retour') || q.includes('return') || q.includes('sav')) {
+      return locale === 'fr'
+        ? 'Pour tout retour ou SAV, contactez notre service client. Je peux créer un ticket si vous le souhaitez.'
+        : 'For any returns or after-sales service, contact our customer service. I can create a ticket if you wish.';
+    }
+    if (q.includes('bonjour') || q.includes('hello') || q.includes('hi') || q.includes('salut')) {
+      return locale === 'fr' ? 'Bonjour ! Comment puis-je vous aider aujourd\'hui ?' : 'Hello! How can I help you today?';
+    }
+
+    return locale === 'fr'
+      ? 'Je ne suis pas sûr de pouvoir répondre à cette question. Souhaitez-vous contacter notre support technique ?'
+      : 'I\'m not sure I can answer this question. Would you like to contact our technical support?';
+  };
+
+  const handleSend = async () => {
     if (!input.trim()) return;
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
 
-    // Simulate bot typing delay
-    setTimeout(() => {
-      const response = generateBotResponse(userMsg, locale);
-      setMessages(prev => [...prev, { role: 'bot', content: response }]);
-    }, 600);
+    const response = await generateResponse(userMsg);
+    setMessages(prev => [...prev, { role: 'bot', content: response }]);
   };
 
   const handleEscalate = () => {
@@ -107,7 +106,6 @@ export default function ChatbotPage() {
       </div>
 
       <Card className="h-[500px] flex flex-col">
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -122,7 +120,6 @@ export default function ChatbotPage() {
           <div ref={scrollRef} />
         </div>
 
-        {/* Escalation button */}
         {!ticketCreated && messages.length > 2 && (
           <div className="px-4 pb-2">
             <Button variant="outline" size="sm" className="text-warning border-warning hover:bg-warning/10" onClick={handleEscalate}>
@@ -131,16 +128,9 @@ export default function ChatbotPage() {
           </div>
         )}
 
-        {/* Input */}
         <div className="p-4 border-t">
           <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={t('chatbot.placeholder')}
-              className="flex-1"
-              aria-label={t('chatbot.placeholder')}
-            />
+            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder={t('chatbot.placeholder')} className="flex-1" aria-label={t('chatbot.placeholder')} />
             <Button type="submit" className="bg-brand-primary hover:bg-brand-hover text-white" disabled={!input.trim()}>
               <Send className="w-4 h-4" />
             </Button>
