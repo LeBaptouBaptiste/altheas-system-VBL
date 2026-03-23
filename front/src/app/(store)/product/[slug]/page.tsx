@@ -1,9 +1,9 @@
 'use client';
 
-import { use, useState, useMemo } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, ShoppingCart, Minus, Plus } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,10 +11,15 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
-import { products, categories, getProductImage } from '@/mock';
+import { productsService } from '@/lib/api-services';
+import type { ProductDto } from '@/lib/api-types';
+import { toLocalized, getProductImageUrl, getImageUrl } from '@/lib/api-types';
 import { formatPrice, calculateTTC, calculateVAT } from '@/lib/money';
-import { VAT_RATES } from '@/lib/constants';
 import { toast } from 'sonner';
+
+const VAT_RATE_VALUES: Record<string, number> = {
+  Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0,
+};
 
 export default function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -22,39 +27,43 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const { addItem } = useCart();
   const [imageIndex, setImageIndex] = useState(0);
   const [qty, setQty] = useState(1);
+  const [product, setProduct] = useState<ProductDto | null>(null);
+  const [similar, setSimilar] = useState<ProductDto[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const product = products.find(p => p.slug === slug);
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
 
-  const similar = useMemo(() => {
-    if (!product) return [];
-    const sameCat = products.filter(p =>
-      p.id !== product.id &&
-      p.status === 'published' &&
-      p.categories.some(c => product.categories.includes(c))
-    );
-    // Prefer in-stock, then use a stable pseudo-random based on id
-    sameCat.sort((a, b) => {
-      if (a.stockStatus === 'out_of_stock' && b.stockStatus !== 'out_of_stock') return 1;
-      if (b.stockStatus === 'out_of_stock' && a.stockStatus !== 'out_of_stock') return -1;
-      return a.id.localeCompare(b.id);
-    });
-    return sameCat.slice(0, 6);
-  }, [product]);
+  useEffect(() => {
+    setLoading(true);
+    setImageIndex(0);
+    setQty(1);
+    productsService.getBySlug(slug)
+      .then(async (prod) => {
+        setProduct(prod);
+        // Fetch similar products from same category
+        if (prod.categories.length > 0) {
+          try {
+            const catProds = await productsService.getAll(1, 7, prod.categories[0].id);
+            setSimilar(catProds.data.filter(p => p.id !== prod.id && p.status === 'Active').slice(0, 6));
+          } catch { setSimilar([]); }
+        }
+      })
+      .catch(() => setProduct(null))
+      .finally(() => setLoading(false));
+  }, [slug]);
 
-  if (!product) {
-    return <div className="container mx-auto px-4 py-16 text-center"><h1 className="text-2xl">{t('common.error')}</h1></div>;
-  }
+  if (loading) return <div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
+  if (!product) return <div className="container mx-auto px-4 py-16 text-center"><h1 className="text-2xl">{t('common.error')}</h1></div>;
 
-  const vatRate = VAT_RATES[product.vatRate];
+  const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
   const priceTTC = calculateTTC(product.priceHT, vatRate);
   const vatAmount = calculateVAT(product.priceHT, vatRate);
-  const isOOS = product.stockStatus === 'out_of_stock';
-  const productCats = categories.filter(c => product.categories.includes(c.id));
+  const isOOS = product.stockStatus === 'OutOfStock';
+  const name = localized(toLocalized(product.nameFr, product.nameEn));
 
   const handleAddToCart = () => {
     addItem(product.id, qty);
-    toast.success(`${localized(product.name)} ${locale === 'fr' ? 'ajouté au panier' : 'added to cart'} (x${qty})`);
+    toast.success(`${name} ${locale === 'fr' ? 'ajouté au panier' : 'added to cart'} (x${qty})`);
   };
 
   return (
@@ -63,24 +72,26 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       <nav className="text-sm text-muted-foreground mb-6 flex flex-wrap gap-1" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-brand-primary">{t('nav.home')}</Link>
         <span>/</span>
-        {productCats[0] && <>
-          <Link href={`/category/${productCats[0].slug}`} className="hover:text-brand-primary">{localized(productCats[0].name)}</Link>
+        {product.categories[0] && <>
+          <Link href={`/category/${product.categories[0].slug}`} className="hover:text-brand-primary">
+            {localized(toLocalized(product.categories[0].nameFr, product.categories[0].nameEn))}
+          </Link>
           <span>/</span>
         </>}
-        <span className="text-foreground">{localized(product.name)}</span>
+        <span className="text-foreground">{name}</span>
       </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Image Carousel */}
         <div className="relative">
           <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-            <Image src={getProductImage(product.images[imageIndex] || product.images[0])} alt={localized(product.name)} fill className="object-cover" priority />
+            <Image src={getImageUrl(product.images[imageIndex] || product.images[0])} alt={name} fill className="object-cover" priority />
           </div>
           {product.images.length > 1 && (
             <div className="flex gap-2 mt-4 justify-center">
               {product.images.map((img, i) => (
                 <button key={i} onClick={() => setImageIndex(i)} className={`w-16 h-16 rounded border-2 overflow-hidden ${i === imageIndex ? 'border-brand-primary' : 'border-transparent'}`}>
-                  <Image src={getProductImage(img)} alt="" width={64} height={64} className="object-cover w-full h-full" />
+                  <Image src={getImageUrl(img)} alt="" width={64} height={64} className="object-cover w-full h-full" />
                 </button>
               ))}
             </div>
@@ -91,13 +102,13 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         <div>
           <div className="flex flex-wrap gap-2 mb-3">
             {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
-            {product.stockStatus === 'in_stock' && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
-            {product.stockStatus === 'low_stock' && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
+            {product.stockStatus === 'InStock' && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
+            {product.stockStatus === 'LowStock' && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
             {isOOS && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}
           </div>
 
-          <h1 className="text-2xl md:text-3xl text-brand-dark mb-2">{localized(product.name)}</h1>
-          <p className="text-muted-foreground mb-4">{localized(product.description)}</p>
+          <h1 className="text-2xl md:text-3xl text-brand-dark mb-2">{name}</h1>
+          <p className="text-muted-foreground mb-4">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
 
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="text-3xl font-bold text-brand-dark mb-1">{fmt(priceTTC)}</div>
@@ -132,7 +143,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               <TabsTrigger value="specs">{t('product.specs')}</TabsTrigger>
             </TabsList>
             <TabsContent value="description" className="mt-4">
-              <p className="text-foreground leading-relaxed">{localized(product.longDescription)}</p>
+              <p className="text-foreground leading-relaxed">{localized(toLocalized(product.longDescriptionFr, product.longDescriptionEn))}</p>
             </TabsContent>
             <TabsContent value="specs" className="mt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -154,15 +165,16 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
           <h2 className="text-2xl text-brand-dark mb-6">{t('product.similar')}</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {similar.map((p) => {
-              const price = calculateTTC(p.priceHT, VAT_RATES[p.vatRate]);
+              const vr = VAT_RATE_VALUES[p.vatRate] ?? 0.20;
+              const price = calculateTTC(p.priceHT, vr);
               return (
                 <Link key={p.id} href={`/product/${p.slug}`} className="group">
                   <Card className="overflow-hidden hover:shadow-md transition-shadow">
                     <div className="relative h-32">
-                      <Image src={getProductImage(p.images[0])} alt={localized(p.name)} fill className="object-cover group-hover:scale-105 transition-transform" />
+                      <Image src={getProductImageUrl(p)} alt={localized(toLocalized(p.nameFr, p.nameEn))} fill className="object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <CardContent className="p-3">
-                      <h3 className="text-xs font-medium line-clamp-2 mb-1">{localized(p.name)}</h3>
+                      <h3 className="text-xs font-medium line-clamp-2 mb-1">{localized(toLocalized(p.nameFr, p.nameEn))}</h3>
                       <span className="text-sm font-bold text-brand-dark">{fmt(price)}</span>
                     </CardContent>
                   </Card>
