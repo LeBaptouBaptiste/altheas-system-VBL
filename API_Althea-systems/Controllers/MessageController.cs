@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Shared;
@@ -9,6 +10,7 @@ namespace API_Althea_systems.Controllers;
 
 [ApiController]
 [Route("api/messages")]
+[EnableRateLimiting("contact")]
 public class MessageController : ControllerBase
 {
     private readonly IMessageService _messageService;

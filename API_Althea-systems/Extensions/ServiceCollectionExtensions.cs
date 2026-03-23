@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using FluentValidation;
@@ -120,6 +122,46 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IContentService, ContentService>();
+
+        // Special services
+        services.AddSingleton<IVatCalculationService, VatCalculationService>();
+        services.AddScoped<ISearchService, SearchService>();
+        services.AddScoped<IAnonymizationService, AnonymizationService>();
+        services.AddSingleton<IPasswordHasher, PasswordHasherService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Global policy: 100 requests per minute per IP
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 100,
+                        Window = TimeSpan.FromMinutes(1)
+                    }));
+
+            // Strict policy for auth routes: 10 requests per minute per IP
+            options.AddFixedWindowLimiter("auth", limiterOptions =>
+            {
+                limiterOptions.PermitLimit = 10;
+                limiterOptions.Window = TimeSpan.FromMinutes(1);
+            });
+
+            // Strict policy for contact/messages: 5 per minute per IP
+            options.AddFixedWindowLimiter("contact", limiterOptions =>
+            {
+                limiterOptions.PermitLimit = 5;
+                limiterOptions.Window = TimeSpan.FromMinutes(1);
+            });
+        });
 
         return services;
     }

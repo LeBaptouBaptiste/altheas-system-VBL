@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using API_Althea_systems.Controllers.IControllers;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Services.IServices;
@@ -8,6 +9,7 @@ namespace API_Althea_systems.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase, IAuthController
 {
     private readonly IAuthService _authService;

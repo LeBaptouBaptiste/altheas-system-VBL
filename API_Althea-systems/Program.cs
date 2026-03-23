@@ -20,6 +20,7 @@ public class Program
         builder.Services.AddJwtAuthentication(builder.Configuration);
         builder.Services.AddCorsPolicy(builder.Configuration);
         builder.Services.AddValidation();
+        builder.Services.AddRateLimiting();
         builder.Services.AddApplicationServices();
 
         var app = builder.Build();
@@ -46,6 +47,7 @@ public class Program
         }
 
         app.UseCors("AltheaCors");
+        app.UseRateLimiter();
 
         app.UseAuthentication();
         app.UseAuthorization();
