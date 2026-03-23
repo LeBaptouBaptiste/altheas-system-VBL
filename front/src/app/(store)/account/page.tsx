@@ -150,7 +150,7 @@ export default function AccountPage() {
                           <div className="flex items-center gap-3">
                             <Badge className={statusColors[order.status] || 'bg-gray-200'}>{enumLabel('OrderStatus', order.status, locale)}</Badge>
                             <span className="font-bold">{fmt(order.totalTTC)}</span>
-                            <Button variant="outline" size="sm" onClick={() => toast.info(locale === 'fr' ? 'Téléchargement de la facture...' : 'Downloading invoice...')}>
+                            <Button variant="outline" size="sm" disabled title={locale === 'fr' ? 'Bientôt disponible' : 'Coming soon'}>
                               <Download className="w-3 h-3 mr-1" />{t('account.download_invoice')}
                             </Button>
                           </div>
@@ -184,13 +184,18 @@ export default function AccountPage() {
                 <p className="text-sm text-muted-foreground">{addr.street}</p>
                 <p className="text-sm text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
                 <div className="flex gap-2 mt-3">
-                  <Button variant="outline" size="sm">{t('common.edit')}</Button>
-                  <Button variant="outline" size="sm" className="text-error">{t('common.delete')}</Button>
+                  <Button variant="outline" size="sm" className="text-error" onClick={async () => {
+                    try {
+                      await usersService.deleteAddress(user.id, addr.id);
+                      await refreshUser();
+                      toast.success(locale === 'fr' ? 'Adresse supprimée' : 'Address deleted');
+                    } catch { toast.error(t('common.error')); }
+                  }}>{t('common.delete')}</Button>
                 </div>
               </CardContent></Card>
             ))}
           </div>
-          <Button variant="outline" className="mt-4">{t('account.add_address')}</Button>
+          {user.addresses.length === 0 && <p className="text-muted-foreground text-sm py-4">{t('common.no_data')}</p>}
         </TabsContent>
 
         {/* Payment Methods */}
@@ -202,11 +207,17 @@ export default function AccountPage() {
                   <Shield className="w-5 h-5 text-brand-primary" />
                   <span className="font-medium">{pm.label}</span>
                 </div>
-                <Button variant="outline" size="sm" className="text-error">{t('common.delete')}</Button>
+                <Button variant="outline" size="sm" className="text-error" onClick={async () => {
+                  try {
+                    await usersService.deletePaymentMethod(user.id, pm.id);
+                    await refreshUser();
+                    toast.success(locale === 'fr' ? 'Moyen de paiement supprimé' : 'Payment method deleted');
+                  } catch { toast.error(t('common.error')); }
+                }}>{t('common.delete')}</Button>
               </CardContent></Card>
             ))}
           </div>
-          <Button variant="outline" className="mt-4">{t('account.add_payment')}</Button>
+          {user.paymentMethods.length === 0 && <p className="text-muted-foreground text-sm py-4">{t('common.no_data')}</p>}
           <p className="text-xs text-muted-foreground mt-2">{locale === 'fr' ? 'Aucune donnée sensible n\'est stockée' : 'No sensitive data is stored'}</p>
         </TabsContent>
       </Tabs>

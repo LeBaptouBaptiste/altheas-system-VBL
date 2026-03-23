@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Check, CreditCard, Building2, FileText, Truck, MapPin, User, ArrowLeft, Download } from 'lucide-react';
+import { Check, CreditCard, Building2, FileText, Truck, MapPin, ArrowLeft, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,15 +13,40 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
+import { ordersService, usersService } from '@/lib/api-services';
 import { formatPrice } from '@/lib/money';
 import { SHIPPING_METHODS } from '@/lib/constants';
+import { ShippingMethod, PaymentMethod } from '@/lib/enums';
 import { toast } from 'sonner';
 
-const STEPS = ['auth', 'address', 'shipping', 'payment', 'confirmation'] as const;
+const SHIPPING_MAP: Record<string, number> = {
+  standard: ShippingMethod.Standard,
+  express: ShippingMethod.Express,
+  overnight: ShippingMethod.Overnight,
+};
+
+const PAYMENT_MAP: Record<string, number> = {
+  card: PaymentMethod.Card,
+  bank_transfer: PaymentMethod.BankTransfer,
+  admin_mandate: PaymentMethod.PayPal, // PayPal used as placeholder for admin mandate
+};
+
+interface AddressForm {
+  firstName: string;
+  lastName: string;
+  company: string;
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone: string;
+}
+
+const emptyAddress: AddressForm = { firstName: '', lastName: '', company: '', street: '', city: '', postalCode: '', country: 'France', phone: '' };
 
 export default function CheckoutPage() {
   const { t, localized, locale } = useI18n();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { items, subtotalHT, totalVAT, totalTTC, clearCart } = useCart();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
 
@@ -29,21 +54,68 @@ export default function CheckoutPage() {
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingMethod, setShippingMethod] = useState('standard');
   const [paymentMethod, setPaymentMethod] = useState('card');
-  const [addressValidated, setAddressValidated] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [placing, setPlacing] = useState(false);
+
+  const [billing, setBilling] = useState<AddressForm>(emptyAddress);
+  const [shipping, setShipping] = useState<AddressForm>(emptyAddress);
 
   const shippingCost = SHIPPING_METHODS.find(m => m.id === shippingMethod)?.price || 15;
   const grandTotal = totalTTC + shippingCost;
 
-  const handleValidateAddress = () => {
-    setTimeout(() => { setAddressValidated(true); toast.success(t('checkout.address_validated')); }, 500);
-  };
+  const updateBilling = (field: keyof AddressForm, value: string) => setBilling(prev => ({ ...prev, [field]: value }));
+  const updateShipping = (field: keyof AddressForm, value: string) => setShipping(prev => ({ ...prev, [field]: value }));
 
-  const handlePlaceOrder = () => {
-    setOrderPlaced(true);
-    setStep(4);
-    clearCart();
-    toast.success(t('checkout.order_confirmed'));
+  const isAddressValid = (addr: AddressForm) =>
+    addr.firstName && addr.lastName && addr.street && addr.city && addr.postalCode && addr.country;
+
+  const handlePlaceOrder = async () => {
+    if (!user) { toast.error(locale === 'fr' ? 'Veuillez vous connecter' : 'Please log in'); return; }
+
+    setPlacing(true);
+    try {
+      // Create billing address via API
+      const billingAddr = await usersService.addAddress(user.id, {
+        label: locale === 'fr' ? 'Facturation' : 'Billing',
+        ...billing,
+        company: billing.company || null,
+        phone: billing.phone || null,
+        street2: null,
+      });
+
+      // Create or reuse shipping address
+      let shippingAddrId = billingAddr.id;
+      if (!sameAddress) {
+        const shipAddr = await usersService.addAddress(user.id, {
+          label: locale === 'fr' ? 'Livraison' : 'Shipping',
+          ...shipping,
+          company: shipping.company || null,
+          phone: shipping.phone || null,
+          street2: null,
+        });
+        shippingAddrId = shipAddr.id;
+      }
+
+      // Create the order
+      const order = await ordersService.create({
+        billingAddressId: billingAddr.id,
+        shippingAddressId: shippingAddrId,
+        shippingMethod: SHIPPING_MAP[shippingMethod] ?? ShippingMethod.Standard,
+        paymentMethod: PAYMENT_MAP[paymentMethod] ?? PaymentMethod.Card,
+        items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+      });
+
+      setOrderId(order.id);
+      setOrderPlaced(true);
+      setStep(4);
+      clearCart();
+      toast.success(t('checkout.order_confirmed'));
+    } catch {
+      toast.error(locale === 'fr' ? 'Erreur lors de la commande' : 'Order failed');
+    } finally {
+      setPlacing(false);
+    }
   };
 
   const stepLabels = [t('checkout.step.auth'), t('checkout.step.address'), t('checkout.step.shipping'), t('checkout.step.payment'), t('checkout.step.confirmation')];
@@ -79,8 +151,6 @@ export default function CheckoutPage() {
             <div className="space-y-4">
               <Link href="/login"><Button className="w-full bg-brand-primary hover:bg-brand-hover text-white">{t('auth.login')}</Button></Link>
               <Link href="/register"><Button variant="outline" className="w-full">{t('auth.register')}</Button></Link>
-              <Separator />
-              <Button variant="ghost" className="w-full" onClick={() => setStep(1)}>{t('checkout.guest')}</Button>
             </div>
           )}
         </CardContent></Card>
@@ -91,18 +161,15 @@ export default function CheckoutPage() {
         <Card><CardContent className="p-6 space-y-6">
           <h2 className="text-xl font-semibold flex items-center gap-2"><MapPin className="w-5 h-5" />{t('checkout.billing_address')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input /></div>
-            <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input /></div>
-            <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input /></div>
-            <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input /></div>
-            <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input defaultValue="France" /></div>
-            <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input /></div>
+            <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={billing.firstName} onChange={e => updateBilling('firstName', e.target.value)} required /></div>
+            <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={billing.lastName} onChange={e => updateBilling('lastName', e.target.value)} required /></div>
+            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input value={billing.company} onChange={e => updateBilling('company', e.target.value)} /></div>
+            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={billing.street} onChange={e => updateBilling('street', e.target.value)} required /></div>
+            <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={billing.city} onChange={e => updateBilling('city', e.target.value)} required /></div>
+            <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={billing.postalCode} onChange={e => updateBilling('postalCode', e.target.value)} required /></div>
+            <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={billing.country} onChange={e => updateBilling('country', e.target.value)} required /></div>
+            <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input value={billing.phone} onChange={e => updateBilling('phone', e.target.value)} /></div>
           </div>
-          <Button variant="outline" onClick={handleValidateAddress} disabled={addressValidated}>
-            {addressValidated ? <><Check className="w-4 h-4 mr-2" />{t('checkout.address_validated')}</> : t('checkout.validate_address')}
-          </Button>
           <Separator />
           <div className="flex items-center gap-2">
             <Checkbox id="sameAddr" checked={sameAddress} onCheckedChange={(v) => setSameAddress(!!v)} />
@@ -112,18 +179,18 @@ export default function CheckoutPage() {
             <div>
               <h3 className="font-semibold mb-3">{t('checkout.shipping_address')}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input /></div>
-                <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input /></div>
+                <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={shipping.firstName} onChange={e => updateShipping('firstName', e.target.value)} /></div>
+                <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={shipping.lastName} onChange={e => updateShipping('lastName', e.target.value)} /></div>
+                <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={shipping.street} onChange={e => updateShipping('street', e.target.value)} /></div>
+                <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={shipping.city} onChange={e => updateShipping('city', e.target.value)} /></div>
+                <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={shipping.postalCode} onChange={e => updateShipping('postalCode', e.target.value)} /></div>
+                <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={shipping.country} onChange={e => updateShipping('country', e.target.value)} /></div>
               </div>
             </div>
           )}
           <div className="flex gap-4 pt-4">
             <Button variant="outline" onClick={() => setStep(0)}><ArrowLeft className="w-4 h-4 mr-2" />{t('checkout.previous')}</Button>
-            <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => setStep(2)}>{t('checkout.next')}</Button>
+            <Button className="bg-brand-primary hover:bg-brand-hover text-white" disabled={!isAddressValid(billing)} onClick={() => setStep(2)}>{t('checkout.next')}</Button>
           </div>
         </CardContent></Card>
       )}
@@ -189,7 +256,6 @@ export default function CheckoutPage() {
               <p className="font-medium mb-2">{locale === 'fr' ? 'Instructions de virement' : 'Bank Transfer Instructions'}</p>
               <p>IBAN: FR76 1234 5678 9012 3456 7890 123</p>
               <p>BIC: BNPAFRPP</p>
-              <p>{locale === 'fr' ? 'Référence' : 'Reference'}: ORD-2026-{String(Date.now()).slice(-3)}</p>
             </div>
           )}
           {paymentMethod === 'admin_mandate' && (
@@ -210,7 +276,9 @@ export default function CheckoutPage() {
 
           <div className="flex gap-4 pt-4">
             <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4 mr-2" />{t('checkout.previous')}</Button>
-            <Button size="lg" className="flex-1 bg-brand-primary hover:bg-brand-hover text-white" onClick={handlePlaceOrder}>{t('checkout.place_order')}</Button>
+            <Button size="lg" className="flex-1 bg-brand-primary hover:bg-brand-hover text-white" onClick={handlePlaceOrder} disabled={placing}>
+              {placing ? <Loader2 className="w-5 h-5 animate-spin" /> : t('checkout.place_order')}
+            </Button>
           </div>
         </CardContent></Card>
       )}
@@ -223,9 +291,7 @@ export default function CheckoutPage() {
           </div>
           <h2 className="text-2xl font-semibold text-brand-dark">{t('checkout.order_confirmed')}</h2>
           <p className="text-muted-foreground">{t('checkout.email_sent')}</p>
-          <Button variant="outline" onClick={() => toast.info(locale === 'fr' ? 'Facture PDF téléchargée' : 'Invoice PDF downloaded')}>
-            <Download className="w-4 h-4 mr-2" />{t('checkout.download_invoice')}
-          </Button>
+          {orderId && <p className="text-sm text-muted-foreground font-mono">{locale === 'fr' ? 'Commande' : 'Order'}: {orderId.slice(0, 8)}...</p>}
           <div className="pt-4">
             <Link href="/"><Button className="bg-brand-primary hover:bg-brand-hover text-white">{t('checkout.continue_shopping')}</Button></Link>
           </div>

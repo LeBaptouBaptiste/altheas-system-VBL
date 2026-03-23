@@ -88,10 +88,22 @@ export default function ChatbotPage() {
     setMessages(prev => [...prev, { role: 'bot', content: response }]);
   };
 
-  const handleEscalate = () => {
-    setTicketCreated(true);
-    setMessages(prev => [...prev, { role: 'bot', content: t('chatbot.ticket_created') }]);
-    toast.success(t('chatbot.ticket_created'));
+  const handleEscalate = async () => {
+    try {
+      const { messagesService } = await import('@/lib/api-services');
+      // Create a conversation first, then escalate by creating a ticket
+      const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || 'Support request';
+      await messagesService.create({
+        email: 'chatbot@altheasystems.com',
+        subject: locale === 'fr' ? 'Escalade chatbot' : 'Chatbot escalation',
+        message: lastUserMsg,
+      });
+      setTicketCreated(true);
+      setMessages(prev => [...prev, { role: 'bot', content: t('chatbot.ticket_created') }]);
+      toast.success(t('chatbot.ticket_created'));
+    } catch {
+      toast.error(locale === 'fr' ? 'Erreur lors de la création du ticket' : 'Failed to create ticket');
+    }
   };
 
   return (
