@@ -6,6 +6,10 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using StackExchange.Redis;
 using API_Althea_systems.Data;
+using API_Althea_systems.Repositories;
+using API_Althea_systems.Repositories.IRepositories;
+using API_Althea_systems.Services;
+using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Extensions;
 
@@ -95,8 +99,27 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        // Repositories will be registered here in Phase 4+
-        // Services will be registered here in Phase 4+
+        // Repositories
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IMessageRepository, MessageRepository>();
+        services.AddScoped<IContentRepository, ContentRepository>();
+
+        // Services
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IMessageService, MessageService>();
+        services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<ITicketService, TicketService>();
+        services.AddScoped<IContentService, ContentService>();
 
         return services;
     }
