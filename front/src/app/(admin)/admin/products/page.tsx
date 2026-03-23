@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Pencil, Trash2, Download, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download, Search, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,11 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
-import { products as initialProducts, categories } from '@/mock';
-import type { Product } from '@/mock';
+import { productsService, categoriesService } from '@/lib/api-services';
+import type { ProductDto, CategoryDto } from '@/lib/api-types';
+import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
-import { VAT_RATES } from '@/lib/constants';
 import { toast } from 'sonner';
+
+const VAT_RATE_VALUES: Record<string, number> = { Standard: 0.20, Intermediate: 0.10, Reduced: 0.055, Zero: 0 };
 
 type SortField = 'name' | 'priceHT' | 'stockQty' | 'status' | 'updatedAt';
 
@@ -25,38 +27,58 @@ export default function AdminProductsPage() {
   const searchParams = useSearchParams();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
 
-  const [productsList, setProductsList] = useState<Product[]>(initialProducts);
+  const [productsList, setProductsList] = useState<ProductDto[]>([]);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editProduct, setEditProduct] = useState<ProductDto | null>(null);
   const [showDialog, setShowDialog] = useState(searchParams.get('action') === 'new');
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
   // Form state
   const [formData, setFormData] = useState({
-    nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: 'STANDARD' as keyof typeof VAT_RATES,
-    stockQty: '', status: 'published' as 'published' | 'draft', categoryId: '',
+    nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: 'Standard' as string,
+    stockQty: '', status: 'Draft' as 'Active' | 'Draft', categoryId: '',
     priorityRank: '0', isNew: false,
   });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [prodsRes, cats] = await Promise.all([
+          productsService.getAll(1, 200),
+          categoriesService.getAll(),
+        ]);
+        setProductsList(prodsRes.data);
+        setCategories(cats);
+      } catch (err) {
+        console.error('Failed to load products', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
     let list = [...productsList];
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(p => localized(p.name).toLowerCase().includes(q) || p.slug.includes(q));
+      list = list.filter(p => localized(toLocalized(p.nameFr, p.nameEn)).toLowerCase().includes(q) || p.slug.includes(q));
     }
-    if (categoryFilter !== 'all') list = list.filter(p => p.categories.includes(categoryFilter));
+    if (categoryFilter !== 'all') list = list.filter(p => p.categories.some(c => c.id === categoryFilter));
     if (statusFilter !== 'all') list = list.filter(p => p.status === statusFilter);
 
     list.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
-        case 'name': cmp = localized(a.name).localeCompare(localized(b.name)); break;
+        case 'name': cmp = localized(toLocalized(a.nameFr, a.nameEn)).localeCompare(localized(toLocalized(b.nameFr, b.nameEn))); break;
         case 'priceHT': cmp = a.priceHT - b.priceHT; break;
         case 'stockQty': cmp = a.stockQty - b.stockQty; break;
         case 'status': cmp = a.status.localeCompare(b.status); break;
@@ -93,34 +115,37 @@ export default function AdminProductsPage() {
     else setSelected(new Set(paged.map(p => p.id)));
   };
 
-  const handleBulkAction = (action: string) => {
+  const handleBulkAction = async (action: string) => {
     if (selected.size === 0) return;
-    setProductsList(prev => prev.map(p => {
-      if (!selected.has(p.id)) return p;
-      switch (action) {
-        case 'publish': return { ...p, status: 'published' as const };
-        case 'unpublish': return { ...p, status: 'draft' as const };
-        case 'delete': return p; // handled below
-        default: return p;
+    try {
+      if (action === 'delete') {
+        await Promise.all(Array.from(selected).map(id => productsService.delete(id)));
+        setProductsList(prev => prev.filter(p => !selected.has(p.id)));
+        toast.success(`${selected.size} ${locale === 'fr' ? 'produit(s) supprimé(s)' : 'product(s) deleted'}`);
+      } else {
+        const newStatus = action === 'publish' ? 'Active' : 'Draft';
+        await Promise.all(Array.from(selected).map(id => productsService.update(id, { status: newStatus })));
+        setProductsList(prev => prev.map(p => {
+          if (!selected.has(p.id)) return p;
+          return { ...p, status: newStatus as ProductDto['status'] };
+        }));
+        toast.success(`${selected.size} ${locale === 'fr' ? 'produit(s) mis à jour' : 'product(s) updated'}`);
       }
-    }));
-    if (action === 'delete') {
-      setProductsList(prev => prev.filter(p => !selected.has(p.id)));
-      toast.success(`${selected.size} ${locale === 'fr' ? 'produit(s) supprimé(s)' : 'product(s) deleted'}`);
-    } else {
-      toast.success(`${selected.size} ${locale === 'fr' ? 'produit(s) mis à jour' : 'product(s) updated'}`);
+    } catch (err) {
+      console.error('Bulk action failed', err);
+      toast.error(locale === 'fr' ? 'Erreur lors de l\'action' : 'Action failed');
     }
     setSelected(new Set());
   };
 
-  const openEditDialog = (product: Product) => {
+  const openEditDialog = (product: ProductDto) => {
     setEditProduct(product);
     setFormData({
-      nameFr: product.name.fr, nameEn: product.name.en,
-      descFr: product.description.fr, descEn: product.description.en,
+      nameFr: product.nameFr, nameEn: product.nameEn,
+      descFr: product.descriptionFr, descEn: product.descriptionEn,
       priceHT: String(product.priceHT), vatRate: product.vatRate,
-      stockQty: String(product.stockQty), status: product.status,
-      categoryId: product.categories[0] || '', priorityRank: String(product.priorityRank),
+      stockQty: String(product.stockQty), status: product.status === 'Active' ? 'Active' : 'Draft',
+      categoryId: product.categories[0]?.id || '', priorityRank: String(product.priorityRank),
       isNew: product.isNew,
     });
     setShowDialog(true);
@@ -129,68 +154,66 @@ export default function AdminProductsPage() {
   const openNewDialog = () => {
     setEditProduct(null);
     setFormData({
-      nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: 'STANDARD',
-      stockQty: '', status: 'draft', categoryId: categories[0]?.id || '', priorityRank: '0', isNew: true,
+      nameFr: '', nameEn: '', descFr: '', descEn: '', priceHT: '', vatRate: 'Standard',
+      stockQty: '', status: 'Draft', categoryId: categories[0]?.id || '', priorityRank: '0', isNew: true,
     });
     setShowDialog(true);
   };
 
-  const handleSave = () => {
-    const now = new Date().toISOString().split('T')[0];
+  const handleSave = async () => {
     const slug = formData.nameFr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const qty = parseInt(formData.stockQty) || 0;
-    const stockStatus = qty === 0 ? 'out_of_stock' as const : qty <= 5 ? 'low_stock' as const : 'in_stock' as const;
+    const stockStatus = qty === 0 ? 'OutOfStock' : qty <= 5 ? 'LowStock' : 'InStock';
 
-    if (editProduct) {
-      setProductsList(prev => prev.map(p => p.id === editProduct.id ? {
-        ...p,
-        name: { fr: formData.nameFr, en: formData.nameEn },
-        description: { fr: formData.descFr, en: formData.descEn },
-        priceHT: parseFloat(formData.priceHT) || 0,
-        vatRate: formData.vatRate,
-        stockQty: qty, stockStatus,
-        status: formData.status,
-        categories: formData.categoryId ? [formData.categoryId] : p.categories,
-        priorityRank: parseInt(formData.priorityRank) || 0,
-        isNew: formData.isNew,
-        updatedAt: now,
-      } : p));
-      toast.success(locale === 'fr' ? 'Produit mis à jour' : 'Product updated');
-    } else {
-      const newProduct: Product = {
-        id: `prod-new-${Date.now()}`,
-        slug,
-        name: { fr: formData.nameFr, en: formData.nameEn },
-        description: { fr: formData.descFr, en: formData.descEn },
-        longDescription: { fr: formData.descFr, en: formData.descEn },
-        priceHT: parseFloat(formData.priceHT) || 0,
-        vatRate: formData.vatRate,
-        stockQty: qty, stockStatus,
-        isNew: formData.isNew,
-        priorityRank: parseInt(formData.priorityRank) || 0,
-        categories: formData.categoryId ? [formData.categoryId] : [],
-        images: ['default'],
-        specs: [],
-        status: formData.status,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setProductsList(prev => [newProduct, ...prev]);
-      toast.success(locale === 'fr' ? 'Produit créé' : 'Product created');
+    const payload = {
+      nameFr: formData.nameFr, nameEn: formData.nameEn,
+      descriptionFr: formData.descFr, descriptionEn: formData.descEn,
+      longDescriptionFr: formData.descFr, longDescriptionEn: formData.descEn,
+      priceHT: parseFloat(formData.priceHT) || 0,
+      vatRate: formData.vatRate,
+      stockQty: qty, stockStatus,
+      status: formData.status === 'Active' ? 'Active' : 'Draft',
+      categoryIds: formData.categoryId ? [formData.categoryId] : [],
+      priorityRank: parseInt(formData.priorityRank) || 0,
+      isNew: formData.isNew,
+      slug,
+    };
+
+    try {
+      if (editProduct) {
+        const updated = await productsService.update(editProduct.id, payload);
+        setProductsList(prev => prev.map(p => p.id === editProduct.id ? updated : p));
+        toast.success(locale === 'fr' ? 'Produit mis à jour' : 'Product updated');
+      } else {
+        const created = await productsService.create(payload);
+        setProductsList(prev => [created, ...prev]);
+        toast.success(locale === 'fr' ? 'Produit créé' : 'Product created');
+      }
+      setShowDialog(false);
+    } catch (err) {
+      console.error('Failed to save product', err);
+      toast.error(locale === 'fr' ? 'Erreur lors de la sauvegarde' : 'Failed to save product');
     }
-    setShowDialog(false);
   };
 
   const exportCSV = () => {
     const header = 'ID,Name,Price HT,Stock,Status,Category\n';
     const rows = filtered.map(p =>
-      `${p.id},"${localized(p.name)}",${p.priceHT},${p.stockQty},${p.status},${p.categories.join(';')}`
+      `${p.id},"${localized(toLocalized(p.nameFr, p.nameEn))}",${p.priceHT},${p.stockQty},${p.status},${p.categories.map(c => c.id).join(';')}`
     ).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'products.csv'; a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -204,15 +227,15 @@ export default function AdminProductsPage() {
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Toutes catégories' : 'All categories'}</SelectItem>
-            {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(c.name)}</SelectItem>)}
+            {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(toLocalized(c.nameFr, c.nameEn))}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
-            <SelectItem value="published">{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
-            <SelectItem value="draft">{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
+            <SelectItem value="Active">{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
+            <SelectItem value="Draft">{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
           </SelectContent>
         </Select>
         <Button size="sm" variant="outline" onClick={exportCSV}><Download className="w-4 h-4 mr-1" />{t('admin.export_csv')}</Button>
@@ -264,34 +287,40 @@ export default function AdminProductsPage() {
                     <td className="p-3"><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} className="rounded" /></td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-brand-dark">{localized(p.name)}</span>
+                        <span className="font-medium text-brand-dark">{localized(toLocalized(p.nameFr, p.nameEn))}</span>
                         {p.isNew && <Badge className="bg-brand-primary text-white text-[10px]">NEW</Badge>}
                       </div>
                       <span className="text-xs text-muted-foreground">{p.slug}</span>
                     </td>
                     <td className="p-3 text-right font-medium">{fmt(p.priceHT)}</td>
                     <td className="p-3 text-center">
-                      <Badge variant={p.stockStatus === 'in_stock' ? 'default' : p.stockStatus === 'low_stock' ? 'secondary' : 'destructive'}
-                        className={p.stockStatus === 'in_stock' ? 'bg-success/10 text-success border-success/20' : p.stockStatus === 'low_stock' ? 'bg-warning/10 text-warning border-warning/20' : ''}>
+                      <Badge variant={p.stockStatus === 'InStock' ? 'default' : p.stockStatus === 'LowStock' ? 'secondary' : 'destructive'}
+                        className={p.stockStatus === 'InStock' ? 'bg-success/10 text-success border-success/20' : p.stockStatus === 'LowStock' ? 'bg-warning/10 text-warning border-warning/20' : ''}>
                         {p.stockQty}
                       </Badge>
                     </td>
                     <td className="p-3 text-center">
-                      <Badge variant="outline" className={p.status === 'published' ? 'text-success border-success' : 'text-muted-foreground'}>
-                        {p.status === 'published' ? (locale === 'fr' ? 'Publié' : 'Published') : (locale === 'fr' ? 'Brouillon' : 'Draft')}
+                      <Badge variant="outline" className={p.status === 'Active' ? 'text-success border-success' : 'text-muted-foreground'}>
+                        {p.status === 'Active' ? (locale === 'fr' ? 'Publié' : 'Published') : (locale === 'fr' ? 'Brouillon' : 'Draft')}
                       </Badge>
                     </td>
                     <td className="p-3 text-center text-xs text-muted-foreground">
-                      {p.categories.map(cid => categories.find(c => c.id === cid)).filter(Boolean).map(c => localized(c!.name)).join(', ')}
+                      {p.categories.map(c => localized(toLocalized(c.nameFr, c.nameEn))).join(', ')}
                     </td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditDialog(p)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => {
-                          setProductsList(prev => prev.filter(x => x.id !== p.id));
-                          toast.success(locale === 'fr' ? 'Produit supprimé' : 'Product deleted');
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={async () => {
+                          try {
+                            await productsService.delete(p.id);
+                            setProductsList(prev => prev.filter(x => x.id !== p.id));
+                            toast.success(locale === 'fr' ? 'Produit supprimé' : 'Product deleted');
+                          } catch (err) {
+                            console.error('Failed to delete product', err);
+                            toast.error(locale === 'fr' ? 'Erreur lors de la suppression' : 'Failed to delete product');
+                          }
                         }}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -351,13 +380,13 @@ export default function AdminProductsPage() {
               </div>
               <div>
                 <Label>TVA</Label>
-                <Select value={formData.vatRate} onValueChange={v => setFormData(d => ({ ...d, vatRate: v as keyof typeof VAT_RATES }))}>
+                <Select value={formData.vatRate} onValueChange={v => setFormData(d => ({ ...d, vatRate: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="STANDARD">20%</SelectItem>
-                    <SelectItem value="INTERMEDIATE">10%</SelectItem>
-                    <SelectItem value="REDUCED">5,5%</SelectItem>
-                    <SelectItem value="ZERO">0%</SelectItem>
+                    <SelectItem value="Standard">20%</SelectItem>
+                    <SelectItem value="Intermediate">10%</SelectItem>
+                    <SelectItem value="Reduced">5,5%</SelectItem>
+                    <SelectItem value="Zero">0%</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -372,17 +401,17 @@ export default function AdminProductsPage() {
                 <Select value={formData.categoryId} onValueChange={v => setFormData(d => ({ ...d, categoryId: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(c.name)}</SelectItem>)}
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(toLocalized(c.nameFr, c.nameEn))}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Status</Label>
-                <Select value={formData.status} onValueChange={v => setFormData(d => ({ ...d, status: v as 'published' | 'draft' }))}>
+                <Select value={formData.status} onValueChange={v => setFormData(d => ({ ...d, status: v as 'Active' | 'Draft' }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="published">{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
-                    <SelectItem value="draft">{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
+                    <SelectItem value="Active">{locale === 'fr' ? 'Publié' : 'Published'}</SelectItem>
+                    <SelectItem value="Draft">{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
