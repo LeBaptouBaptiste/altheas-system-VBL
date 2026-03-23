@@ -1,5 +1,3 @@
-import { VAT_RATES, type VatRateKey } from './constants';
-
 /**
  * Format a price for display in the user's locale.
  * Payment is always in EUR, but display uses locale formatting.
@@ -25,26 +23,4 @@ export function calculateTTC(priceHT: number, vatRate: number): number {
  */
 export function calculateVAT(priceHT: number, vatRate: number): number {
   return Math.round(priceHT * vatRate * 100) / 100;
-}
-
-/**
- * Get HT from TTC
- */
-export function calculateHT(priceTTC: number, vatRate: number): number {
-  return Math.round((priceTTC / (1 + vatRate)) * 100) / 100;
-}
-
-/**
- * Get VAT rate label
- */
-export function getVatRateLabel(key: VatRateKey): string {
-  const rate = VAT_RATES[key];
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-/**
- * Format a percentage for display
- */
-export function formatPercent(rate: number): string {
-  return `${(rate * 100).toFixed(1)}%`;
 }
