@@ -200,7 +200,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="flex items-center gap-2">
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
-              <SelectTrigger className="h-8 w-[90px] text-xs border-gray-200" aria-label="Language">
+              <SelectTrigger className="h-8 w-[140px] text-xs border-gray-200" aria-label="Language">
                 <Globe className="w-3 h-3 mr-1" />
                 <SelectValue />
               </SelectTrigger>

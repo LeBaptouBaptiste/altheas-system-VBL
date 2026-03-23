@@ -50,7 +50,7 @@ export function Header() {
               </Link>
             )}
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
-              <SelectTrigger className="h-7 w-[100px] border-white/20 bg-transparent text-white text-xs" aria-label="Language">
+              <SelectTrigger className="h-7 w-[140px] border-white/20 bg-transparent text-white text-xs" aria-label="Language">
                 <Globe className="w-3 h-3 mr-1" />
                 <SelectValue />
               </SelectTrigger>
