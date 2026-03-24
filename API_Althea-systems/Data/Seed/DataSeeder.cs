@@ -13,9 +13,6 @@ public static class DataSeeder
 
         // ── Users ────────────────────────────────────────
         var adminId = Guid.NewGuid();
-        var user1Id = Guid.NewGuid();
-        var user2Id = Guid.NewGuid();
-        var user3Id = Guid.NewGuid();
 
         var users = new List<User>
         {
@@ -33,16 +30,6 @@ public static class DataSeeder
         };
 
         context.Users.AddRange(users);
-
-        // ── Addresses ────────────────────────────────────
-        var addresses = new List<Address>
-        {
-            new() { Id = Guid.NewGuid(), UserId = user1Id, Label = "Cabinet", FirstName = "Sophie", LastName = "Martin", Company = "Cabinet Médical Martin", Street = "15 rue de la République", City = "Lyon", PostalCode = "69002", Country = "France", Phone = "+33 4 72 00 00 01" },
-            new() { Id = Guid.NewGuid(), UserId = user2Id, Label = "Clinique", FirstName = "Pierre", LastName = "Dubois", Company = "Clinique Saint-Louis", Street = "42 boulevard Haussmann", City = "Paris", PostalCode = "75009", Country = "France", Phone = "+33 1 42 00 00 02" },
-            new() { Id = Guid.NewGuid(), UserId = user3Id, Label = "CHU", FirstName = "Marie", LastName = "Lefevre", Company = "CHU de Bordeaux", Street = "1 place Amélie Raba-Léon", City = "Bordeaux", PostalCode = "33076", Country = "France", Phone = "+33 5 56 79 56 79" }
-        };
-
-        context.Addresses.AddRange(addresses);
 
         // ── Categories ───────────────────────────────────
         var cat1Id = Guid.NewGuid();
