@@ -74,7 +74,44 @@ async function apiFetch<T>(
     throw new ApiError(response.status, message, errors);
   }
 
-  return response.json();
+  const data = await response.json();
+  return normalizeEnums(data) as T;
+}
+
+// ── Enum normalization ───────────────────────────────
+// The API may return enums as strings ("Active") or numbers (0)
+// depending on the .NET version/environment. This normalizer
+// converts string enum values to their numeric equivalents
+// so the front always works with numbers.
+
+const ENUM_STRING_TO_NUMBER: Record<string, Record<string, number>> = {
+  role: { Customer: 0, Admin: 1 },
+  status: { Active: 0, Inactive: 1, Draft: 2, Pending: 0, Confirmed: 1, Processing: 2, Shipped: 3, Delivered: 4, Cancelled: 5, Returned: 6, Open: 0, InProgress: 1, Resolved: 2, Closed: 3, Unread: 0, Read: 1, Replied: 2, Archived: 3 },
+  vatRate: { Standard: 0, Intermediate: 1, Reduced: 2, Zero: 3 },
+  stockStatus: { InStock: 0, LowStock: 1, OutOfStock: 2 },
+  paymentStatus: { Pending: 0, Paid: 1, Failed: 2, Refunded: 3 },
+  paymentMethod: { Card: 0, BankTransfer: 1, PayPal: 2 },
+  shippingMethod: { Standard: 0, Express: 1, Overnight: 2 },
+  type: { Invoice: 0, CreditNote: 1 },
+};
+
+function normalizeEnums(data: unknown): unknown {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) return data.map(normalizeEnums);
+  if (typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string' && ENUM_STRING_TO_NUMBER[key]) {
+        const mapped = ENUM_STRING_TO_NUMBER[key][value];
+        result[key] = mapped !== undefined ? mapped : value;
+      } else {
+        result[key] = normalizeEnums(value);
+      }
+    }
+    return result;
+  }
+  return data;
 }
 
 export const api = {
