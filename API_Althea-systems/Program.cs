@@ -2,6 +2,7 @@ using API_Althea_systems.Data;
 using API_Althea_systems.Data.Seed;
 using API_Althea_systems.Extensions;
 using API_Althea_systems.Middleware;
+using Microsoft.EntityFrameworkCore;
 
 namespace API_Althea_systems;
 
@@ -63,11 +64,13 @@ public class Program
 
         app.MapControllers();
 
-        // Seed database in development
-        if (app.Environment.IsDevelopment())
+        // Apply pending migrations on startup (all environments)
+        using (var scope = app.Services.CreateScope())
         {
-            using var scope = app.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AltheaDbContext>();
+            await db.Database.MigrateAsync();
+
+            // Seed if database is empty (safe: checks Users.Any() before inserting)
             await DataSeeder.SeedAsync(db);
         }
 
