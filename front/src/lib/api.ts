@@ -11,9 +11,58 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Thrown when the API returns 403 with `{ reason: "step_up_required" }`.
+ * Callers should open the step-up modal, obtain a fresh step-up token, and
+ * retry the original request with `{ stepUpToken }` in the options.
+ */
+export class StepUpRequiredError extends Error {
+  constructor() {
+    super('Step-up authentication required.');
+    this.name = 'StepUpRequiredError';
+  }
+}
+
+export function isStepUpRequired(err: unknown): err is StepUpRequiredError {
+  return err instanceof StepUpRequiredError;
+}
+
+/**
+ * Per-request overrides. Both fields are optional; omitting them keeps the
+ * default behavior (Authorization header drawn from localStorage, no
+ * X-Step-Up-Token header).
+ */
+export interface ApiRequestOptions {
+  /**
+   * Overrides the bearer token for this single request. Useful for the admin
+   * 2FA setup flow, where the access token isn't yet in localStorage and
+   * the `setupToken` from /auth/login must be sent instead.
+   */
+  bearerToken?: string;
+  /**
+   * Set when retrying a request after a successful step-up — sends the
+   * step-up JWT in the X-Step-Up-Token header for the [RequireStepUp] filter.
+   */
+  stepUpToken?: string;
+}
+
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('althea-token');
+}
+
+// ── Ambient step-up token ────────────────────────────
+// The admin layout sets this when the admin completes the Admin step-up;
+// every subsequent API call automatically includes it as X-Step-Up-Token,
+// which is required by [RequireStepUp(Admin)] on every /api/admin* endpoint.
+// Cleared (set to null) when the admin layout unmounts (= admin leaves the
+// admin area). Per-request `stepUpToken` in ApiRequestOptions takes priority
+// over this ambient value.
+
+let _ambientStepUpToken: string | null = null;
+
+export function setAmbientStepUpToken(token: string | null): void {
+  _ambientStepUpToken = token;
 }
 
 export function setToken(token: string): void {
@@ -26,25 +75,32 @@ export function clearToken(): void {
 
 async function apiFetch<T>(
   endpoint: string,
-  options: RequestInit = {}
+  init: RequestInit = {},
+  options: ApiRequestOptions = {}
 ): Promise<T> {
-  const token = getToken();
+  const bearer = options.bearerToken ?? getToken();
 
   const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
+    ...(init.headers as Record<string, string>),
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (bearer) {
+    headers['Authorization'] = `Bearer ${bearer}`;
+  }
+
+  // Per-request override wins over the ambient admin token.
+  const stepUp = options.stepUpToken ?? _ambientStepUpToken;
+  if (stepUp) {
+    headers['X-Step-Up-Token'] = stepUp;
   }
 
   // Set Content-Type for non-GET requests with body
-  if (options.body && typeof options.body === 'string') {
+  if (init.body && typeof init.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
+    ...init,
     headers,
   });
 
@@ -57,17 +113,27 @@ async function apiFetch<T>(
   if (!response.ok) {
     let message = 'An unexpected error occurred';
     let errors: Record<string, string[]> | undefined;
+    let reason: string | undefined;
 
     try {
       const errorBody = await response.json();
       message = errorBody.message || message;
       errors = errorBody.errors;
+      reason = errorBody.reason;
     } catch {
       // response body not JSON
     }
 
-    // Clear token on 401
-    if (response.status === 401) {
+    // Step-up required: throw a typed error so callers can pop the modal
+    // and retry the request with a stepUpToken option.
+    if (response.status === 403 && reason === 'step_up_required') {
+      throw new StepUpRequiredError();
+    }
+
+    // Clear token on 401 — but only when the request actually used the
+    // localStorage token. Per-request overrides (e.g. expired setup token)
+    // must NOT nuke the user's main session.
+    if (response.status === 401 && options.bearerToken === undefined) {
       clearToken();
     }
 
@@ -83,6 +149,10 @@ async function apiFetch<T>(
 // depending on the .NET version/environment. This normalizer
 // converts string enum values to their numeric equivalents
 // so the front always works with numbers.
+//
+// NOTE: `outcome` (LoginOutcome) is intentionally NOT mapped here — it
+// stays as a string discriminator ('Authenticated' | 'TwoFactorRequired' |
+// 'TwoFactorSetupRequired') for readability in the login flow.
 
 const ENUM_STRING_TO_NUMBER: Record<string, Record<string, number>> = {
   role: { Customer: 0, Admin: 1 },
@@ -115,21 +185,21 @@ function normalizeEnums(data: unknown): unknown {
 }
 
 export const api = {
-  get: <T>(endpoint: string) =>
-    apiFetch<T>(endpoint),
+  get: <T>(endpoint: string, options?: ApiRequestOptions) =>
+    apiFetch<T>(endpoint, {}, options),
 
-  post: <T>(endpoint: string, body?: unknown) =>
+  post: <T>(endpoint: string, body?: unknown, options?: ApiRequestOptions) =>
     apiFetch<T>(endpoint, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
-    }),
+    }, options),
 
-  put: <T>(endpoint: string, body?: unknown) =>
+  put: <T>(endpoint: string, body?: unknown, options?: ApiRequestOptions) =>
     apiFetch<T>(endpoint, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
-    }),
+    }, options),
 
-  delete: (endpoint: string) =>
-    apiFetch<void>(endpoint, { method: 'DELETE' }),
+  delete: (endpoint: string, options?: ApiRequestOptions) =>
+    apiFetch<void>(endpoint, { method: 'DELETE' }, options),
 };
