@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { ordersService, usersService, authService } from '@/lib/api-services';
+import { TwoFactorSection } from '@/components/account/two-factor-section';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
@@ -81,6 +82,7 @@ export default function AccountPage() {
       <Tabs defaultValue="settings">
         <TabsList className="mb-6 flex-wrap">
           <TabsTrigger value="settings"><Settings className="w-4 h-4 mr-1" />{t('account.settings')}</TabsTrigger>
+          <TabsTrigger value="security"><Shield className="w-4 h-4 mr-1" />{locale === 'fr' ? 'Sécurité' : 'Security'}</TabsTrigger>
           <TabsTrigger value="orders"><Package className="w-4 h-4 mr-1" />{t('account.orders')}</TabsTrigger>
           <TabsTrigger value="addresses"><MapPin className="w-4 h-4 mr-1" />{t('account.addresses')}</TabsTrigger>
           <TabsTrigger value="payments"><CreditCard className="w-4 h-4 mr-1" />{t('account.payment_methods')}</TabsTrigger>
@@ -128,6 +130,11 @@ export default function AccountPage() {
               </DialogContent>
             </Dialog>
           </CardContent></Card>
+        </TabsContent>
+
+        {/* Security (2FA) */}
+        <TabsContent value="security">
+          <TwoFactorSection />
         </TabsContent>
 
         {/* Orders */}
