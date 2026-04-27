@@ -27,9 +27,22 @@ public class AuthController : ControllerBase, IAuthController
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Final step of the 2FA login flow. Consumes the challengeToken
+    /// returned by /auth/login and a 6-digit TOTP code (or a recovery
+    /// code in xxxx-xxxx-xxxx-xxxx format).
+    /// </summary>
+    [HttpPost("2fa/verify")]
+    public async Task<ActionResult<AuthResponse>> VerifyTwoFactorChallenge(
+        [FromBody] VerifyTwoFactorChallengeRequest request)
+    {
+        var result = await _authService.CompleteTwoFactorChallengeAsync(request);
         return Ok(result);
     }
 
