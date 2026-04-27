@@ -38,6 +38,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddEncryption(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Eagerly construct the service so a missing/invalid Encryption:Key
+        // fails the application startup, mirroring the JWT secret behavior.
+        var encryption = new EncryptionService(configuration);
+        services.AddSingleton<IEncryptionService>(encryption);
+        return services;
+    }
+
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         var jwtSettings = configuration.GetSection("JwtSettings");
