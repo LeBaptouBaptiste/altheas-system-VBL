@@ -8,6 +8,7 @@ public interface IAuthController
     Task<ActionResult<AuthResponse>> Register(RegisterRequest request);
     Task<ActionResult<LoginResponse>> Login(LoginRequest request);
     Task<ActionResult<AuthResponse>> VerifyTwoFactorChallenge(VerifyTwoFactorChallengeRequest request);
+    Task<ActionResult<StepUpResponse>> StepUp(StepUpRequest request);
     Task<ActionResult<UserDto>> GetMe();
     Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request);
     Task<IActionResult> ForgotPassword(ForgotPasswordRequest request);

@@ -15,6 +15,7 @@ public class AuthServiceTests
     private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<ITokenService> _tokenService = new();
     private readonly Mock<ITwoFactorService> _twoFactor = new();
+    private readonly Mock<IPasswordHasher> _hasher = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -24,8 +25,11 @@ public class AuthServiceTests
         _tokenService.Setup(t => t.GenerateRefreshToken()).Returns("test-refresh-token");
         _tokenService.Setup(t => t.GenerateChallengeToken(It.IsAny<User>())).Returns("test-challenge-token");
         _tokenService.Setup(t => t.GenerateAdminSetupToken(It.IsAny<User>())).Returns("test-setup-token");
+        _tokenService.Setup(t => t.GenerateStepUpToken(It.IsAny<User>(), It.IsAny<StepUpPurpose>()))
+                     .Returns("test-stepup-token");
 
-        _sut = new AuthService(_userRepo.Object, _tokenService.Object, _twoFactor.Object);
+        _sut = new AuthService(
+            _userRepo.Object, _tokenService.Object, _twoFactor.Object, _hasher.Object);
     }
 
     [Fact]
@@ -299,6 +303,156 @@ public class AuthServiceTests
         await _sut.IssueTokensAsync(user, mfaVerified: false);
 
         _tokenService.Verify(t => t.GenerateAccessToken(user, false), Times.Once);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  StepUpAsync
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task StepUpAsync_TwoFactorOn_ValidCode_ReturnsToken()
+    {
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _twoFactor.Setup(t => t.VerifyAsync(user, "123456"))
+                  .ReturnsAsync(new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Valid));
+
+        var result = await _sut.StepUpAsync(user.Id, new StepUpRequest(StepUpPurpose.Action, Code: "123456"));
+
+        result.Token.Should().Be("test-stepup-token");
+        result.ExpiresIn.Should().Be(60);
+        _tokenService.Verify(t => t.GenerateStepUpToken(user, StepUpPurpose.Action), Times.Once);
+    }
+
+    [Fact]
+    public async Task StepUpAsync_TwoFactorOn_RecoveryCodeAccepted()
+    {
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _twoFactor.Setup(t => t.VerifyAsync(user, "abcd-1234-ef56-7890"))
+                  .ReturnsAsync(new TwoFactorVerifyResult(TwoFactorVerifyOutcome.ValidViaRecoveryCode));
+
+        var result = await _sut.StepUpAsync(user.Id,
+            new StepUpRequest(StepUpPurpose.Action, Code: "abcd-1234-ef56-7890"));
+
+        result.Token.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task StepUpAsync_AdminPurpose_TtlIs30Minutes()
+    {
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _twoFactor.Setup(t => t.VerifyAsync(user, It.IsAny<string>()))
+                  .ReturnsAsync(new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Valid));
+
+        var result = await _sut.StepUpAsync(user.Id, new StepUpRequest(StepUpPurpose.Admin, Code: "123456"));
+
+        result.ExpiresIn.Should().Be(30 * 60);
+    }
+
+    [Fact]
+    public async Task StepUpAsync_TwoFactorOff_PasswordAndActionPurpose_ReturnsToken()
+    {
+        var user = CreateTestUser(); // 2FA off
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _hasher.Setup(h => h.Verify("Password1234", user.PasswordHash)).Returns(true);
+
+        var result = await _sut.StepUpAsync(user.Id,
+            new StepUpRequest(StepUpPurpose.Action, Password: "Password1234"));
+
+        result.Token.Should().Be("test-stepup-token");
+    }
+
+    [Fact]
+    public async Task StepUpAsync_TwoFactorOff_PasswordAndAdminPurpose_Throws()
+    {
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        var act = () => _sut.StepUpAsync(user.Id,
+            new StepUpRequest(StepUpPurpose.Admin, Password: "Password1234"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>()
+                 .WithMessage("*Admin step-up requires a 2FA code*");
+    }
+
+    [Fact]
+    public async Task StepUpAsync_TwoFactorOn_PasswordOnly_Throws()
+    {
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        var act = () => _sut.StepUpAsync(user.Id,
+            new StepUpRequest(StepUpPurpose.Action, Password: "Password1234"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>()
+                 .WithMessage("*provide a code*");
+    }
+
+    [Fact]
+    public async Task StepUpAsync_InvalidCode_Throws()
+    {
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _twoFactor.Setup(t => t.VerifyAsync(user, It.IsAny<string>()))
+                  .ReturnsAsync(new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Invalid));
+
+        var act = () => _sut.StepUpAsync(user.Id, new StepUpRequest(StepUpPurpose.Action, Code: "000000"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    [Fact]
+    public async Task StepUpAsync_WrongPassword_Throws()
+    {
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _hasher.Setup(h => h.Verify(It.IsAny<string>(), user.PasswordHash)).Returns(false);
+
+        var act = () => _sut.StepUpAsync(user.Id,
+            new StepUpRequest(StepUpPurpose.Action, Password: "WrongPassword"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    [Fact]
+    public async Task StepUpAsync_NeitherCodeNorPassword_Throws()
+    {
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        var act = () => _sut.StepUpAsync(user.Id, new StepUpRequest(StepUpPurpose.Action));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    [Fact]
+    public async Task StepUpAsync_UnknownUser_Throws()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((User?)null);
+
+        var act = () => _sut.StepUpAsync(Guid.NewGuid(),
+            new StepUpRequest(StepUpPurpose.Action, Code: "123456"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    [Fact]
+    public async Task StepUpAsync_InactiveUser_ThrowsForbidden()
+    {
+        var user = CreateTestUser();
+        user.Status = UserStatus.Inactive;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
+
+        var act = () => _sut.StepUpAsync(user.Id, new StepUpRequest(StepUpPurpose.Action, Code: "123456"));
+
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     private static User CreateTestUser() => new()

@@ -52,6 +52,27 @@ public class RegenerateRecoveryCodesRequestValidator : AbstractValidator<Regener
     }
 }
 
+public class StepUpRequestValidator : AbstractValidator<StepUpRequest>
+{
+    public StepUpRequestValidator()
+    {
+        RuleFor(x => x.Purpose).IsInEnum();
+
+        // At least one of (Code, Password) must be present.
+        // The service then enforces the eligibility rules per purpose.
+        RuleFor(x => x).Must(r =>
+                !string.IsNullOrWhiteSpace(r.Code) || !string.IsNullOrWhiteSpace(r.Password))
+            .WithMessage("Provide either a 2FA code or a password.");
+
+        When(x => !string.IsNullOrWhiteSpace(x.Code), () =>
+        {
+            RuleFor(x => x.Code!)
+                .Must(TwoFactorCodeShape.IsValid)
+                .WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
+        });
+    }
+}
+
 /// <summary>
 /// Cheap shape gate for 2FA codes. The cryptographic check is done by
 /// TwoFactorService — this just rejects obviously malformed inputs early.

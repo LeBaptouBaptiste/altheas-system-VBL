@@ -46,6 +46,21 @@ public class AuthController : ControllerBase, IAuthController
         return Ok(result);
     }
 
+    /// <summary>
+    /// Issues a step-up token. The caller must already be authenticated
+    /// (regular access token); identity is then re-verified using either
+    /// a fresh 2FA code (preferred) or a password (only allowed for
+    /// purpose=Action on accounts without 2FA).
+    /// </summary>
+    [HttpPost("step-up")]
+    [Authorize]
+    public async Task<ActionResult<StepUpResponse>> StepUp([FromBody] StepUpRequest request)
+    {
+        var userId = Guid.Parse(HttpContext.Items["UserId"]?.ToString()!);
+        var result = await _authService.StepUpAsync(userId, request);
+        return Ok(result);
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<UserDto>> GetMe()

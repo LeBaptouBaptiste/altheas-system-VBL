@@ -27,6 +27,14 @@ public interface IAuthService
     /// </summary>
     Task<AuthResponse> IssueTokensAsync(User user, bool mfaVerified);
 
+    /// <summary>
+    /// Issues a step-up token. Caller must be authenticated already
+    /// (regular access token); this method then re-verifies identity via
+    /// the supplied 2FA code (preferred) or password (only valid for
+    /// <c>StepUpPurpose.Action</c> on accounts without 2FA).
+    /// </summary>
+    Task<StepUpResponse> StepUpAsync(Guid userId, StepUpRequest request);
+
     Task<UserDto> GetCurrentUserAsync(Guid userId);
     Task ConfirmEmailAsync(ConfirmEmailRequest request);
     Task ForgotPasswordAsync(ForgotPasswordRequest request);

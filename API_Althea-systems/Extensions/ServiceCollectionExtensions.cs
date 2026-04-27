@@ -148,6 +148,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IContentService, ContentService>();
         services.AddSingleton<ITwoFactorStateStore, RedisTwoFactorStateStore>();
+        services.AddSingleton<IStepUpConsumptionStore, RedisStepUpConsumptionStore>();
         services.AddScoped<ITwoFactorService, TwoFactorService>();
 
         // Special services

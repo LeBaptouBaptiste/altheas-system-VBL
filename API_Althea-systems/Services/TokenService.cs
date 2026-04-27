@@ -66,7 +66,19 @@ public class TokenService : ITokenService
     public string GenerateAdminSetupToken(User user) =>
         BuildSingleUserPurposeToken(user, TokenPurpose.TwoFactorSetupRequired, AdminSetupTtl);
 
+    public string GenerateStepUpToken(User user, StepUpPurpose purpose) =>
+        BuildSingleUserPurposeToken(user, purpose.ToClaim(), purpose.GetTtl());
+
     public Guid? ValidateSpecialToken(string token, string expectedPurpose)
+    {
+        var v = ValidateAndExtract(token, expectedPurpose);
+        return v?.UserId;
+    }
+
+    public StepUpTokenValidation? ValidateStepUpToken(string token, StepUpPurpose expectedPurpose)
+        => ValidateAndExtract(token, expectedPurpose.ToClaim());
+
+    private StepUpTokenValidation? ValidateAndExtract(string token, string expectedPurpose)
     {
         if (string.IsNullOrWhiteSpace(token)) return null;
 
@@ -88,14 +100,19 @@ public class TokenService : ITokenService
         try
         {
             var handler = new JwtSecurityTokenHandler();
-            var principal = handler.ValidateToken(token, parameters, out var validated);
+            handler.ValidateToken(token, parameters, out var validated);
             if (validated is not JwtSecurityToken jwt) return null;
 
             var purpose = jwt.Claims.FirstOrDefault(c => c.Type == "purpose")?.Value;
             if (!string.Equals(purpose, expectedPurpose, StringComparison.Ordinal)) return null;
 
             var sub = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-            return Guid.TryParse(sub, out var userId) ? userId : null;
+            if (!Guid.TryParse(sub, out var userId)) return null;
+
+            var jti = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+            if (string.IsNullOrEmpty(jti)) return null;
+
+            return new StepUpTokenValidation(userId, jti);
         }
         catch
         {

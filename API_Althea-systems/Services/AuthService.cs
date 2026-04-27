@@ -12,15 +12,18 @@ public class AuthService : IAuthService
     private readonly IUserRepository _userRepository;
     private readonly ITokenService _tokenService;
     private readonly ITwoFactorService _twoFactor;
+    private readonly IPasswordHasher _passwordHasher;
 
     public AuthService(
         IUserRepository userRepository,
         ITokenService tokenService,
-        ITwoFactorService twoFactor)
+        ITwoFactorService twoFactor,
+        IPasswordHasher passwordHasher)
     {
         _userRepository = userRepository;
         _tokenService = tokenService;
         _twoFactor = twoFactor;
+        _passwordHasher = passwordHasher;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -112,6 +115,48 @@ public class AuthService : IAuthService
         var accessToken = _tokenService.GenerateAccessToken(user, mfaVerified);
         var refreshToken = _tokenService.GenerateRefreshToken();
         return new AuthResponse(accessToken, refreshToken, MapToDto(user));
+    }
+
+    public async Task<StepUpResponse> StepUpAsync(Guid userId, StepUpRequest request)
+    {
+        var user = await _userRepository.GetByIdAsync(userId)
+            ?? throw new UnauthorizedException("Authentication required.");
+
+        if (user.Status == UserStatus.Inactive)
+            throw new ForbiddenException("This account has been deactivated.");
+
+        // Identity proof:
+        //  - if a code is supplied, it MUST verify (TOTP or recovery)
+        //  - else if a password is supplied AND 2FA is off AND purpose=Action,
+        //    a password check is acceptable (lets non-2FA users still gate
+        //    sensitive actions); never accepted for purpose=Admin.
+        if (!string.IsNullOrWhiteSpace(request.Code))
+        {
+            var verify = await _twoFactor.VerifyAsync(user, request.Code);
+            if (verify.Outcome != TwoFactorVerifyOutcome.Valid
+                && verify.Outcome != TwoFactorVerifyOutcome.ValidViaRecoveryCode)
+            {
+                throw new UnauthorizedException("Invalid 2FA code.");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            if (request.Purpose == StepUpPurpose.Admin)
+                throw new UnauthorizedException("Admin step-up requires a 2FA code.");
+
+            if (user.TwoFactorEnabled)
+                throw new UnauthorizedException("This account has 2FA — provide a code, not a password.");
+
+            if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
+                throw new UnauthorizedException("Invalid password.");
+        }
+        else
+        {
+            throw new UnauthorizedException("Either a code or a password is required.");
+        }
+
+        var token = _tokenService.GenerateStepUpToken(user, request.Purpose);
+        return new StepUpResponse(token, (int)request.Purpose.GetTtl().TotalSeconds);
     }
 
     public async Task<UserDto> GetCurrentUserAsync(Guid userId)
