@@ -133,6 +133,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
+        services.AddScoped<IRecoveryCodeRepository, RecoveryCodeRepository>();
 
         // Services
         services.AddScoped<ITokenService, TokenService>();
@@ -146,6 +147,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IContentService, ContentService>();
+        services.AddSingleton<ITwoFactorStateStore, RedisTwoFactorStateStore>();
+        services.AddScoped<ITwoFactorService, TwoFactorService>();
 
         // Special services
         services.AddSingleton<IVatCalculationService, VatCalculationService>();

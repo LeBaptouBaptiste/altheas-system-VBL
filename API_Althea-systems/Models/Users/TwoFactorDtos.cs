@@ -1,0 +1,33 @@
+namespace API_Althea_systems.Models.Users;
+
+/// <summary>
+/// Returned by <c>StartSetupAsync</c>. The secret is in base32 (ready to
+/// be typed into an authenticator app); the URI can be rendered as a QR
+/// code by the frontend (any qrcode library will do).
+/// </summary>
+public record TwoFactorSetupResult(string Secret, string OtpAuthUri);
+
+/// <summary>
+/// Plaintext recovery codes are returned ONCE — at activation or when
+/// regenerating. They are stored only as BCrypt hashes server-side.
+/// </summary>
+public record TwoFactorEnableResult(IReadOnlyList<string> RecoveryCodes);
+
+public record TwoFactorStatus(bool Enabled, DateTime? EnabledAt, int RecoveryCodesRemaining);
+
+public enum TwoFactorVerifyOutcome
+{
+    /// <summary>The submitted TOTP code matched and was not a replay.</summary>
+    Valid,
+
+    /// <summary>The submitted code matched a previously unused recovery code (now consumed).</summary>
+    ValidViaRecoveryCode,
+
+    /// <summary>Code did not match (or was a replay of an already-used TOTP step).</summary>
+    Invalid,
+
+    /// <summary>2FA is not enabled on this account — caller should not have asked.</summary>
+    NotEnabled,
+}
+
+public record TwoFactorVerifyResult(TwoFactorVerifyOutcome Outcome);
