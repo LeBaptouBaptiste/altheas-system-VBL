@@ -14,6 +14,7 @@ public class User
     public bool EmailConfirmed { get; set; }
     public string? TwoFactorSecret { get; set; }
     public bool TwoFactorEnabled { get; set; }
+    public DateTime? TwoFactorEnabledAt { get; set; }
     public DateTime? LastLogin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -22,4 +23,5 @@ public class User
     public ICollection<Address> Addresses { get; set; } = [];
     public ICollection<UserPaymentMethod> PaymentMethods { get; set; } = [];
     public ICollection<Order.Order> Orders { get; set; } = [];
+    public ICollection<UserRecoveryCode> RecoveryCodes { get; set; } = [];
 }
