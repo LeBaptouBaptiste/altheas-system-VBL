@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { products, categories, heroSlides, marketingText, imageUrls, getCategoryImage, getProductImage } from '@/mock';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { VAT_RATES } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -34,7 +34,8 @@ export default function HomePage() {
 
   const handleAddToCart = (productId: string, name: string) => {
     addItem(productId);
-    toast.success(locale === 'fr' ? `${name} ajouté au panier` : `${name} added to cart`);
+    const suffix: Record<string, string> = { fr: 'ajouté au panier', en: 'added to cart', ms: 'ditambah ke troli', ar: 'أُضيف إلى عربة التسوق' };
+    toast.success(`${name} ${suffix[locale] ?? 'added to cart'}`);
   };
 
   return (
@@ -137,7 +138,7 @@ export default function HomePage() {
                     </Link>
                     <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(product.description)}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
+                      <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, toIntlLocale(locale))}</span>
                       <Button
                         size="sm"
                         className="bg-brand-primary hover:bg-brand-hover text-white"

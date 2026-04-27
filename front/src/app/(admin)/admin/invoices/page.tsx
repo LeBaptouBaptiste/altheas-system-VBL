@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useI18n } from '@/context/i18n-context';
 import { invoices as initialInvoices, orders } from '@/mock';
 import type { Invoice } from '@/mock';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { toast } from 'sonner';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -22,7 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AdminInvoicesPage() {
   const { locale } = useI18n();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [invoicesList] = useState<Invoice[]>(initialInvoices);
   const [search, setSearch] = useState('');
@@ -139,7 +139,7 @@ export default function AdminInvoicesPage() {
                         <span className="text-xs text-muted-foreground block">{locale === 'fr' ? 'Réf' : 'Ref'}: {inv.relatedInvoiceId}</span>
                       )}
                     </td>
-                    <td className="p-3 text-muted-foreground">{new Date(inv.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
+                    <td className="p-3 text-muted-foreground">{new Date(inv.date).toLocaleDateString(toIntlLocale(locale))}</td>
                     <td className="p-3 text-muted-foreground">{inv.orderId}</td>
                     <td className="p-3 text-right">{fmt(inv.amountHT)}</td>
                     <td className="p-3 text-right text-muted-foreground">{fmt(inv.vatAmount)}</td>

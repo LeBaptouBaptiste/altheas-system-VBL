@@ -9,13 +9,13 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { products, getProductImage } from '@/mock';
-import { formatPrice, calculateTTC } from '@/lib/money';
+import { formatPrice, calculateTTC, toIntlLocale } from '@/lib/money';
 import { VAT_RATES } from '@/lib/constants';
 
 export default function CartPage() {
   const { t, localized, locale } = useI18n();
   const { items, updateQuantity, removeItem, subtotalHT, totalVAT, totalTTC, hasUnavailableItems } = useCart();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   if (items.length === 0) {
     return (
