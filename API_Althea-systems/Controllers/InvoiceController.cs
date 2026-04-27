@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Invoices;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Services.IServices;
@@ -32,7 +33,7 @@ public class InvoiceController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<InvoiceDto>> Create([FromBody] InvoiceCreateRequest request)
     {
         var invoice = await _invoiceService.CreateAsync(request);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Services.IServices;
@@ -9,6 +10,7 @@ namespace API_Althea_systems.Controllers;
 [ApiController]
 [Route("api/tickets")]
 [Authorize(Roles = "Admin")]
+[RequireStepUp(StepUpPurpose.Admin)]
 public class TicketController : ControllerBase
 {
     private readonly ITicketService _ticketService;

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Data;
 using API_Althea_systems.Models.Analytics;
 
@@ -9,6 +10,7 @@ namespace API_Althea_systems.Controllers;
 [ApiController]
 [Route("api/analytics")]
 [Authorize(Roles = "Admin")]
+[RequireStepUp(StepUpPurpose.Admin)]
 public class AnalyticsController : ControllerBase
 {
     private readonly AltheaDbContext _context;

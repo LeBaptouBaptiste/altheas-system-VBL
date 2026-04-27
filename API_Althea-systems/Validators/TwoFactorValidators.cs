@@ -28,30 +28,6 @@ public class EnableTwoFactorRequestValidator : AbstractValidator<EnableTwoFactor
     }
 }
 
-public class DisableTwoFactorRequestValidator : AbstractValidator<DisableTwoFactorRequest>
-{
-    public DisableTwoFactorRequestValidator()
-    {
-        RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.");
-        RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Code is required.")
-            .Must(TwoFactorCodeShape.IsValid)
-            .WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
-    }
-}
-
-public class RegenerateRecoveryCodesRequestValidator : AbstractValidator<RegenerateRecoveryCodesRequest>
-{
-    public RegenerateRecoveryCodesRequestValidator()
-    {
-        RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.");
-        RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Code is required.")
-            .Must(TwoFactorCodeShape.IsValid)
-            .WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
-    }
-}
-
 public class StepUpRequestValidator : AbstractValidator<StepUpRequest>
 {
     public StepUpRequestValidator()

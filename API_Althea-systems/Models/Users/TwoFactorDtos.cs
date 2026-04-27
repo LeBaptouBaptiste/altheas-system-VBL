@@ -47,13 +47,4 @@ public record TwoFactorEnableResponse(
     AuthResponse Auth
 );
 
-/// <summary>
-/// Inline step-up: caller proves identity with their password AND a fresh
-/// 2FA code. Will be replaced by an X-Step-Up-Token header pattern in
-/// commit 5 once <c>[RequireStepUp]</c> lands.
-/// </summary>
-public record DisableTwoFactorRequest(string Password, string Code);
-
-public record RegenerateRecoveryCodesRequest(string Password, string Code);
-
 public record RegenerateRecoveryCodesResponse(IReadOnlyList<string> RecoveryCodes);

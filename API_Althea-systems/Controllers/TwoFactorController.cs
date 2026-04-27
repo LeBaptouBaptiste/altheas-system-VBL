@@ -15,9 +15,9 @@ namespace API_Althea_systems.Controllers;
 ///   <item><c>setup</c> and <c>enable</c> accept either a normal access token
 ///         (user voluntarily turns on 2FA) OR an admin-setup token (issued by
 ///         /auth/login when an admin has no 2FA yet).</item>
-///   <item><c>disable</c> and <c>recovery-codes/regenerate</c> require a normal
-///         access token AND ask for password + a fresh 2FA code in the body.
-///         These will move to a header-based step-up flow in commit 5.</item>
+///   <item><c>disable</c> and <c>recovery-codes/regenerate</c> are gated by
+///         <see cref="RequireStepUpAttribute"/> — caller must hold a fresh
+///         single-use action step-up token in the X-Step-Up-Token header.</item>
 ///   <item><c>status</c> just reads the user's flags.</item>
 /// </list>
 /// </summary>
@@ -30,20 +30,17 @@ public class TwoFactorController : ControllerBase
     private readonly IAuthService _authService;
     private readonly IUserRepository _userRepository;
     private readonly ITokenService _tokenService;
-    private readonly IPasswordHasher _passwordHasher;
 
     public TwoFactorController(
         ITwoFactorService twoFactor,
         IAuthService authService,
         IUserRepository userRepository,
-        ITokenService tokenService,
-        IPasswordHasher passwordHasher)
+        ITokenService tokenService)
     {
         _twoFactor = twoFactor;
         _authService = authService;
         _userRepository = userRepository;
         _tokenService = tokenService;
-        _passwordHasher = passwordHasher;
     }
 
     // ─────────────────────────────────────────────────────────
@@ -87,32 +84,23 @@ public class TwoFactorController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────
-    //  disable + regenerate: inline password+code (pre-step-up)
-    //
-    //  Both endpoints will be replaced by the [RequireStepUp] attribute
-    //  in commit 5: the body shrinks to nothing (or a step-up token in
-    //  a header) and the password/code check moves to /auth/step-up.
+    //  Sensitive ops gated by step-up
     // ─────────────────────────────────────────────────────────
 
     [HttpPost("disable")]
-    [Authorize]
-    public async Task<IActionResult> Disable([FromBody] DisableTwoFactorRequest request)
+    [Authorize, RequireStepUp(StepUpPurpose.Action)]
+    public async Task<IActionResult> Disable()
     {
         var user = await GetCurrentUserAsync();
-        await RequireValidPasswordAndCodeAsync(user, request.Password, request.Code);
-
         await _twoFactor.DisableAsync(user);
         return NoContent();
     }
 
     [HttpPost("recovery-codes/regenerate")]
-    [Authorize]
-    public async Task<ActionResult<RegenerateRecoveryCodesResponse>> RegenerateRecoveryCodes(
-        [FromBody] RegenerateRecoveryCodesRequest request)
+    [Authorize, RequireStepUp(StepUpPurpose.Action)]
+    public async Task<ActionResult<RegenerateRecoveryCodesResponse>> RegenerateRecoveryCodes()
     {
         var user = await GetCurrentUserAsync();
-        await RequireValidPasswordAndCodeAsync(user, request.Password, request.Code);
-
         var newCodes = await _twoFactor.RegenerateRecoveryCodesAsync(user);
         return Ok(new RegenerateRecoveryCodesResponse(newCodes));
     }
@@ -160,18 +148,5 @@ public class TwoFactorController : ControllerBase
 
         return await _userRepository.GetByIdAsync(userId)
             ?? throw new UnauthorizedException("Authentication required.");
-    }
-
-    private async Task RequireValidPasswordAndCodeAsync(User user, string password, string code)
-    {
-        if (!_passwordHasher.Verify(password, user.PasswordHash))
-            throw new UnauthorizedException("Invalid password.");
-
-        var verify = await _twoFactor.VerifyAsync(user, code);
-        if (verify.Outcome != TwoFactorVerifyOutcome.Valid
-            && verify.Outcome != TwoFactorVerifyOutcome.ValidViaRecoveryCode)
-        {
-            throw new UnauthorizedException("Invalid 2FA code.");
-        }
     }
 }
