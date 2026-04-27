@@ -12,5 +12,4 @@ public interface IAuthController
     Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request);
     Task<IActionResult> ForgotPassword(ForgotPasswordRequest request);
     Task<IActionResult> ResetPassword(ResetPasswordRequest request);
-    Task<IActionResult> Verify2Fa(Verify2FaRequest request);
 }

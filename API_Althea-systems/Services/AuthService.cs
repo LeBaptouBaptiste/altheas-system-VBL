@@ -101,10 +101,15 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Invalid 2FA code.");
         }
 
+        return await IssueTokensAsync(user, mfaVerified: true);
+    }
+
+    public async Task<AuthResponse> IssueTokensAsync(User user, bool mfaVerified)
+    {
         user.LastLogin = DateTime.UtcNow;
         await _userRepository.UpdateAsync(user);
 
-        var accessToken = _tokenService.GenerateAccessToken(user, mfaVerified: true);
+        var accessToken = _tokenService.GenerateAccessToken(user, mfaVerified);
         var refreshToken = _tokenService.GenerateRefreshToken();
         return new AuthResponse(accessToken, refreshToken, MapToDto(user));
     }
@@ -146,20 +151,6 @@ public class AuthService : IAuthService
             ?? throw new UnauthorizedException("Invalid or expired reset token.");
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        await _userRepository.UpdateAsync(user);
-    }
-
-    public async Task Verify2FaAsync(Guid userId, Verify2FaRequest request)
-    {
-        // Legacy mock retained until commit 4b removes /verify-2fa entirely
-        // and replaces it with the proper /2fa/setup + /enable flow.
-        var user = await _userRepository.GetByIdAsync(userId)
-            ?? throw new NotFoundException("User", userId);
-
-        if (request.Code != "123456")
-            throw new UnauthorizedException("Invalid 2FA code.");
-
-        user.TwoFactorEnabled = true;
         await _userRepository.UpdateAsync(user);
     }
 

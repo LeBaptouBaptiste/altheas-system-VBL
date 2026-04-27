@@ -31,3 +31,29 @@ public enum TwoFactorVerifyOutcome
 }
 
 public record TwoFactorVerifyResult(TwoFactorVerifyOutcome Outcome);
+
+// ── HTTP request / response DTOs for the /api/auth/2fa endpoints ──
+
+public record EnableTwoFactorRequest(string Code);
+
+/// <summary>
+/// Response shape of /api/auth/2fa/enable. Contains the one-shot recovery
+/// codes AND a fresh AuthResponse — because once /enable succeeds the user
+/// has proven MFA, so we (re)issue a JWT with amr = "pwd mfa". This also
+/// gives the admin-setup flow a usable token (they didn't have one yet).
+/// </summary>
+public record TwoFactorEnableResponse(
+    IReadOnlyList<string> RecoveryCodes,
+    AuthResponse Auth
+);
+
+/// <summary>
+/// Inline step-up: caller proves identity with their password AND a fresh
+/// 2FA code. Will be replaced by an X-Step-Up-Token header pattern in
+/// commit 5 once <c>[RequireStepUp]</c> lands.
+/// </summary>
+public record DisableTwoFactorRequest(string Password, string Code);
+
+public record RegenerateRecoveryCodesRequest(string Password, string Code);
+
+public record RegenerateRecoveryCodesResponse(IReadOnlyList<string> RecoveryCodes);

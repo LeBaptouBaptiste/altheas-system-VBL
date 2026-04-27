@@ -272,27 +272,33 @@ public class AuthServiceTests
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
+    // ─────────────────────────────────────────────────────────
+    //  IssueTokensAsync (helper used by Login + /2fa/enable + /2fa/verify)
+    // ─────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task Verify2FaAsync_CorrectCode_EnablesTwoFactor()
+    public async Task IssueTokensAsync_UpdatesLastLoginAndReturnsTokens()
     {
         var user = CreateTestUser();
-        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
 
-        await _sut.Verify2FaAsync(user.Id, new Verify2FaRequest("123456"));
+        var result = await _sut.IssueTokensAsync(user, mfaVerified: true);
 
-        user.TwoFactorEnabled.Should().BeTrue();
+        result.AccessToken.Should().Be("test-access-token");
+        result.RefreshToken.Should().Be("test-refresh-token");
+        result.User.Email.Should().Be("test@test.com");
+        user.LastLogin.Should().NotBeNull();
         _userRepo.Verify(r => r.UpdateAsync(user), Times.Once);
+        _tokenService.Verify(t => t.GenerateAccessToken(user, true), Times.Once);
     }
 
     [Fact]
-    public async Task Verify2FaAsync_WrongCode_ThrowsUnauthorized()
+    public async Task IssueTokensAsync_PropagatesMfaFlagToTokenService()
     {
         var user = CreateTestUser();
-        _userRepo.Setup(r => r.GetByIdAsync(user.Id)).ReturnsAsync(user);
 
-        var act = () => _sut.Verify2FaAsync(user.Id, new Verify2FaRequest("000000"));
+        await _sut.IssueTokensAsync(user, mfaVerified: false);
 
-        await act.Should().ThrowAsync<UnauthorizedException>();
+        _tokenService.Verify(t => t.GenerateAccessToken(user, false), Times.Once);
     }
 
     private static User CreateTestUser() => new()

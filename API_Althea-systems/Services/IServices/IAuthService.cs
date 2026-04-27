@@ -20,14 +20,15 @@ public interface IAuthService
     /// </summary>
     Task<AuthResponse> CompleteTwoFactorChallengeAsync(VerifyTwoFactorChallengeRequest request);
 
+    /// <summary>
+    /// Issues fresh access + refresh tokens for an already-authenticated user
+    /// (e.g. just after /2fa/enable). Updates LastLogin and applies the
+    /// <paramref name="mfaVerified"/> flag to the access token's amr claim.
+    /// </summary>
+    Task<AuthResponse> IssueTokensAsync(User user, bool mfaVerified);
+
     Task<UserDto> GetCurrentUserAsync(Guid userId);
     Task ConfirmEmailAsync(ConfirmEmailRequest request);
     Task ForgotPasswordAsync(ForgotPasswordRequest request);
     Task ResetPasswordAsync(ResetPasswordRequest request);
-
-    /// <summary>
-    /// Legacy endpoint still wired to the old mock — to be removed once
-    /// the new TwoFactorController lands in commit 4b.
-    /// </summary>
-    Task Verify2FaAsync(Guid userId, Verify2FaRequest request);
 }

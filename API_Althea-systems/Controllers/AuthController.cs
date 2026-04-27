@@ -76,12 +76,4 @@ public class AuthController : ControllerBase, IAuthController
         return Ok(new { message = "Password reset successfully." });
     }
 
-    [HttpPost("verify-2fa")]
-    [Authorize]
-    public async Task<IActionResult> Verify2Fa([FromBody] Verify2FaRequest request)
-    {
-        var userId = Guid.Parse(HttpContext.Items["UserId"]?.ToString()!);
-        await _authService.Verify2FaAsync(userId, request);
-        return Ok(new { message = "Two-factor authentication verified." });
-    }
 }

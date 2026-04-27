@@ -22,8 +22,6 @@ public record ResetPasswordRequest(
 
 public record ConfirmEmailRequest(string Token);
 
-public record Verify2FaRequest(string Code);
-
 public record AuthResponse(
     string AccessToken,
     string RefreshToken,

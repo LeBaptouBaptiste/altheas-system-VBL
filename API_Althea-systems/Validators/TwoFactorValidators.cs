@@ -12,17 +12,53 @@ public class VerifyTwoFactorChallengeRequestValidator : AbstractValidator<Verify
 
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("Code is required.")
-            .Must(BeValidShape).WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
+            .Must(TwoFactorCodeShape.IsValid)
+            .WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
     }
+}
 
-    /// <summary>
-    /// Accepts either:
-    ///   - a 6-digit TOTP code, or
-    ///   - a 19-char recovery code formatted as 4-4-4-4 hex.
-    /// The actual cryptographic check happens in TwoFactorService — this is
-    /// just a shape gate to fail malformed inputs early.
-    /// </summary>
-    private static bool BeValidShape(string code)
+public class EnableTwoFactorRequestValidator : AbstractValidator<EnableTwoFactorRequest>
+{
+    public EnableTwoFactorRequestValidator()
+    {
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("Code is required.")
+            .Must(s => s != null && s.Length == 6 && s.All(char.IsDigit))
+            .WithMessage("Enable expects the 6-digit TOTP code from the authenticator app (recovery codes are not accepted here).");
+    }
+}
+
+public class DisableTwoFactorRequestValidator : AbstractValidator<DisableTwoFactorRequest>
+{
+    public DisableTwoFactorRequestValidator()
+    {
+        RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.");
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("Code is required.")
+            .Must(TwoFactorCodeShape.IsValid)
+            .WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
+    }
+}
+
+public class RegenerateRecoveryCodesRequestValidator : AbstractValidator<RegenerateRecoveryCodesRequest>
+{
+    public RegenerateRecoveryCodesRequestValidator()
+    {
+        RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.");
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("Code is required.")
+            .Must(TwoFactorCodeShape.IsValid)
+            .WithMessage("Code must be 6 digits or a recovery code (xxxx-xxxx-xxxx-xxxx).");
+    }
+}
+
+/// <summary>
+/// Cheap shape gate for 2FA codes. The cryptographic check is done by
+/// TwoFactorService — this just rejects obviously malformed inputs early.
+/// </summary>
+internal static class TwoFactorCodeShape
+{
+    public static bool IsValid(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return false;
         var trimmed = code.Trim();
