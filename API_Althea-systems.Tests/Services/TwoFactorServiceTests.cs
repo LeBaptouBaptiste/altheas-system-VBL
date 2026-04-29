@@ -223,6 +223,88 @@ public class TwoFactorServiceTests
     }
 
     // ─────────────────────────────────────────────────────────
+    //  Lock-out (brute-force protection)
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task VerifyAsync_AccumulatesFailures_LocksAfterFiveAttempts()
+    {
+        var user = NewUser();
+        user.TwoFactorEnabled = true;
+        user.TwoFactorEnabledAt = DateTime.UtcNow;
+        user.TwoFactorSecret = _encryption.Encrypt(
+            Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('='));
+
+        // 4 first wrong attempts come back as Invalid; the 5th flips to Locked.
+        for (var i = 1; i <= 4; i++)
+        {
+            var r = await _sut.VerifyAsync(user, "000000");
+            r.Outcome.Should().Be(TwoFactorVerifyOutcome.Invalid, $"attempt {i}");
+        }
+
+        var fifth = await _sut.VerifyAsync(user, "000000");
+        fifth.Outcome.Should().Be(TwoFactorVerifyOutcome.Locked);
+        fifth.RetryAfterSeconds.Should().BeGreaterThan(0);
+        _state.Locks.Should().ContainKey(user.Id);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_LockedAccount_RefusesEvenValidCodes()
+    {
+        var user = NewUser();
+        user.TwoFactorEnabled = true;
+        var raw = Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('=');
+        user.TwoFactorSecret = _encryption.Encrypt(raw);
+
+        // Pre-lock the account directly.
+        await _state.LockAsync(user.Id, TimeSpan.FromMinutes(15));
+
+        // Even a valid TOTP must be rejected while locked.
+        var validCode = ComputeTotp(raw);
+        var result = await _sut.VerifyAsync(user, validCode);
+
+        result.Outcome.Should().Be(TwoFactorVerifyOutcome.Locked);
+        result.RetryAfterSeconds.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_SuccessfulCode_ResetsFailureCounter()
+    {
+        var user = NewUser();
+        user.TwoFactorEnabled = true;
+        var raw = Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('=');
+        user.TwoFactorSecret = _encryption.Encrypt(raw);
+
+        // Build up a few failures.
+        await _sut.VerifyAsync(user, "000000");
+        await _sut.VerifyAsync(user, "000000");
+        _state.FailureCounts[user.Id].Should().Be(2);
+
+        // A success wipes the counter.
+        var ok = await _sut.VerifyAsync(user, ComputeTotp(raw));
+        ok.Outcome.Should().Be(TwoFactorVerifyOutcome.Valid);
+        _state.FailureCounts.Should().NotContainKey(user.Id);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_RecoveryCodeSuccess_ResetsFailureCounter()
+    {
+        var user = NewUser();
+        var setup = await _sut.StartSetupAsync(user);
+        var enable = await _sut.EnableAsync(user, ComputeTotp(setup.Secret));
+
+        // Fail twice with bad codes.
+        await _sut.VerifyAsync(user, "000000");
+        await _sut.VerifyAsync(user, "111111");
+        _state.FailureCounts[user.Id].Should().Be(2);
+
+        // Use a recovery code -> success -> counter reset.
+        var ok = await _sut.VerifyAsync(user, enable.RecoveryCodes[0]);
+        ok.Outcome.Should().Be(TwoFactorVerifyOutcome.ValidViaRecoveryCode);
+        _state.FailureCounts.Should().NotContainKey(user.Id);
+    }
+
+    // ─────────────────────────────────────────────────────────
     //  Disable / regenerate / status
     // ─────────────────────────────────────────────────────────
 
@@ -292,6 +374,8 @@ public class TwoFactorServiceTests
     {
         public Dictionary<Guid, string> SetupSecrets { get; } = new();
         public Dictionary<Guid, long> ReplaySteps { get; } = new();
+        public Dictionary<Guid, int> FailureCounts { get; } = new();
+        public Dictionary<Guid, DateTime> Locks { get; } = new();
 
         public Task SetSetupSecretAsync(Guid userId, string secret, TimeSpan ttl)
         {
@@ -321,6 +405,33 @@ public class TwoFactorServiceTests
         {
             ReplaySteps.Remove(userId);
             return Task.CompletedTask;
+        }
+
+        public Task<int> IncrementFailureAsync(Guid userId, TimeSpan ttl)
+        {
+            FailureCounts.TryGetValue(userId, out var current);
+            var next = current + 1;
+            FailureCounts[userId] = next;
+            return Task.FromResult(next);
+        }
+
+        public Task ResetFailuresAsync(Guid userId)
+        {
+            FailureCounts.Remove(userId);
+            return Task.CompletedTask;
+        }
+
+        public Task LockAsync(Guid userId, TimeSpan ttl)
+        {
+            Locks[userId] = DateTime.UtcNow.Add(ttl);
+            return Task.CompletedTask;
+        }
+
+        public Task<TimeSpan?> GetLockRemainingAsync(Guid userId)
+        {
+            if (!Locks.TryGetValue(userId, out var until)) return Task.FromResult<TimeSpan?>(null);
+            var remaining = until - DateTime.UtcNow;
+            return Task.FromResult<TimeSpan?>(remaining > TimeSpan.Zero ? remaining : null);
         }
     }
 

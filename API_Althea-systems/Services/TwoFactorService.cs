@@ -17,6 +17,13 @@ public class TwoFactorService : ITwoFactorService
     private static readonly TimeSpan SetupTtl = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan ReplayGuardTtl = TimeSpan.FromSeconds(90);
 
+    // Lock-out (brute-force protection) — values calibrated for a 6-digit
+    // TOTP. With 5 attempts max and a 15-min lock, an attacker is capped
+    // at 5 guesses per 15 min = 480 guesses/day = 0.05% chance over 24 h.
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan FailureCounterTtl = TimeSpan.FromMinutes(15);
+
     // Recovery codes: 4 groups of 4 hex chars => 16 hex chars => 64 bits of entropy.
     private const int RecoveryGroups = 4;
     private const int RecoveryGroupLength = 4;
@@ -97,31 +104,78 @@ public class TwoFactorService : ITwoFactorService
         if (!user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret))
             return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.NotEnabled);
 
+        // Brute-force gate: refuse upfront if the account is currently locked.
+        var lockRemaining = await _state.GetLockRemainingAsync(user.Id);
+        if (lockRemaining is { } remaining && remaining > TimeSpan.Zero)
+        {
+            _logger.LogWarning("2FA verify blocked: user {UserId} is locked for {Seconds}s",
+                user.Id, (int)remaining.TotalSeconds);
+            return new TwoFactorVerifyResult(
+                TwoFactorVerifyOutcome.Locked,
+                RetryAfterSeconds: (int)Math.Ceiling(remaining.TotalSeconds));
+        }
+
         var normalized = (codeOrRecovery ?? string.Empty).Trim();
 
         // Recovery code path: detect by length / dashes.
         if (LooksLikeRecoveryCode(normalized))
         {
             var ok = await VerifyRecoveryCodeAsync(user.Id, normalized);
-            return new TwoFactorVerifyResult(
-                ok ? TwoFactorVerifyOutcome.ValidViaRecoveryCode : TwoFactorVerifyOutcome.Invalid);
+            if (ok)
+            {
+                await _state.ResetFailuresAsync(user.Id);
+                return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.ValidViaRecoveryCode);
+            }
+            return await RegisterFailureAsync(user.Id);
         }
 
         // TOTP path: 6 digits.
         var base32 = _encryption.Decrypt(user.TwoFactorSecret);
         if (!VerifyTotpCode(base32, normalized, out var matchedStep))
-            return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Invalid);
+        {
+            return await RegisterFailureAsync(user.Id);
+        }
 
         // Replay protection: refuse if this step was already consumed.
+        // Replays count as failures too — a sniffed code mustn't be free
+        // tries against the brute-force counter.
         var prev = await _state.GetLastReplayStepAsync(user.Id);
         if (prev.HasValue && matchedStep <= prev.Value)
         {
             _logger.LogWarning("2FA replay blocked for user {UserId} (step {Step})", user.Id, matchedStep);
-            return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Invalid);
+            return await RegisterFailureAsync(user.Id);
         }
         await _state.SetLastReplayStepAsync(user.Id, matchedStep, ReplayGuardTtl);
 
+        await _state.ResetFailuresAsync(user.Id);
         return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Valid);
+    }
+
+    /// <summary>
+    /// Records a failed attempt and, if the threshold is hit, sets the
+    /// account-wide lock. Returns either Invalid (still has tries left)
+    /// or Locked (threshold reached, with the remaining lock duration).
+    /// </summary>
+    private async Task<TwoFactorVerifyResult> RegisterFailureAsync(Guid userId)
+    {
+        var count = await _state.IncrementFailureAsync(userId, FailureCounterTtl);
+
+        if (count >= MaxFailedAttempts)
+        {
+            await _state.LockAsync(userId, LockDuration);
+            await _state.ResetFailuresAsync(userId);
+            _logger.LogWarning(
+                "2FA lock-out triggered for user {UserId} after {Count} failed attempts; locked {Minutes} min",
+                userId, count, (int)LockDuration.TotalMinutes);
+            return new TwoFactorVerifyResult(
+                TwoFactorVerifyOutcome.Locked,
+                RetryAfterSeconds: (int)LockDuration.TotalSeconds);
+        }
+
+        _logger.LogInformation(
+            "2FA verify failed for user {UserId} (attempt {Count}/{Max})",
+            userId, count, MaxFailedAttempts);
+        return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Invalid);
     }
 
     // ─────────────────────────────────────────────────────────

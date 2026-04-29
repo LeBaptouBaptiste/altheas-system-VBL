@@ -52,10 +52,10 @@ public class AuthService : IAuthService
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
         var user = await _userRepository.GetByEmailAsync(request.Email.ToLowerInvariant())
-            ?? throw new UnauthorizedException("Invalid email or password.");
+            ?? throw new UnauthorizedException("Invalid email or password.", reason: "invalid_credentials");
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            throw new UnauthorizedException("Invalid email or password.");
+            throw new UnauthorizedException("Invalid email or password.", reason: "invalid_credentials");
 
         if (user.Status == UserStatus.Inactive)
             throw new ForbiddenException("This account has been deactivated.");
@@ -98,10 +98,14 @@ public class AuthService : IAuthService
             throw new ForbiddenException("This account has been deactivated.");
 
         var verify = await _twoFactor.VerifyAsync(user, request.Code);
+        if (verify.Outcome == TwoFactorVerifyOutcome.Locked)
+        {
+            throw new AccountLockedException(verify.RetryAfterSeconds ?? 900);
+        }
         if (verify.Outcome != TwoFactorVerifyOutcome.Valid
             && verify.Outcome != TwoFactorVerifyOutcome.ValidViaRecoveryCode)
         {
-            throw new UnauthorizedException("Invalid 2FA code.");
+            throw new UnauthorizedException("Invalid 2FA code.", reason: "invalid_credentials");
         }
 
         return await IssueTokensAsync(user, mfaVerified: true);
@@ -133,26 +137,30 @@ public class AuthService : IAuthService
         if (!string.IsNullOrWhiteSpace(request.Code))
         {
             var verify = await _twoFactor.VerifyAsync(user, request.Code);
+            if (verify.Outcome == TwoFactorVerifyOutcome.Locked)
+            {
+                throw new AccountLockedException(verify.RetryAfterSeconds ?? 900);
+            }
             if (verify.Outcome != TwoFactorVerifyOutcome.Valid
                 && verify.Outcome != TwoFactorVerifyOutcome.ValidViaRecoveryCode)
             {
-                throw new UnauthorizedException("Invalid 2FA code.");
+                throw new UnauthorizedException("Invalid 2FA code.", reason: "invalid_credentials");
             }
         }
         else if (!string.IsNullOrWhiteSpace(request.Password))
         {
             if (request.Purpose == StepUpPurpose.Admin)
-                throw new UnauthorizedException("Admin step-up requires a 2FA code.");
+                throw new UnauthorizedException("Admin step-up requires a 2FA code.", reason: "invalid_credentials");
 
             if (user.TwoFactorEnabled)
-                throw new UnauthorizedException("This account has 2FA — provide a code, not a password.");
+                throw new UnauthorizedException("This account has 2FA — provide a code, not a password.", reason: "invalid_credentials");
 
             if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
-                throw new UnauthorizedException("Invalid password.");
+                throw new UnauthorizedException("Invalid password.", reason: "invalid_credentials");
         }
         else
         {
-            throw new UnauthorizedException("Either a code or a password is required.");
+            throw new UnauthorizedException("Either a code or a password is required.", reason: "invalid_credentials");
         }
 
         var token = _tokenService.GenerateStepUpToken(user, request.Purpose);

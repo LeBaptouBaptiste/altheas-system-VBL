@@ -27,6 +27,22 @@ export function isStepUpRequired(err: unknown): err is StepUpRequiredError {
   return err instanceof StepUpRequiredError;
 }
 
+/**
+ * Thrown when the API returns 429 with `{ reason: "account_locked" }` —
+ * the account hit too many failed 2FA attempts. The UI should display the
+ * remaining time and disable retry until then.
+ */
+export class AccountLockedError extends Error {
+  constructor(public retryAfterSeconds: number) {
+    super(`Account temporarily locked. Try again in ${Math.ceil(retryAfterSeconds / 60)} min.`);
+    this.name = 'AccountLockedError';
+  }
+}
+
+export function isAccountLocked(err: unknown): err is AccountLockedError {
+  return err instanceof AccountLockedError;
+}
+
 /** True if the message coming from the server is something other than the default placeholder. */
 function errorBodyHasMessage(message: string): boolean {
   return message !== 'An unexpected error occurred';
@@ -119,12 +135,16 @@ async function apiFetch<T>(
     let message = 'An unexpected error occurred';
     let errors: Record<string, string[]> | undefined;
     let reason: string | undefined;
+    let retryAfterSeconds: number | undefined;
 
     try {
       const errorBody = await response.json();
       message = errorBody.message || message;
       errors = errorBody.errors;
       reason = errorBody.reason;
+      if (typeof errorBody.retryAfterSeconds === 'number') {
+        retryAfterSeconds = errorBody.retryAfterSeconds;
+      }
     } catch {
       // response body not JSON
     }
@@ -135,10 +155,18 @@ async function apiFetch<T>(
       throw new StepUpRequiredError();
     }
 
+    // Account locked after too many failed 2FA attempts.
+    if (response.status === 429 && reason === 'account_locked') {
+      throw new AccountLockedError(retryAfterSeconds ?? 900);
+    }
+
     // Clear token on 401 — but only when the request actually used the
-    // localStorage token. Per-request overrides (e.g. expired setup token)
-    // must NOT nuke the user's main session.
-    if (response.status === 401 && options.bearerToken === undefined) {
+    // localStorage token AND the failure indicates a bad/expired JWT.
+    // A 401 with reason="invalid_credentials" means the user typed a wrong
+    // code/password, NOT that their session is broken — keep their token.
+    if (response.status === 401
+        && options.bearerToken === undefined
+        && reason !== 'invalid_credentials') {
       clearToken();
     }
 

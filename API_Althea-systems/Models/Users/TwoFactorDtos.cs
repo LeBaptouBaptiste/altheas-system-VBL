@@ -28,9 +28,15 @@ public enum TwoFactorVerifyOutcome
 
     /// <summary>2FA is not enabled on this account — caller should not have asked.</summary>
     NotEnabled,
+
+    /// <summary>Account is temporarily locked because too many wrong codes piled up.</summary>
+    Locked,
 }
 
-public record TwoFactorVerifyResult(TwoFactorVerifyOutcome Outcome);
+public record TwoFactorVerifyResult(
+    TwoFactorVerifyOutcome Outcome,
+    /// <summary>When <see cref="Outcome"/> is <see cref="TwoFactorVerifyOutcome.Locked"/>, the remaining lock duration in seconds.</summary>
+    int? RetryAfterSeconds = null);
 
 // ── HTTP request / response DTOs for the /api/auth/2fa endpoints ──
 
