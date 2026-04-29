@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ShoppingCart, Search, Menu, Globe, User, LogOut, Settings, Package, FileText, Info, MessageSquare, Bot } from 'lucide-react';
+import { ShoppingCart, Search, Menu, Globe, User, LogOut, Settings, Package, FileText, Info, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -50,13 +50,15 @@ export function Header() {
               </Link>
             )}
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
-              <SelectTrigger className="h-7 w-[100px] border-white/20 bg-transparent text-white text-xs" aria-label="Language">
+              <SelectTrigger className="h-7 w-[130px] border-white/20 bg-transparent text-white text-xs" aria-label="Language">
                 <Globe className="w-3 h-3 mr-1" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="fr">Français</SelectItem>
                 <SelectItem value="en">English</SelectItem>
+                <SelectItem value="ms">Bahasa Melayu</SelectItem>
+                <SelectItem value="ar">العربية</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -161,7 +163,6 @@ export function Header() {
                   <MobileLink href="/categories" icon={<Package className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.categories')}</MobileLink>
                   <MobileLink href="/search" icon={<Search className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.search')}</MobileLink>
                   <MobileLink href="/contact" icon={<MessageSquare className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.contact')}</MobileLink>
-                  <MobileLink href="/chatbot" icon={<Bot className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.chatbot')}</MobileLink>
 
                   <Separator className="my-2" />
 
@@ -202,7 +203,6 @@ export function Header() {
           <Link href="/categories" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.categories')}</Link>
           <Link href="/search" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.search')}</Link>
           <Link href="/contact" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.contact')}</Link>
-          <Link href="/chatbot" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.chatbot')}</Link>
         </nav>
       </div>
     </header>

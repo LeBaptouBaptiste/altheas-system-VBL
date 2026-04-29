@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { products, categories, getProductImage } from '@/mock';
-import { formatPrice, calculateTTC, calculateVAT } from '@/lib/money';
+import { formatPrice, calculateTTC, calculateVAT, toIntlLocale } from '@/lib/money';
 import { VAT_RATES } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -24,7 +24,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const [qty, setQty] = useState(1);
 
   const product = products.find(p => p.slug === slug);
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const similar = useMemo(() => {
     if (!product) return [];
@@ -54,7 +54,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
 
   const handleAddToCart = () => {
     addItem(product.id, qty);
-    toast.success(`${localized(product.name)} ${locale === 'fr' ? 'ajouté au panier' : 'added to cart'} (x${qty})`);
+    const suffix: Record<string, string> = { fr: 'ajouté au panier', en: 'added to cart', ms: 'ditambah ke troli', ar: 'أُضيف إلى عربة التسوق' };
+    toast.success(`${localized(product.name)} ${suffix[locale] ?? 'added to cart'} (x${qty})`);
   };
 
   return (

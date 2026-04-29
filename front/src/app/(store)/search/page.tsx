@@ -18,7 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { products, categories, getProductImage } from '@/mock';
-import { formatPrice, calculateTTC } from '@/lib/money';
+import { formatPrice, calculateTTC, toIntlLocale } from '@/lib/money';
 import { VAT_RATES } from '@/lib/constants';
 import { getMatchPriority, type MatchPriority } from '@/lib/search';
 import { toast } from 'sonner';
@@ -27,7 +27,7 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const { t, localized, locale } = useI18n();
   const { addItem } = useCart();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [priceMin, setPriceMin] = useState('');
@@ -195,7 +195,7 @@ function SearchContent() {
                       <div className="flex items-center justify-between mt-2">
                         <span className="font-bold text-brand-dark">{fmt(price)}</span>
                         <Button size="sm" variant="ghost" className="text-brand-primary" disabled={isOOS}
-                          onClick={() => { addItem(product.id); toast.success(localized(product.name) + (locale === 'fr' ? ' ajouté' : ' added')); }}>
+                          onClick={() => { addItem(product.id); toast.success(localized(product.name) + ({ fr: ' ajouté au panier', en: ' added to cart', ms: ' ditambah ke troli', ar: ' أُضيف إلى عربة التسوق' }[locale] ?? ' added to cart')); }}>
                           <ShoppingCart className="w-4 h-4" />
                         </Button>
                       </div>

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@vltansky/tailwindcss-rtl-first";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -88,6 +89,11 @@
   --color-success: #10B981;
   --color-error: #EF4444;
   --color-warning: #F59E0B;
+}
+
+/* RTL — arabic-compatible font */
+[dir="rtl"] body {
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
 }
 
 @layer base {

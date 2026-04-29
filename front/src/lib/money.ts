@@ -1,5 +1,16 @@
 import { VAT_RATES, type VatRateKey } from './constants';
 
+export const INTL_LOCALE: Record<string, string> = {
+  fr: 'fr-FR',
+  en: 'en-US',
+  ms: 'ms-MY',
+  ar: 'ar-MA',
+};
+
+export function toIntlLocale(appLocale: string): string {
+  return INTL_LOCALE[appLocale] ?? 'en-US';
+}
+
 /**
  * Format a price for display in the user's locale.
  * Payment is always in EUR, but display uses locale formatting.

@@ -14,7 +14,7 @@ import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
 import { products } from '@/mock';
-import { formatPrice, calculateTTC } from '@/lib/money';
+import { formatPrice, calculateTTC, toIntlLocale } from '@/lib/money';
 import { VAT_RATES, SHIPPING_METHODS } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -24,7 +24,7 @@ export default function CheckoutPage() {
   const { t, localized, locale } = useI18n();
   const { isAuthenticated } = useAuth();
   const { items, subtotalHT, totalVAT, totalTTC, clearCart } = useCart();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [step, setStep] = useState<number>(isAuthenticated ? 1 : 0);
   const [sameAddress, setSameAddress] = useState(true);
@@ -92,14 +92,14 @@ export default function CheckoutPage() {
         <Card><CardContent className="p-6 space-y-6">
           <h2 className="text-xl font-semibold flex items-center gap-2"><MapPin className="w-5 h-5" />{t('checkout.billing_address')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input defaultValue="Sophie" /></div>
-            <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input defaultValue="Martin" /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input defaultValue="Cabinet Médical Martin" /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input defaultValue="15 rue de la République" /></div>
-            <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input defaultValue="Lyon" /></div>
-            <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input defaultValue="69002" /></div>
-            <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input defaultValue="France" /></div>
-            <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input defaultValue="+33 4 72 00 00 01" /></div>
+            <div><Label>{t('checkout.first_name')}</Label><Input defaultValue="Sophie" /></div>
+            <div><Label>{t('checkout.last_name')}</Label><Input defaultValue="Martin" /></div>
+            <div className="sm:col-span-2"><Label>{t('checkout.company')}</Label><Input defaultValue="Cabinet Médical Martin" /></div>
+            <div className="sm:col-span-2"><Label>{t('checkout.address')}</Label><Input defaultValue="15 rue de la République" /></div>
+            <div><Label>{t('checkout.city')}</Label><Input defaultValue="Lyon" /></div>
+            <div><Label>{t('checkout.postal_code')}</Label><Input defaultValue="69002" /></div>
+            <div><Label>{t('checkout.country')}</Label><Input defaultValue="France" /></div>
+            <div><Label>{t('checkout.phone')}</Label><Input defaultValue="+33 4 72 00 00 01" /></div>
           </div>
           <Button variant="outline" onClick={handleValidateAddress} disabled={addressValidated}>
             {addressValidated ? <><Check className="w-4 h-4 mr-2" />{t('checkout.address_validated')}</> : t('checkout.validate_address')}
@@ -113,12 +113,12 @@ export default function CheckoutPage() {
             <div>
               <h3 className="font-semibold mb-3">{t('checkout.shipping_address')}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input /></div>
-                <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input /></div>
-                <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input /></div>
+                <div><Label>{t('checkout.first_name')}</Label><Input /></div>
+                <div><Label>{t('checkout.last_name')}</Label><Input /></div>
+                <div className="sm:col-span-2"><Label>{t('checkout.address')}</Label><Input /></div>
+                <div><Label>{t('checkout.city')}</Label><Input /></div>
+                <div><Label>{t('checkout.postal_code')}</Label><Input /></div>
+                <div><Label>{t('checkout.country')}</Label><Input /></div>
               </div>
             </div>
           )}
@@ -176,26 +176,26 @@ export default function CheckoutPage() {
 
           {paymentMethod === 'card' && (
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <p className="text-sm font-medium">{locale === 'fr' ? 'Paiement sécurisé Stripe (mock)' : 'Secure Stripe Payment (mock)'}</p>
+              <p className="text-sm font-medium">{t('checkout.stripe_mock')}</p>
               <Input placeholder="4242 4242 4242 4242" readOnly className="bg-white" />
               <div className="flex gap-3">
                 <Input placeholder="MM/YY" readOnly className="bg-white" />
                 <Input placeholder="CVC" readOnly className="bg-white" />
               </div>
-              <p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Aucune donnée de carte n\'est stockée' : 'No card data is stored'}</p>
+              <p className="text-xs text-muted-foreground">{t('checkout.no_card_stored')}</p>
             </div>
           )}
           {paymentMethod === 'bank_transfer' && (
             <div className="bg-gray-50 p-4 rounded-lg text-sm">
-              <p className="font-medium mb-2">{locale === 'fr' ? 'Instructions de virement' : 'Bank Transfer Instructions'}</p>
+              <p className="font-medium mb-2">{t('checkout.bank_instructions')}</p>
               <p>IBAN: FR76 1234 5678 9012 3456 7890 123</p>
               <p>BIC: BNPAFRPP</p>
-              <p>{locale === 'fr' ? 'Référence' : 'Reference'}: ORD-2026-{String(Date.now()).slice(-3)}</p>
+              <p>{t('checkout.reference')}: ORD-2026-{String(Date.now()).slice(-3)}</p>
             </div>
           )}
           {paymentMethod === 'admin_mandate' && (
             <div className="bg-gray-50 p-4 rounded-lg text-sm">
-              <p>{locale === 'fr' ? 'Veuillez envoyer votre mandat administratif à : commandes@altheasystems.com' : 'Please send your administrative mandate to: orders@altheasystems.com'}</p>
+              <p>{t('checkout.mandate_instructions')}</p>
             </div>
           )}
 
@@ -204,7 +204,7 @@ export default function CheckoutPage() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm"><span>{t('cart.subtotal')}</span><span>{fmt(subtotalHT)}</span></div>
             <div className="flex justify-between text-sm"><span>{t('cart.vat')}</span><span>{fmt(totalVAT)}</span></div>
-            <div className="flex justify-between text-sm"><span>{locale === 'fr' ? 'Livraison' : 'Shipping'}</span><span>{fmt(shippingCost)}</span></div>
+            <div className="flex justify-between text-sm"><span>{t('checkout.shipping')}</span><span>{fmt(shippingCost)}</span></div>
             <Separator />
             <div className="flex justify-between font-bold text-lg"><span>{t('cart.total')}</span><span>{fmt(grandTotal)}</span></div>
           </div>
@@ -224,7 +224,8 @@ export default function CheckoutPage() {
           </div>
           <h2 className="text-2xl font-semibold text-brand-dark">{t('checkout.order_confirmed')}</h2>
           <p className="text-muted-foreground">{t('checkout.email_sent')}</p>
-          <Button variant="outline" onClick={() => toast.info(locale === 'fr' ? 'Facture PDF (mock) téléchargée' : 'Invoice PDF (mock) downloaded')}>
+          <Button variant="outline" onClick={() => toast.info(t('checkout.invoice_downloaded'))}>
+
             <Download className="w-4 h-4 mr-2" />{t('checkout.download_invoice')}
           </Button>
           <div className="pt-4">

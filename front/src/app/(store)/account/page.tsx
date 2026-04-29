@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { orders, products, invoices } from '@/mock';
-import { formatPrice, calculateTTC } from '@/lib/money';
+import { formatPrice, calculateTTC, toIntlLocale } from '@/lib/money';
 import { VAT_RATES } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -31,7 +31,7 @@ export default function AccountPage() {
   const { t, locale, localized } = useI18n();
   const { user, isAuthenticated, updateUser, anonymizeAccount, logout } = useAuth();
   const router = useRouter();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   if (!isAuthenticated || !user) {
     router.push('/login');
@@ -62,7 +62,7 @@ export default function AccountPage() {
         <TabsContent value="settings">
           <Card><CardContent className="p-6 space-y-4">
             <div><Label>{t('auth.full_name')}</Label><Input defaultValue={user.name} /></div>
-            <div><Label>{t('auth.email')}</Label><Input defaultValue={user.email} /><p className="text-xs text-muted-foreground mt-1">{locale === 'fr' ? 'Modifier l\'email nécessite une confirmation' : 'Changing email requires confirmation'}</p></div>
+            <div><Label>{t('auth.email')}</Label><Input defaultValue={user.email} /><p className="text-xs text-muted-foreground mt-1">{{ fr: 'Modifier l\'email nécessite une confirmation', en: 'Changing email requires confirmation', ms: 'Menukar e-mel memerlukan pengesahan', ar: 'تغيير البريد الإلكتروني يتطلب تأكيداً' }[locale] ?? 'Changing email requires confirmation'}</p></div>
             <Separator />
             <div><Label>{t('auth.password')}</Label><Input type="password" placeholder="••••••••" /><p className="text-xs text-muted-foreground mt-1">{t('auth.password_rules')}</p></div>
             <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => toast.success(t('account.save') + ' ✓')}>{t('account.save')}</Button>
@@ -154,7 +154,7 @@ export default function AccountPage() {
             ))}
           </div>
           <Button variant="outline" className="mt-4">{t('account.add_payment')}</Button>
-          <p className="text-xs text-muted-foreground mt-2">{locale === 'fr' ? 'Aucune donnée sensible n\'est stockée' : 'No sensitive data is stored'}</p>
+          <p className="text-xs text-muted-foreground mt-2">{{ fr: 'Aucune donnée sensible n\'est stockée', en: 'No sensitive data is stored', ms: 'Tiada data sensitif disimpan', ar: 'لا يتم تخزين أي بيانات حساسة' }[locale] ?? 'No sensitive data is stored'}</p>
         </TabsContent>
       </Tabs>
     </div>
