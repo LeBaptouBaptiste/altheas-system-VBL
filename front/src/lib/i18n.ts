@@ -152,6 +152,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'account.security': 'Sécurité',
     'account.anonymize': 'Anonymiser mon compte',
     'account.anonymize_warning': 'Cette action est irréversible. Toutes vos données personnelles seront anonymisées.',
+    'account.anonymize_success': 'Compte anonymisé. À bientôt.',
 
     // Contact
     'contact.title': 'Contactez-nous',
@@ -472,6 +473,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'account.security': 'Security',
     'account.anonymize': 'Anonymize my account',
     'account.anonymize_warning': 'This action is irreversible. All your personal data will be anonymized.',
+    'account.anonymize_success': 'Account anonymized. Goodbye.',
 
     // Contact
     'contact.title': 'Contact Us',

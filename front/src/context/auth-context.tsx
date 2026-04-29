@@ -37,7 +37,12 @@ interface AuthContextType {
   logout: () => void;
   confirmEmail: (token: string) => Promise<void>;
   updateUser: (updates: { name?: string; email?: string }) => Promise<void>;
-  anonymizeAccount: () => Promise<void>;
+  /**
+   * Anonymises the current user (GDPR delete equivalent). Backend requires
+   * a step-up Action token — caller obtains one via `useStepUp().withStepUp()`
+   * and passes it here. After success, the local session is wiped.
+   */
+  anonymizeAccount: (stepUpToken: string) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -144,9 +149,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updated);
   }, [user]);
 
-  const anonymizeAccount = useCallback(async () => {
+  const anonymizeAccount = useCallback(async (stepUpToken: string) => {
     if (!user) return;
-    await usersService.anonymize(user.id);
+    await usersService.anonymize(user.id, stepUpToken);
     clearToken();
     setUser(null);
     localStorage.removeItem('althea-user');

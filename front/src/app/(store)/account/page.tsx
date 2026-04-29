@@ -10,11 +10,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { ordersService, usersService, authService } from '@/lib/api-services';
 import { TwoFactorSection } from '@/components/account/two-factor-section';
+import { useStepUp } from '@/components/two-factor/step-up-provider';
+import { getErrorMessage } from '@/lib/api-errors';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice } from '@/lib/money';
@@ -34,6 +36,7 @@ const statusColors: Record<number, string> = {
 export default function AccountPage() {
   const { t, locale, localized } = useI18n();
   const { user, isAuthenticated, anonymizeAccount, logout, refreshUser, loading: authLoading } = useAuth();
+  const { withStepUp } = useStepUp();
   const router = useRouter();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
   const [userOrders, setUserOrders] = useState<OrderDto[]>([]);
@@ -124,8 +127,30 @@ export default function AccountPage() {
                 <DialogHeader><DialogTitle>{t('account.anonymize')}</DialogTitle></DialogHeader>
                 <p className="text-sm text-muted-foreground">{t('account.anonymize_warning')}</p>
                 <div className="flex gap-4 mt-4">
-                  <Button variant="outline" className="flex-1">{t('common.cancel')}</Button>
-                  <Button variant="destructive" className="flex-1" onClick={async () => { await anonymizeAccount(); toast.success('Account anonymized'); router.push('/'); }}>{t('common.confirm')}</Button>
+                  <DialogClose asChild>
+                    <Button variant="outline" className="flex-1">{t('common.cancel')}</Button>
+                  </DialogClose>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={async () => {
+                      try {
+                        // Sensitive op: gated by [RequireStepUp(Action)] server-side.
+                        // withStepUp handles the 1st-call → 403 → modal → retry pattern.
+                        // anonymizeAccount returns Promise<void>, so withStepUp
+                        // resolves with `undefined` on success and `null` on user cancel.
+                        const out = await withStepUp((token) => anonymizeAccount(token));
+                        if (out !== null) {
+                          toast.success(t('account.anonymize_success'));
+                          router.push('/');
+                        }
+                      } catch (err) {
+                        toast.error(getErrorMessage(err, t));
+                      }
+                    }}
+                  >
+                    {t('common.confirm')}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>

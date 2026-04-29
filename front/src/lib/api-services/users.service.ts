@@ -14,8 +14,12 @@ export const usersService = {
   delete: (id: string) =>
     api.delete(`/users/${id}`),
 
-  anonymize: (id: string) =>
-    api.post<UserDto>(`/users/${id}/anonymize`),
+  /**
+   * GDPR self-delete equivalent. Backend requires a step-up Action token —
+   * pass it via `stepUpToken` (callers should obtain it via `useStepUp()`).
+   */
+  anonymize: (id: string, stepUpToken?: string) =>
+    api.post<UserDto>(`/users/${id}/anonymize`, undefined, stepUpToken ? { stepUpToken } : undefined),
 
   // Addresses
   addAddress: (userId: string, data: Omit<AddressDto, 'id'>) =>

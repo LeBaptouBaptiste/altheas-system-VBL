@@ -4,14 +4,12 @@ import { useEffect, useState } from 'react';
 import { ShieldCheck, ShieldAlert, Copy, Check, Download, Loader2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { OtpQrCode } from '@/components/two-factor/otp-qr-code';
+import { useStepUp } from '@/components/two-factor/step-up-provider';
 import { authService } from '@/lib/api-services';
-import { isStepUpRequired } from '@/lib/api';
-import { getErrorMessage } from '@/lib/api-errors';
 import type { TwoFactorSetupResult, TwoFactorStatus } from '@/lib/api-types';
+import { getErrorMessage } from '@/lib/api-errors';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { toast } from 'sonner';
@@ -23,21 +21,10 @@ type View =
   | { kind: 'setupVerify'; setup: TwoFactorSetupResult }
   | { kind: 'recoveryCodes'; codes: string[] };
 
-/**
- * Step-up flow as a Promise: opens the dialog, the user types a code,
- * we POST /auth/step-up, and the dialog resolves with the token.
- * Reject if the user cancels.
- */
-type StepUpState =
-  | null
-  | {
-      resolve: (token: string) => void;
-      reject: (reason: Error) => void;
-    };
-
 export function TwoFactorSection() {
   const { t, locale } = useI18n();
   const { applyAuth } = useAuth();
+  const { withStepUp } = useStepUp();
 
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [submitting, setSubmitting] = useState(false);
@@ -45,87 +32,12 @@ export function TwoFactorSection() {
   const [secretCopied, setSecretCopied] = useState(false);
   const [savedConfirmed, setSavedConfirmed] = useState(false);
 
-  // Step-up dialog state
-  const [stepUpOpen, setStepUpOpen] = useState(false);
-  const [stepUpResolver, setStepUpResolver] = useState<StepUpState>(null);
-  const [stepUpCode, setStepUpCode] = useState('');
-  const [stepUpUseRecovery, setStepUpUseRecovery] = useState(false);
-  const [stepUpRecoveryCode, setStepUpRecoveryCode] = useState('');
-  const [stepUpError, setStepUpError] = useState('');
-  const [stepUpSubmitting, setStepUpSubmitting] = useState(false);
-
   // ── Load status on mount ──────────────────────────
   useEffect(() => {
     authService.getTwoFactorStatus()
       .then((status) => setView({ kind: 'status', status }))
       .catch((err) => toast.error(getErrorMessage(err, t)));
   }, [t]);
-
-  // ── Step-up helper ────────────────────────────────
-
-  /**
-   * Opens the step-up dialog, returns a token once the user verifies.
-   * Throws if the user cancels or the verification fails repeatedly.
-   */
-  const requestStepUp = (): Promise<string> => {
-    return new Promise<string>((resolve, reject) => {
-      setStepUpCode('');
-      setStepUpRecoveryCode('');
-      setStepUpUseRecovery(false);
-      setStepUpError('');
-      setStepUpResolver({ resolve, reject });
-      setStepUpOpen(true);
-    });
-  };
-
-  const submitStepUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stepUpResolver) return;
-    const submitted = stepUpUseRecovery ? stepUpRecoveryCode.trim().toLowerCase() : stepUpCode;
-    if (!submitted) return;
-
-    setStepUpSubmitting(true);
-    setStepUpError('');
-    try {
-      const result = await authService.stepUp('Action', { code: submitted });
-      stepUpResolver.resolve(result.token);
-      setStepUpOpen(false);
-      setStepUpResolver(null);
-    } catch (err) {
-      setStepUpError(getErrorMessage(err, t));
-      setStepUpCode('');
-      setStepUpRecoveryCode('');
-    } finally {
-      setStepUpSubmitting(false);
-    }
-  };
-
-  const cancelStepUp = () => {
-    if (stepUpResolver) {
-      stepUpResolver.reject(new Error('Step-up cancelled.'));
-    }
-    setStepUpOpen(false);
-    setStepUpResolver(null);
-  };
-
-  /**
-   * Wraps a call that needs an Action step-up: tries it raw, catches the
-   * 403 step_up_required, opens the dialog, retries with the token.
-   */
-  const withStepUp = async <T,>(call: (token: string) => Promise<T>): Promise<T | null> => {
-    try {
-      return await call('');
-    } catch (err) {
-      if (!isStepUpRequired(err)) throw err;
-      try {
-        const token = await requestStepUp();
-        return await call(token);
-      } catch (inner) {
-        if (inner instanceof Error && inner.message === 'Step-up cancelled.') return null;
-        throw inner;
-      }
-    }
-  };
 
   // ── Action handlers ───────────────────────────────
 
@@ -240,282 +152,204 @@ export function TwoFactorSection() {
   }
 
   return (
-    <>
-      <Card>
-        <CardContent className="p-6">
-          {/* Status — enabled */}
-          {view.kind === 'status' && view.status.enabled && (
-            <>
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-brand-dark">
-                    {t('2fa.section_enabled_title')}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t('2fa.section_enabled_at')}{' '}
-                    {view.status.enabledAt
-                      ? new Date(view.status.enabledAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')
-                      : '—'}
-                    .{' '}
-                    {view.status.recoveryCodesRemaining}{' '}
-                    {view.status.recoveryCodesRemaining === 1
-                      ? t('2fa.section_codes_remaining_one')
-                      : t('2fa.section_codes_remaining_other')}
-                  </p>
-                </div>
+    <Card>
+      <CardContent className="p-6">
+        {/* Status — enabled */}
+        {view.kind === 'status' && view.status.enabled && (
+          <>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5 text-success" />
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={regenerate} disabled={submitting}>
-                  <KeyRound className="w-4 h-4 mr-2" />
-                  {t('2fa.section_regenerate_button')}
-                </Button>
-                <Button variant="destructive" onClick={disable} disabled={submitting}>
-                  {t('2fa.section_disable_button')}
-                </Button>
+              <div>
+                <h3 className="font-semibold text-brand-dark">
+                  {t('2fa.section_enabled_title')}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {t('2fa.section_enabled_at')}{' '}
+                  {view.status.enabledAt
+                    ? new Date(view.status.enabledAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')
+                    : '—'}
+                  .{' '}
+                  {view.status.recoveryCodesRemaining}{' '}
+                  {view.status.recoveryCodesRemaining === 1
+                    ? t('2fa.section_codes_remaining_one')
+                    : t('2fa.section_codes_remaining_other')}
+                </p>
               </div>
-            </>
-          )}
-
-          {/* Status — disabled */}
-          {view.kind === 'status' && !view.status.enabled && (
-            <>
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                  <ShieldAlert className="w-5 h-5 text-amber-700" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-brand-dark">
-                    {t('2fa.section_disabled_title')}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t('2fa.section_add_security')}
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={startSetup}
-                disabled={submitting}
-                className="bg-brand-primary hover:bg-brand-hover text-white"
-              >
-                {submitting ? '…' : t('2fa.section_enable_button')}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={regenerate} disabled={submitting}>
+                <KeyRound className="w-4 h-4 mr-2" />
+                {t('2fa.section_regenerate_button')}
               </Button>
-            </>
-          )}
+              <Button variant="destructive" onClick={disable} disabled={submitting}>
+                {t('2fa.section_disable_button')}
+              </Button>
+            </div>
+          </>
+        )}
 
-          {/* Setup step 1: show secret + QR */}
-          {view.kind === 'setupSecret' && (
-            <>
-              <h3 className="font-semibold text-brand-dark mb-3">
-                {t('2fa.setup_step1_title')}
-              </h3>
-              <ol className="text-sm text-gray-700 space-y-1 mb-4 list-decimal list-inside">
-                <li>{t('2fa.setup_intro_open_app')}</li>
-                <li>{t('2fa.setup_intro_scan_or_type')}</li>
-              </ol>
-
-              <div className="flex justify-center mb-4">
-                <OtpQrCode uri={view.setup.otpAuthUri} />
+        {/* Status — disabled */}
+        {view.kind === 'status' && !view.status.enabled && (
+          <>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-amber-700" />
               </div>
+              <div>
+                <h3 className="font-semibold text-brand-dark">
+                  {t('2fa.section_disabled_title')}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {t('2fa.section_add_security')}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={startSetup}
+              disabled={submitting}
+              className="bg-brand-primary hover:bg-brand-hover text-white"
+            >
+              {submitting ? '…' : t('2fa.section_enable_button')}
+            </Button>
+          </>
+        )}
 
-              <details className="text-sm text-gray-700 mb-4">
-                <summary className="cursor-pointer text-brand-primary hover:underline mb-2">
-                  {t('2fa.setup_cant_scan')}
-                </summary>
-                <div className="bg-gray-50 border rounded-md p-4 mt-2">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {t('2fa.setup_secret_label')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 font-mono text-sm tracking-wider break-all">
-                      {view.setup.secret}
-                    </code>
-                    <Button type="button" variant="ghost" size="icon" onClick={copySecret}>
-                      {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </div>
+        {/* Setup step 1: show secret + QR */}
+        {view.kind === 'setupSecret' && (
+          <>
+            <h3 className="font-semibold text-brand-dark mb-3">
+              {t('2fa.setup_step1_title')}
+            </h3>
+            <ol className="text-sm text-gray-700 space-y-1 mb-4 list-decimal list-inside">
+              <li>{t('2fa.setup_intro_open_app')}</li>
+              <li>{t('2fa.setup_intro_scan_or_type')}</li>
+            </ol>
+
+            <div className="flex justify-center mb-4">
+              <OtpQrCode uri={view.setup.otpAuthUri} />
+            </div>
+
+            <details className="text-sm text-gray-700 mb-4">
+              <summary className="cursor-pointer text-brand-primary hover:underline mb-2">
+                {t('2fa.setup_cant_scan')}
+              </summary>
+              <div className="bg-gray-50 border rounded-md p-4 mt-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  {t('2fa.setup_secret_label')}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 font-mono text-sm tracking-wider break-all">
+                    {view.setup.secret}
+                  </code>
+                  <Button type="button" variant="ghost" size="icon" onClick={copySecret}>
+                    {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                  </Button>
                 </div>
-              </details>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => authService.getTwoFactorStatus().then((s) => setView({ kind: 'status', status: s }))}
-                >
-                  {t('common.cancel')}
-                </Button>
-                <Button
-                  onClick={() => setView({ kind: 'setupVerify', setup: view.setup })}
-                  className="bg-brand-primary hover:bg-brand-hover text-white"
-                >
-                  {t('common.next')}
-                </Button>
               </div>
-            </>
-          )}
-
-          {/* Setup step 2: verify */}
-          {view.kind === 'setupVerify' && (
-            <form onSubmit={verifyAndEnable}>
-              <h3 className="font-semibold text-brand-dark mb-3">
-                {t('2fa.setup_step2_title')}
-              </h3>
-              <p className="text-sm text-gray-700 mb-4">
-                {t('2fa.setup_enter_code')}
-              </p>
-              <div className="flex justify-center mb-4">
-                <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setView({ kind: 'setupSecret', setup: view.setup })}
-                >
-                  {t('common.back')}
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={submitting || code.length !== 6}
-                  className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
-                >
-                  {submitting ? '…' : t('2fa.setup_verify_enable')}
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {/* Recovery codes (post-enable or post-regenerate) */}
-          {view.kind === 'recoveryCodes' && (
-            <>
-              <h3 className="font-semibold text-brand-dark mb-3">
-                {t('2fa.recovery_codes_title')}
-              </h3>
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 text-sm text-amber-900">
-                {t('2fa.recovery_codes_warning')}
-              </div>
-              <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 border rounded-md p-4 mb-4">
-                {view.codes.map((c) => (
-                  <div key={c} className="text-center">{c}</div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => downloadCodes(view.codes)}
-                className="w-full mb-3"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {t('2fa.recovery_codes_download')}
-              </Button>
-              <label className="flex items-start gap-2 mb-4 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={savedConfirmed}
-                  onChange={(e) => setSavedConfirmed(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>{t('2fa.recovery_codes_confirm_saved')}</span>
-              </label>
-              <Button
-                type="button"
-                onClick={finishRecoveryCodes}
-                disabled={!savedConfirmed}
-                className="w-full bg-brand-primary hover:bg-brand-hover text-white"
-              >
-                {t('2fa.recovery_codes_done')}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Step-up dialog (lazy-shown when a sensitive op needs proof) */}
-      <Dialog open={stepUpOpen} onOpenChange={(open) => { if (!open) cancelStepUp(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('2fa.stepup_title')}</DialogTitle>
-            <DialogDescription>
-              {stepUpUseRecovery
-                ? t('2fa.stepup_description_recovery')
-                : t('2fa.stepup_description_authenticator')}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitStepUp} className="space-y-4">
-            {!stepUpUseRecovery ? (
-              <div className="flex justify-center">
-                <InputOTP
-                  maxLength={6}
-                  value={stepUpCode}
-                  onChange={(v) => { setStepUpCode(v); setStepUpError(''); }}
-                  autoFocus
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-            ) : (
-              <Input
-                value={stepUpRecoveryCode}
-                onChange={(e) => { setStepUpRecoveryCode(e.target.value); setStepUpError(''); }}
-                placeholder={t('2fa.stepup_recovery_placeholder')}
-                autoFocus
-                className="font-mono tracking-wider text-center"
-              />
-            )}
-
-            {stepUpError && <p className="text-error text-sm text-center">{stepUpError}</p>}
+            </details>
 
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={cancelStepUp} className="flex-1">
+              <Button
+                variant="outline"
+                onClick={() => authService.getTwoFactorStatus().then((s) => setView({ kind: 'status', status: s }))}
+              >
                 {t('common.cancel')}
               </Button>
               <Button
-                type="submit"
-                disabled={
-                  stepUpSubmitting ||
-                  (stepUpUseRecovery ? !stepUpRecoveryCode.trim() : stepUpCode.length !== 6)
-                }
-                className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
+                onClick={() => setView({ kind: 'setupVerify', setup: view.setup })}
+                className="bg-brand-primary hover:bg-brand-hover text-white"
               >
-                {stepUpSubmitting ? '…' : t('2fa.stepup_confirm')}
+                {t('common.next')}
               </Button>
             </div>
+          </>
+        )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setStepUpUseRecovery((v) => !v);
-                setStepUpCode('');
-                setStepUpRecoveryCode('');
-                setStepUpError('');
-              }}
-              className="w-full text-sm text-brand-primary hover:underline"
-            >
-              {stepUpUseRecovery
-                ? t('2fa.stepup_use_authenticator')
-                : t('2fa.stepup_use_recovery')}
-            </button>
+        {/* Setup step 2: verify */}
+        {view.kind === 'setupVerify' && (
+          <form onSubmit={verifyAndEnable}>
+            <h3 className="font-semibold text-brand-dark mb-3">
+              {t('2fa.setup_step2_title')}
+            </h3>
+            <p className="text-sm text-gray-700 mb-4">
+              {t('2fa.setup_enter_code')}
+            </p>
+            <div className="flex justify-center mb-4">
+              <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setView({ kind: 'setupSecret', setup: view.setup })}
+              >
+                {t('common.back')}
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting || code.length !== 6}
+                className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
+              >
+                {submitting ? '…' : t('2fa.setup_verify_enable')}
+              </Button>
+            </div>
           </form>
-        </DialogContent>
-      </Dialog>
-    </>
+        )}
+
+        {/* Recovery codes (post-enable or post-regenerate) */}
+        {view.kind === 'recoveryCodes' && (
+          <>
+            <h3 className="font-semibold text-brand-dark mb-3">
+              {t('2fa.recovery_codes_title')}
+            </h3>
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 text-sm text-amber-900">
+              {t('2fa.recovery_codes_warning')}
+            </div>
+            <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 border rounded-md p-4 mb-4">
+              {view.codes.map((c) => (
+                <div key={c} className="text-center">{c}</div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => downloadCodes(view.codes)}
+              className="w-full mb-3"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {t('2fa.recovery_codes_download')}
+            </Button>
+            <label className="flex items-start gap-2 mb-4 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={savedConfirmed}
+                onChange={(e) => setSavedConfirmed(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>{t('2fa.recovery_codes_confirm_saved')}</span>
+            </label>
+            <Button
+              type="button"
+              onClick={finishRecoveryCodes}
+              disabled={!savedConfirmed}
+              className="w-full bg-brand-primary hover:bg-brand-hover text-white"
+            >
+              {t('2fa.recovery_codes_done')}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
