@@ -10,6 +10,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { OtpQrCode } from '@/components/two-factor/otp-qr-code';
 import { authService } from '@/lib/api-services';
 import { isStepUpRequired } from '@/lib/api';
+import { getErrorMessage } from '@/lib/api-errors';
 import type { TwoFactorSetupResult, TwoFactorStatus } from '@/lib/api-types';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
@@ -35,9 +36,8 @@ type StepUpState =
     };
 
 export function TwoFactorSection() {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const { applyAuth } = useAuth();
-  const fr = locale === 'fr';
 
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [submitting, setSubmitting] = useState(false);
@@ -58,12 +58,8 @@ export function TwoFactorSection() {
   useEffect(() => {
     authService.getTwoFactorStatus()
       .then((status) => setView({ kind: 'status', status }))
-      .catch((err) => {
-        const fallback = fr ? 'Impossible de charger le statut 2FA' : 'Failed to load 2FA status';
-        const message = err instanceof Error && err.message ? err.message : fallback;
-        toast.error(message);
-      });
-  }, [fr]);
+      .catch((err) => toast.error(getErrorMessage(err, t)));
+  }, [t]);
 
   // ── Step-up helper ────────────────────────────────
 
@@ -96,8 +92,7 @@ export function TwoFactorSection() {
       setStepUpOpen(false);
       setStepUpResolver(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid code.';
-      setStepUpError(message);
+      setStepUpError(getErrorMessage(err, t));
       setStepUpCode('');
       setStepUpRecoveryCode('');
     } finally {
@@ -119,8 +114,6 @@ export function TwoFactorSection() {
    */
   const withStepUp = async <T,>(call: (token: string) => Promise<T>): Promise<T | null> => {
     try {
-      // First attempt without a token — will 403 if step-up is required
-      // (which it always is for these endpoints, but staying generic).
       return await call('');
     } catch (err) {
       if (!isStepUpRequired(err)) throw err;
@@ -128,7 +121,6 @@ export function TwoFactorSection() {
         const token = await requestStepUp();
         return await call(token);
       } catch (inner) {
-        // User cancelled or step-up failed — silent
         if (inner instanceof Error && inner.message === 'Step-up cancelled.') return null;
         throw inner;
       }
@@ -143,7 +135,7 @@ export function TwoFactorSection() {
       const setup = await authService.setupTwoFactor();
       setView({ kind: 'setupSecret', setup });
     } catch {
-      toast.error(fr ? 'Impossible de démarrer la configuration' : 'Failed to start setup');
+      toast.error(t('2fa.section_setup_failed'));
     } finally {
       setSubmitting(false);
     }
@@ -155,17 +147,15 @@ export function TwoFactorSection() {
     setSubmitting(true);
     try {
       const result = await authService.enableTwoFactor(code);
-      // CRITICAL: persist the new amr=mfa token so subsequent requests use
-      // an up-to-date JWT (also resets the LastLogin server-side ticking
-      // window). Without this we'd keep the old amr=pwd token around.
+      // Persist the new amr=mfa token so subsequent requests use an
+      // up-to-date JWT (and LastLogin gets refreshed server-side).
       applyAuth(result.auth);
       setCode('');
       setSavedConfirmed(false);
       setView({ kind: 'recoveryCodes', codes: result.recoveryCodes });
-      toast.success(fr ? 'Authentification à deux facteurs activée' : 'Two-factor authentication enabled');
+      toast.success(t('2fa.section_enabled_toast'));
     } catch (err) {
-      const message = err instanceof Error ? err.message : (fr ? 'Code invalide' : 'Invalid code');
-      toast.error(message);
+      toast.error(getErrorMessage(err, t));
       setCode('');
     } finally {
       setSubmitting(false);
@@ -177,14 +167,12 @@ export function TwoFactorSection() {
     try {
       const out = await withStepUp((token) => authService.disableTwoFactor(token));
       if (out !== null) {
-        // Successful disable
         const status = await authService.getTwoFactorStatus();
         setView({ kind: 'status', status });
-        toast.success(fr ? 'Authentification à deux facteurs désactivée' : 'Two-factor authentication disabled');
+        toast.success(t('2fa.section_disabled_toast'));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : (fr ? 'Erreur' : 'Error');
-      toast.error(message);
+      toast.error(getErrorMessage(err, t));
     } finally {
       setSubmitting(false);
     }
@@ -197,11 +185,10 @@ export function TwoFactorSection() {
       if (out !== null) {
         setView({ kind: 'recoveryCodes', codes: out.recoveryCodes });
         setSavedConfirmed(false);
-        toast.success(fr ? 'Nouveaux codes de secours générés' : 'New recovery codes generated');
+        toast.success(t('2fa.section_codes_regenerated_toast'));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : (fr ? 'Erreur' : 'Error');
-      toast.error(message);
+      toast.error(getErrorMessage(err, t));
     } finally {
       setSubmitting(false);
     }
@@ -222,15 +209,11 @@ export function TwoFactorSection() {
   const downloadCodes = (codes: string[]) => {
     const blob = new Blob(
       [
-        'Althea Systems — Recovery Codes\n',
+        t('2fa.recovery_codes_file_header') + '\n',
         'Generated: ' + new Date().toISOString() + '\n',
         '\n',
-        (fr
-          ? 'Chaque code peut être utilisé UNE seule fois si vous perdez accès à votre app d\'authentification.\n'
-          : 'Each code can be used ONCE if you lose access to your authenticator.\n'),
-        (fr
-          ? 'Conservez ce fichier en lieu sûr.\n'
-          : 'Keep this file in a secure location.\n'),
+        t('2fa.recovery_codes_file_intro_use') + '\n',
+        t('2fa.recovery_codes_file_intro_secure') + '\n',
         '\n',
         ...codes.map((c) => c + '\n'),
       ],
@@ -260,7 +243,7 @@ export function TwoFactorSection() {
     <>
       <Card>
         <CardContent className="p-6">
-          {/* Status (default) */}
+          {/* Status — enabled */}
           {view.kind === 'status' && view.status.enabled && (
             <>
               <div className="flex items-start gap-3 mb-4">
@@ -269,39 +252,34 @@ export function TwoFactorSection() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-brand-dark">
-                    {fr ? 'Authentification à deux facteurs activée' : 'Two-factor authentication enabled'}
+                    {t('2fa.section_enabled_title')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {fr
-                      ? `Activée le ${view.status.enabledAt ? new Date(view.status.enabledAt).toLocaleDateString('fr-FR') : '—'}.`
-                      : `Enabled on ${view.status.enabledAt ? new Date(view.status.enabledAt).toLocaleDateString('en-US') : '—'}.`}
-                    {' '}
-                    {fr
-                      ? `${view.status.recoveryCodesRemaining} code(s) de secours restant(s).`
-                      : `${view.status.recoveryCodesRemaining} recovery code(s) remaining.`}
+                    {t('2fa.section_enabled_at')}{' '}
+                    {view.status.enabledAt
+                      ? new Date(view.status.enabledAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')
+                      : '—'}
+                    .{' '}
+                    {view.status.recoveryCodesRemaining}{' '}
+                    {view.status.recoveryCodesRemaining === 1
+                      ? t('2fa.section_codes_remaining_one')
+                      : t('2fa.section_codes_remaining_other')}
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={regenerate}
-                  disabled={submitting}
-                >
+                <Button variant="outline" onClick={regenerate} disabled={submitting}>
                   <KeyRound className="w-4 h-4 mr-2" />
-                  {fr ? 'Régénérer les codes de secours' : 'Regenerate recovery codes'}
+                  {t('2fa.section_regenerate_button')}
                 </Button>
-                <Button
-                  variant="destructive"
-                  onClick={disable}
-                  disabled={submitting}
-                >
-                  {fr ? 'Désactiver' : 'Disable'}
+                <Button variant="destructive" onClick={disable} disabled={submitting}>
+                  {t('2fa.section_disable_button')}
                 </Button>
               </div>
             </>
           )}
 
+          {/* Status — disabled */}
           {view.kind === 'status' && !view.status.enabled && (
             <>
               <div className="flex items-start gap-3 mb-4">
@@ -310,12 +288,10 @@ export function TwoFactorSection() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-brand-dark">
-                    {fr ? 'Authentification à deux facteurs désactivée' : 'Two-factor authentication disabled'}
+                    {t('2fa.section_disabled_title')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {fr
-                      ? 'Ajoutez une couche de sécurité supplémentaire à votre compte.'
-                      : 'Add an extra layer of security to your account.'}
+                    {t('2fa.section_add_security')}
                   </p>
                 </div>
               </div>
@@ -324,24 +300,20 @@ export function TwoFactorSection() {
                 disabled={submitting}
                 className="bg-brand-primary hover:bg-brand-hover text-white"
               >
-                {submitting ? '…' : (fr ? 'Activer la 2FA' : 'Enable 2FA')}
+                {submitting ? '…' : t('2fa.section_enable_button')}
               </Button>
             </>
           )}
 
-          {/* Setup step 1: show secret */}
+          {/* Setup step 1: show secret + QR */}
           {view.kind === 'setupSecret' && (
             <>
               <h3 className="font-semibold text-brand-dark mb-3">
-                {fr ? 'Configuration de la 2FA — étape 1 sur 2' : '2FA setup — step 1 of 2'}
+                {t('2fa.setup_step1_title')}
               </h3>
               <ol className="text-sm text-gray-700 space-y-1 mb-4 list-decimal list-inside">
-                <li>{fr
-                  ? 'Ouvrez votre app d\'authentification (Google Authenticator, Authy, 1Password, Bitwarden…).'
-                  : 'Open your authenticator app (Google Authenticator, Authy, 1Password, Bitwarden…).'}</li>
-                <li>{fr
-                  ? 'Scannez le QR code ci-dessous — ou saisissez la clé manuellement.'
-                  : 'Scan the QR code below — or type the secret manually.'}</li>
+                <li>{t('2fa.setup_intro_open_app')}</li>
+                <li>{t('2fa.setup_intro_scan_or_type')}</li>
               </ol>
 
               <div className="flex justify-center mb-4">
@@ -350,11 +322,11 @@ export function TwoFactorSection() {
 
               <details className="text-sm text-gray-700 mb-4">
                 <summary className="cursor-pointer text-brand-primary hover:underline mb-2">
-                  {fr ? 'Impossible de scanner ? Afficher la clé à saisir' : 'Can\'t scan? Show the secret to type manually'}
+                  {t('2fa.setup_cant_scan')}
                 </summary>
                 <div className="bg-gray-50 border rounded-md p-4 mt-2">
                   <p className="text-xs text-muted-foreground mb-2">
-                    {fr ? 'Clé secrète (nom de compte : AltheaSystems)' : 'Secret (account name: AltheaSystems)'}
+                    {t('2fa.setup_secret_label')}
                   </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 font-mono text-sm tracking-wider break-all">
@@ -372,13 +344,13 @@ export function TwoFactorSection() {
                   variant="outline"
                   onClick={() => authService.getTwoFactorStatus().then((s) => setView({ kind: 'status', status: s }))}
                 >
-                  {fr ? 'Annuler' : 'Cancel'}
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   onClick={() => setView({ kind: 'setupVerify', setup: view.setup })}
                   className="bg-brand-primary hover:bg-brand-hover text-white"
                 >
-                  {fr ? 'Suivant' : 'Next'}
+                  {t('common.next')}
                 </Button>
               </div>
             </>
@@ -388,12 +360,10 @@ export function TwoFactorSection() {
           {view.kind === 'setupVerify' && (
             <form onSubmit={verifyAndEnable}>
               <h3 className="font-semibold text-brand-dark mb-3">
-                {fr ? 'Configuration de la 2FA — étape 2 sur 2' : '2FA setup — step 2 of 2'}
+                {t('2fa.setup_step2_title')}
               </h3>
               <p className="text-sm text-gray-700 mb-4">
-                {fr
-                  ? 'Saisissez le code à 6 chiffres généré par votre app :'
-                  : 'Enter the 6-digit code from your authenticator:'}
+                {t('2fa.setup_enter_code')}
               </p>
               <div className="flex justify-center mb-4">
                 <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
@@ -413,14 +383,14 @@ export function TwoFactorSection() {
                   variant="outline"
                   onClick={() => setView({ kind: 'setupSecret', setup: view.setup })}
                 >
-                  {fr ? 'Retour' : 'Back'}
+                  {t('common.back')}
                 </Button>
                 <Button
                   type="submit"
                   disabled={submitting || code.length !== 6}
-                  className="bg-brand-primary hover:bg-brand-hover text-white"
+                  className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
                 >
-                  {submitting ? '…' : (fr ? 'Vérifier et activer' : 'Verify and enable')}
+                  {submitting ? '…' : t('2fa.setup_verify_enable')}
                 </Button>
               </div>
             </form>
@@ -430,12 +400,10 @@ export function TwoFactorSection() {
           {view.kind === 'recoveryCodes' && (
             <>
               <h3 className="font-semibold text-brand-dark mb-3">
-                {fr ? 'Codes de secours' : 'Recovery codes'}
+                {t('2fa.recovery_codes_title')}
               </h3>
               <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 text-sm text-amber-900">
-                {fr
-                  ? 'Sauvegardez ces codes maintenant — ils permettent l\'accès si vous perdez votre app et ne seront plus affichés.'
-                  : 'Save these codes now — they grant access if you lose your authenticator and won\'t be shown again.'}
+                {t('2fa.recovery_codes_warning')}
               </div>
               <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 border rounded-md p-4 mb-4">
                 {view.codes.map((c) => (
@@ -449,7 +417,7 @@ export function TwoFactorSection() {
                 className="w-full mb-3"
               >
                 <Download className="w-4 h-4 mr-2" />
-                {fr ? 'Télécharger en .txt' : 'Download as .txt'}
+                {t('2fa.recovery_codes_download')}
               </Button>
               <label className="flex items-start gap-2 mb-4 text-sm cursor-pointer">
                 <input
@@ -458,11 +426,7 @@ export function TwoFactorSection() {
                   onChange={(e) => setSavedConfirmed(e.target.checked)}
                   className="mt-0.5"
                 />
-                <span>
-                  {fr
-                    ? 'J\'ai sauvegardé ces codes en lieu sûr.'
-                    : 'I\'ve stored these codes in a safe place.'}
-                </span>
+                <span>{t('2fa.recovery_codes_confirm_saved')}</span>
               </label>
               <Button
                 type="button"
@@ -470,7 +434,7 @@ export function TwoFactorSection() {
                 disabled={!savedConfirmed}
                 className="w-full bg-brand-primary hover:bg-brand-hover text-white"
               >
-                {fr ? 'Terminé' : 'Done'}
+                {t('2fa.recovery_codes_done')}
               </Button>
             </>
           )}
@@ -481,13 +445,11 @@ export function TwoFactorSection() {
       <Dialog open={stepUpOpen} onOpenChange={(open) => { if (!open) cancelStepUp(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{fr ? 'Confirmation requise' : 'Confirmation required'}</DialogTitle>
+            <DialogTitle>{t('2fa.stepup_title')}</DialogTitle>
             <DialogDescription>
               {stepUpUseRecovery
-                ? (fr ? 'Saisissez un code de secours.' : 'Enter a recovery code.')
-                : (fr
-                  ? 'Saisissez le code à 6 chiffres de votre app pour confirmer cette action.'
-                  : 'Enter the 6-digit code from your authenticator to confirm this action.')}
+                ? t('2fa.stepup_description_recovery')
+                : t('2fa.stepup_description_authenticator')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitStepUp} className="space-y-4">
@@ -513,7 +475,7 @@ export function TwoFactorSection() {
               <Input
                 value={stepUpRecoveryCode}
                 onChange={(e) => { setStepUpRecoveryCode(e.target.value); setStepUpError(''); }}
-                placeholder="xxxx-xxxx-xxxx-xxxx"
+                placeholder={t('2fa.stepup_recovery_placeholder')}
                 autoFocus
                 className="font-mono tracking-wider text-center"
               />
@@ -523,7 +485,7 @@ export function TwoFactorSection() {
 
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={cancelStepUp} className="flex-1">
-                {fr ? 'Annuler' : 'Cancel'}
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -533,7 +495,7 @@ export function TwoFactorSection() {
                 }
                 className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
               >
-                {stepUpSubmitting ? '…' : (fr ? 'Confirmer' : 'Confirm')}
+                {stepUpSubmitting ? '…' : t('2fa.stepup_confirm')}
               </Button>
             </div>
 
@@ -548,8 +510,8 @@ export function TwoFactorSection() {
               className="w-full text-sm text-brand-primary hover:underline"
             >
               {stepUpUseRecovery
-                ? (fr ? 'Utiliser un code de l\'app' : 'Use authenticator code instead')
-                : (fr ? 'Utiliser un code de secours' : 'Use a recovery code instead')}
+                ? t('2fa.stepup_use_authenticator')
+                : t('2fa.stepup_use_recovery')}
             </button>
           </form>
         </DialogContent>

@@ -19,7 +19,8 @@ export type LoginResult =
   | { kind: 'success' }
   | { kind: 'twoFactorRequired'; challengeToken: string }
   | { kind: 'mustSetupTwoFactor'; setupToken: string }
-  | { kind: 'error'; error: string };
+  /** `error` is the raw caught value — pass it to `getErrorMessage()` for a localized string. */
+  | { kind: 'error'; error: unknown };
 
 interface AuthContextType {
   user: UserDto | null;
@@ -95,8 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { kind: 'mustSetupTwoFactor', setupToken: response.setupToken };
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'common.error';
-      return { kind: 'error', error: message };
+      return { kind: 'error', error: err };
     }
   }, [applyAuth]);
 

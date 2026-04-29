@@ -7,7 +7,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { OtpQrCode } from '@/components/two-factor/otp-qr-code';
 import { useAuth } from '@/context/auth-context';
+import { useI18n } from '@/context/i18n-context';
 import { authService } from '@/lib/api-services';
+import { getErrorMessage } from '@/lib/api-errors';
 import type { TwoFactorSetupResult } from '@/lib/api-types';
 import { toast } from 'sonner';
 import { Copy, Check, Download, ShieldCheck } from 'lucide-react';
@@ -36,6 +38,7 @@ type Step = 'loading' | 'showSecret' | 'verify' | 'recoveryCodes';
 export default function AdminSetupPage() {
   const router = useRouter();
   const { applyAuth } = useAuth();
+  const { t } = useI18n();
 
   const [setupToken, setSetupToken] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('loading');
@@ -61,11 +64,11 @@ export default function AdminSetupPage() {
         setStep('showSecret');
       })
       .catch(() => {
-        toast.error('Setup token expired. Please log in again.');
+        toast.error(t('admin_setup.token_expired'));
         sessionStorage.removeItem(SETUP_TOKEN_KEY);
         router.replace('/login');
       });
-  }, [router]);
+  }, [router, t]);
 
   const copySecret = async () => {
     if (!setup) return;
@@ -87,8 +90,7 @@ export default function AdminSetupPage() {
       applyAuth(result.auth);
       setStep('recoveryCodes');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid code.';
-      toast.error(message);
+      toast.error(getErrorMessage(err, t));
       setCode('');
     } finally {
       setSubmitting(false);
@@ -98,11 +100,11 @@ export default function AdminSetupPage() {
   const downloadCodes = () => {
     const blob = new Blob(
       [
-        'Althea Systems — Recovery Codes\n',
+        t('2fa.recovery_codes_file_header') + '\n',
         'Generated: ' + new Date().toISOString() + '\n',
         '\n',
-        'Each code can be used ONCE if you lose access to your authenticator.\n',
-        'Keep this file in a secure location.\n',
+        t('2fa.recovery_codes_file_intro_use') + '\n',
+        t('2fa.recovery_codes_file_intro_secure') + '\n',
         '\n',
         ...recoveryCodes.map((c) => c + '\n'),
       ],
@@ -139,9 +141,9 @@ export default function AdminSetupPage() {
               <ShieldCheck className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-brand-dark">Two-factor setup</h1>
+              <h1 className="text-xl font-semibold text-brand-dark">{t('admin_setup.title')}</h1>
               <p className="text-sm text-muted-foreground">
-                Required for admin access.
+                {t('admin_setup.subtitle')}
               </p>
             </div>
           </div>
@@ -149,9 +151,9 @@ export default function AdminSetupPage() {
           {step === 'showSecret' && (
             <>
               <ol className="text-sm text-gray-700 space-y-2 mb-4 list-decimal list-inside">
-                <li>Open your authenticator app (Google Authenticator, Authy, 1Password, Bitwarden…).</li>
-                <li>Scan the QR code below — or type the secret manually.</li>
-                <li>Enter the 6-digit code your app generates.</li>
+                <li>{t('admin_setup.intro_open_app')}</li>
+                <li>{t('admin_setup.intro_scan_or_type')}</li>
+                <li>{t('admin_setup.intro_enter_code')}</li>
               </ol>
 
               <div className="flex justify-center mb-4">
@@ -160,10 +162,10 @@ export default function AdminSetupPage() {
 
               <details className="text-sm text-gray-700 mb-2">
                 <summary className="cursor-pointer text-brand-primary hover:underline mb-2">
-                  Can&apos;t scan? Show the secret to type manually
+                  {t('2fa.setup_cant_scan')}
                 </summary>
                 <div className="bg-gray-50 border rounded-md p-4 mt-2">
-                  <p className="text-xs text-muted-foreground mb-2">Secret (account name: AltheaSystems)</p>
+                  <p className="text-xs text-muted-foreground mb-2">{t('2fa.setup_secret_label')}</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 font-mono text-sm tracking-wider break-all">
                       {setup.secret}
@@ -186,7 +188,7 @@ export default function AdminSetupPage() {
                 onClick={() => setStep('verify')}
                 className="w-full bg-brand-primary hover:bg-brand-hover text-white mt-4"
               >
-                I&apos;ve added it — next
+                {t('2fa.setup_added_next')}
               </Button>
             </>
           )}
@@ -194,7 +196,7 @@ export default function AdminSetupPage() {
           {step === 'verify' && (
             <form onSubmit={handleVerify}>
               <p className="text-sm text-gray-700 mb-4">
-                Type the 6-digit code from your authenticator:
+                {t('2fa.setup_enter_code')}
               </p>
               <div className="flex justify-center mb-6">
                 <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
@@ -215,14 +217,14 @@ export default function AdminSetupPage() {
                   onClick={() => setStep('showSecret')}
                   className="flex-1"
                 >
-                  Back
+                  {t('common.back')}
                 </Button>
                 <Button
                   type="submit"
                   disabled={code.length !== 6 || submitting}
                   className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
                 >
-                  {submitting ? 'Verifying…' : 'Verify and enable'}
+                  {submitting ? t('2fa.setup_verifying') : t('2fa.setup_verify_enable')}
                 </Button>
               </div>
             </form>
@@ -231,8 +233,7 @@ export default function AdminSetupPage() {
           {step === 'recoveryCodes' && (
             <>
               <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 text-sm text-amber-900">
-                Save these recovery codes <strong>now</strong> — they grant access if you lose your
-                authenticator and won&apos;t be shown again.
+                {t('2fa.recovery_codes_warning')}
               </div>
 
               <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 border rounded-md p-4 mb-4">
@@ -248,7 +249,7 @@ export default function AdminSetupPage() {
                 className="w-full mb-3"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download as .txt
+                {t('2fa.recovery_codes_download')}
               </Button>
 
               <label className="flex items-start gap-2 mb-4 text-sm cursor-pointer">
@@ -258,7 +259,7 @@ export default function AdminSetupPage() {
                   onChange={(e) => setSavedConfirmed(e.target.checked)}
                   className="mt-0.5"
                 />
-                <span>I&apos;ve stored these codes in a safe place.</span>
+                <span>{t('2fa.recovery_codes_confirm_saved')}</span>
               </label>
 
               <Button
@@ -267,7 +268,7 @@ export default function AdminSetupPage() {
                 disabled={!savedConfirmed}
                 className="w-full bg-brand-primary hover:bg-brand-hover text-white"
               >
-                Continue to admin
+                {t('2fa.recovery_codes_continue_admin')}
               </Button>
             </>
           )}

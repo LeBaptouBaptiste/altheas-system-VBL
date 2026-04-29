@@ -17,6 +17,7 @@ import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { setAmbientStepUpToken } from '@/lib/api';
 import { authService } from '@/lib/api-services';
+import { getErrorMessage } from '@/lib/api-errors';
 import type { Locale } from '@/lib/i18n';
 
 const navItems = [
@@ -94,8 +95,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAmbientStepUpToken(result.token);
         setAdminStepUpToken(result.token);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Invalid code.';
-        setStepUpError(message);
+        setStepUpError(getErrorMessage(err, t));
         setStepUpCode('');
         setRecoveryCode('');
       } finally {
@@ -113,7 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <h1 className="text-xl font-semibold text-brand-dark">{t('admin.2fa_title')}</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {useRecovery
-                ? 'Enter a recovery code (xxxx-xxxx-xxxx-xxxx).'
+                ? t('2fa.stepup_description_recovery')
                 : t('admin.2fa_hint')}
             </p>
           </div>
@@ -140,7 +140,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Input
                 value={recoveryCode}
                 onChange={(e) => { setRecoveryCode(e.target.value); setStepUpError(''); }}
-                placeholder="xxxx-xxxx-xxxx-xxxx"
+                placeholder={t('2fa.stepup_recovery_placeholder')}
                 autoFocus
                 className="font-mono tracking-wider text-center"
               />
@@ -153,7 +153,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               className="w-full bg-brand-primary hover:bg-brand-hover text-white"
               disabled={stepUpSubmitting || (useRecovery ? !recoveryCode.trim() : stepUpCode.length !== 6)}
             >
-              {stepUpSubmitting ? '…' : (locale === 'fr' ? 'Vérifier' : 'Verify')}
+              {stepUpSubmitting ? '…' : t('auth.2fa_verify')}
             </Button>
 
             <button
@@ -166,7 +166,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               }}
               className="w-full text-sm text-brand-primary hover:underline"
             >
-              {useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}
+              {useRecovery ? t('auth.2fa_use_authenticator') : t('auth.2fa_use_recovery')}
             </button>
           </form>
         </div>

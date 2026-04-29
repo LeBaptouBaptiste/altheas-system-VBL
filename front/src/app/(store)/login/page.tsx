@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
+import { getErrorMessage } from '@/lib/api-errors';
 import { toast } from 'sonner';
 
 const SETUP_TOKEN_KEY = 'althea-setup-token';
@@ -55,7 +56,7 @@ export default function LoginPage() {
           router.push('/admin-setup');
           break;
         case 'error':
-          setError(result.error ? t(result.error) : t('common.error'));
+          setError(getErrorMessage(result.error, t));
           break;
       }
     } finally {
@@ -77,7 +78,7 @@ export default function LoginPage() {
         toast.success(t('auth.login') + ' ✓');
         router.push('/');
       } else if (result.kind === 'error') {
-        setError(result.error ? t(result.error) : t('common.error'));
+        setError(getErrorMessage(result.error, t));
         setCode('');
         setRecoveryCode('');
       }
@@ -92,11 +93,9 @@ export default function LoginPage() {
       <div className="container mx-auto px-4 py-16 max-w-md">
         <Card>
           <CardContent className="p-6">
-            <h1 className="text-2xl text-brand-dark mb-2 text-center">Two-factor authentication</h1>
+            <h1 className="text-2xl text-brand-dark mb-2 text-center">{t('auth.2fa_challenge_title')}</h1>
             <p className="text-sm text-muted-foreground text-center mb-6">
-              {useRecovery
-                ? 'Enter one of your recovery codes (xxxx-xxxx-xxxx-xxxx).'
-                : 'Open your authenticator app and enter the 6-digit code.'}
+              {useRecovery ? t('auth.2fa_recovery_hint') : t('auth.2fa_authenticator_hint')}
             </p>
 
             <form onSubmit={handleTwoFactorSubmit} className="space-y-4">
@@ -117,7 +116,7 @@ export default function LoginPage() {
                 <Input
                   value={recoveryCode}
                   onChange={(e) => setRecoveryCode(e.target.value)}
-                  placeholder="xxxx-xxxx-xxxx-xxxx"
+                  placeholder={t('2fa.stepup_recovery_placeholder')}
                   autoFocus
                   className="font-mono tracking-wider text-center"
                 />
@@ -130,7 +129,7 @@ export default function LoginPage() {
                 className="w-full bg-brand-primary hover:bg-brand-hover text-white"
                 disabled={submitting || (useRecovery ? !recoveryCode.trim() : code.length !== 6)}
               >
-                {submitting ? '…' : 'Verify'}
+                {submitting ? '…' : t('auth.2fa_verify')}
               </Button>
 
               <button
@@ -143,7 +142,7 @@ export default function LoginPage() {
                 }}
                 className="w-full text-sm text-brand-primary hover:underline"
               >
-                {useRecovery ? 'Use authenticator code instead' : 'Use a recovery code instead'}
+                {useRecovery ? t('auth.2fa_use_authenticator') : t('auth.2fa_use_recovery')}
               </button>
 
               <button
@@ -157,7 +156,7 @@ export default function LoginPage() {
                 }}
                 className="w-full text-sm text-muted-foreground hover:underline"
               >
-                Back to login
+                {t('auth.2fa_back_login')}
               </button>
             </form>
           </CardContent>

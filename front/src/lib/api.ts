@@ -4,7 +4,14 @@ export class ApiError extends Error {
   constructor(
     public statusCode: number,
     message: string,
-    public errors?: Record<string, string[]>
+    public errors?: Record<string, string[]>,
+    /**
+     * Machine-readable reason from the API body (e.g. "invalid_credentials",
+     * "step_up_required", "account_locked"). Front-end localizers should
+     * map this to a translation key instead of relying on the English
+     * `message` text — see `getErrorMessage()`.
+     */
+    public reason?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -177,7 +184,7 @@ async function apiFetch<T>(
       message = 'Too many requests. Please wait a moment and try again.';
     }
 
-    throw new ApiError(response.status, message, errors);
+    throw new ApiError(response.status, message, errors, reason);
   }
 
   const data = await response.json();
