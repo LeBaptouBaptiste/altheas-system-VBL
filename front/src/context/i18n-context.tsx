@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import { type Locale, DEFAULT_LOCALE, t as translate, localized as getLocalized } from '@/lib/i18n';
+import { type Locale, DEFAULT_LOCALE, LOCALES, isRTL, t as translate, localized as getLocalized } from '@/lib/i18n';
 
 interface I18nContextType {
   locale: Locale;
@@ -16,8 +16,8 @@ const I18nContext = createContext<I18nContextType | null>(null);
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('althea-locale') as Locale;
-      if (saved === 'fr' || saved === 'en') return saved;
+      const saved = localStorage.getItem('althea-locale');
+      if (saved && (LOCALES as string[]).includes(saved)) return saved as Locale;
     }
     return DEFAULT_LOCALE;
   });
@@ -32,8 +32,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback((key: string) => translate(key, locale), [locale]);
   const localized = useCallback((obj: Record<string, string> | undefined) => getLocalized(obj, locale), [locale]);
 
-  // RTL support: ready but not enabled for fr/en
-  const dir = 'ltr' as const;
+  const dir: 'ltr' | 'rtl' = isRTL(locale) ? 'rtl' : 'ltr';
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t, localized, dir }}>

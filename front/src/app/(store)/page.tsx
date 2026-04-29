@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, ArrowRight, ShoppingCart, Loader2 } from 'lucide-react';
+import { ArrowRight, ShoppingCart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { useCart } from '@/context/cart-context';
 import { contentService, productsService, categoriesService } from '@/lib/api-services';
 import type { HeroSlideDto, ProductDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getCategoryImageUrl, getImageUrl } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -31,6 +31,11 @@ export default function HomePage() {
   const [topProducts, setTopProducts] = useState<ProductDto[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [loading, setLoading] = useState(true);
+  // Pauses the carousel autoplay. Required for WCAG 2.2.2 ("Pause, Stop,
+  // Hide") on auto-rotating content; also a nicer UX when the user is
+  // reading a slide. Triggered on hover and on keyboard focus so both
+  // mouse and keyboard users benefit.
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -47,12 +52,17 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [t]);
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  useEffect(() => {
+    if (paused || slides.length === 0) return;
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [slides.length, paused]);
 
   const handleAddToCart = (productId: string, name: string) => {
     addItem(productId);
-    toast.success(locale === 'fr' ? `${name} ajouté au panier` : `${name} added to cart`);
+    toast.success(t('cart.added_to_cart').replace('{name}', name));
   };
 
   if (loading) {
@@ -67,7 +77,15 @@ export default function HomePage() {
     <div>
       {/* Hero Carousel */}
       {slides.length > 0 && (
-        <section className="relative h-[400px] md:h-[550px] overflow-hidden bg-brand-light" aria-label="Hero carousel">
+        <section
+          className="relative h-[400px] md:h-[550px] overflow-hidden bg-brand-light"
+          aria-label="Hero carousel"
+          aria-roledescription="carousel"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
           {slides.map((slide, index) => (
             <div key={slide.id} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/90 to-brand-dark/40 z-10" />
@@ -89,15 +107,15 @@ export default function HomePage() {
               </div>
             </div>
           ))}
-          <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full p-2 transition-colors" aria-label="Previous slide">
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
-          <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full p-2 transition-colors" aria-label="Next slide">
-            <ChevronRight className="w-6 h-6 text-white" />
-          </button>
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
             {slides.map((_, i) => (
-              <button key={i} onClick={() => setCurrentSlide(i)} className={`w-3 h-3 rounded-full transition-colors ${i === currentSlide ? 'bg-brand-primary' : 'bg-white/50'}`} aria-label={`Slide ${i + 1}`} />
+              <button
+                key={i}
+                onClick={() => setCurrentSlide(i)}
+                className={`w-3 h-3 rounded-full transition-colors ${i === currentSlide ? 'bg-brand-primary' : 'bg-white/50'}`}
+                aria-label={`Slide ${i + 1}`}
+                aria-current={i === currentSlide ? 'true' : undefined}
+              />
             ))}
           </div>
         </section>
@@ -162,7 +180,7 @@ export default function HomePage() {
                     </Link>
                     <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
+                      <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, toIntlLocale(locale))}</span>
                       <Button
                         size="sm"
                         className="bg-brand-primary hover:bg-brand-hover text-white"

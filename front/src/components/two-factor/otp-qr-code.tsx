@@ -1,6 +1,18 @@
 'use client';
 
-import QRCode from 'react-qr-code';
+import QRCodeImport from 'react-qr-code';
+
+// react-qr-code ships types that confuse React 19's stricter JSX element
+// inference (the default export is typed as `typeof import('react-qr-code')`
+// rather than a component). Cast once here so the rest of the file keeps a
+// clean JSX call-site.
+const QRCode = QRCodeImport as unknown as React.FC<{
+  value: string;
+  size?: number;
+  level?: 'L' | 'M' | 'Q' | 'H';
+  bgColor?: string;
+  fgColor?: string;
+}>;
 
 /**
  * Renders an `otpauth://` URI as a QR code that any authenticator app

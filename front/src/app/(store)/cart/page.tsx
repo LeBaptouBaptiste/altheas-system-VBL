@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { useCart } from '@/context/cart-context';
 import { toLocalized, getProductImageUrl } from '@/lib/api-types';
-import { formatPrice, calculateTTC } from '@/lib/money';
+import { formatPrice, calculateTTC, toIntlLocale } from '@/lib/money';
 import { StockStatus, VatRate } from '@/lib/enums';
 
 const VAT_RATE_VALUES: Record<number, number> = {
@@ -19,7 +19,7 @@ const VAT_RATE_VALUES: Record<number, number> = {
 export default function CartPage() {
   const { t, localized, locale } = useI18n();
   const { items, updateQuantity, removeItem, subtotalHT, totalVAT, totalTTC, hasUnavailableItems, loading, productCache } = useCart();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   if (loading) {
     return <div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useI18n } from '@/context/i18n-context';
 import { invoicesService } from '@/lib/api-services';
 import type { InvoiceDto } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { InvoiceStatus, InvoiceType } from '@/lib/enums';
 import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
@@ -24,7 +24,7 @@ const STATUS_COLORS: Record<number, string> = {
 
 export default function AdminInvoicesPage() {
   const { locale } = useI18n();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [invoicesList, setInvoicesList] = useState<InvoiceDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,7 +164,7 @@ export default function AdminInvoicesPage() {
                         <span className="text-xs text-muted-foreground block">{locale === 'fr' ? 'Réf' : 'Ref'}: {inv.relatedInvoiceId}</span>
                       )}
                     </td>
-                    <td className="p-3 text-muted-foreground">{new Date(inv.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
+                    <td className="p-3 text-muted-foreground">{new Date(inv.date).toLocaleDateString(toIntlLocale(locale))}</td>
                     <td className="p-3 text-muted-foreground">{inv.orderId}</td>
                     <td className="p-3 text-right">{fmt(inv.amountHT)}</td>
                     <td className="p-3 text-right text-muted-foreground">{fmt(inv.vatAmount)}</td>
