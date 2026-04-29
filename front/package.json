@@ -43,7 +43,7 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.574.0",
-    "next": "^16.2.1",
+    "next": "^16.2.4",
     "next-themes": "^0.4.6",
     "react": "19.2.3",
     "react-day-picker": "^9.13.2",
@@ -62,9 +62,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^4.1.1",
-    "eslint-config-next": "^0.2.4",
+    "eslint": "^9",
+    "eslint-config-next": "^16.2.4",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }
