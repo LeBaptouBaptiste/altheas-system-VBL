@@ -118,6 +118,7 @@ export default function LoginPage() {
                   onChange={(e) => setRecoveryCode(e.target.value)}
                   placeholder={t('2fa.stepup_recovery_placeholder')}
                   autoFocus
+                  dir="ltr"
                   className="font-mono tracking-wider text-center"
                 />
               )}

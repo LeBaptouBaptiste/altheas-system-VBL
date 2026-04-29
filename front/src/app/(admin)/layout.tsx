@@ -142,6 +142,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onChange={(e) => { setRecoveryCode(e.target.value); setStepUpError(''); }}
                 placeholder={t('2fa.stepup_recovery_placeholder')}
                 autoFocus
+                dir="ltr"
                 className="font-mono tracking-wider text-center"
               />
             )}

@@ -16,8 +16,13 @@ function InputOTP({
   containerClassName?: string;
 }) {
   return (
+    // Force LTR: OTP codes are sequences of digits typed left-to-right
+    // regardless of UI language. Without this, an RTL ancestor (`<html dir="rtl">`)
+    // flips the slot order AND breaks the `first:rounded-l-md` / `last:rounded-r-md`
+    // / `first:border-l` corners — slots end up squished and visually wrong.
     <OTPInput
       data-slot="input-otp"
+      dir="ltr"
       containerClassName={cn(
         "flex items-center gap-2 has-disabled:opacity-50",
         containerClassName,
