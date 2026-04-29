@@ -30,12 +30,14 @@ public class UserController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<UserDto>> GetById(Guid id)
     {
+        HttpContext.RequireOwnershipOrAdmin(id);
         return Ok(await _userService.GetByIdAsync(id));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<UserDto>> Update(Guid id, [FromBody] UserUpdateRequest request)
     {
+        HttpContext.RequireOwnershipOrAdmin(id);
         return Ok(await _userService.UpdateAsync(id, request));
     }
 
@@ -55,6 +57,7 @@ public class UserController : ControllerBase
     [RequireStepUp(StepUpPurpose.Action)]
     public async Task<ActionResult<UserDto>> Anonymize(Guid id)
     {
+        HttpContext.RequireOwnershipOrAdmin(id);
         return Ok(await _userService.AnonymizeAsync(id));
     }
 }
