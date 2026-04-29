@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { OtpQrCode } from '@/components/two-factor/otp-qr-code';
 import { authService } from '@/lib/api-services';
 import { isStepUpRequired } from '@/lib/api';
 import type { TwoFactorSetupResult, TwoFactorStatus } from '@/lib/api-types';
@@ -339,22 +340,33 @@ export function TwoFactorSection() {
                   ? 'Ouvrez votre app d\'authentification (Google Authenticator, Authy, 1Password, Bitwarden…).'
                   : 'Open your authenticator app (Google Authenticator, Authy, 1Password, Bitwarden…).'}</li>
                 <li>{fr
-                  ? 'Ajoutez un nouveau compte en saisissant la clé secrète ci-dessous.'
-                  : 'Add a new account by typing the secret below.'}</li>
+                  ? 'Scannez le QR code ci-dessous — ou saisissez la clé manuellement.'
+                  : 'Scan the QR code below — or type the secret manually.'}</li>
               </ol>
-              <div className="bg-gray-50 border rounded-md p-4 mb-4">
-                <p className="text-xs text-muted-foreground mb-2">
-                  {fr ? 'Clé secrète (nom de compte : AltheaSystems)' : 'Secret (account name: AltheaSystems)'}
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 font-mono text-sm tracking-wider break-all">
-                    {view.setup.secret}
-                  </code>
-                  <Button type="button" variant="ghost" size="icon" onClick={copySecret}>
-                    {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                  </Button>
-                </div>
+
+              <div className="flex justify-center mb-4">
+                <OtpQrCode uri={view.setup.otpAuthUri} />
               </div>
+
+              <details className="text-sm text-gray-700 mb-4">
+                <summary className="cursor-pointer text-brand-primary hover:underline mb-2">
+                  {fr ? 'Impossible de scanner ? Afficher la clé à saisir' : 'Can\'t scan? Show the secret to type manually'}
+                </summary>
+                <div className="bg-gray-50 border rounded-md p-4 mt-2">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {fr ? 'Clé secrète (nom de compte : AltheaSystems)' : 'Secret (account name: AltheaSystems)'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 font-mono text-sm tracking-wider break-all">
+                      {view.setup.secret}
+                    </code>
+                    <Button type="button" variant="ghost" size="icon" onClick={copySecret}>
+                      {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </details>
+
               <div className="flex gap-2">
                 <Button
                   variant="outline"

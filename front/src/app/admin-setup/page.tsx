@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { OtpQrCode } from '@/components/two-factor/otp-qr-code';
 import { useAuth } from '@/context/auth-context';
 import { authService } from '@/lib/api-services';
 import type { TwoFactorSetupResult } from '@/lib/api-types';
@@ -149,27 +150,36 @@ export default function AdminSetupPage() {
             <>
               <ol className="text-sm text-gray-700 space-y-2 mb-4 list-decimal list-inside">
                 <li>Open your authenticator app (Google Authenticator, Authy, 1Password, Bitwarden…).</li>
-                <li>Add a new account by typing the secret below.</li>
+                <li>Scan the QR code below — or type the secret manually.</li>
                 <li>Enter the 6-digit code your app generates.</li>
               </ol>
 
-              <div className="bg-gray-50 border rounded-md p-4 mb-2">
-                <p className="text-xs text-muted-foreground mb-2">Secret (account name: AltheaSystems)</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 font-mono text-sm tracking-wider break-all">
-                    {setup.secret}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={copySecret}
-                    aria-label="Copy secret"
-                  >
-                    {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                  </Button>
-                </div>
+              <div className="flex justify-center mb-4">
+                <OtpQrCode uri={setup.otpAuthUri} />
               </div>
+
+              <details className="text-sm text-gray-700 mb-2">
+                <summary className="cursor-pointer text-brand-primary hover:underline mb-2">
+                  Can&apos;t scan? Show the secret to type manually
+                </summary>
+                <div className="bg-gray-50 border rounded-md p-4 mt-2">
+                  <p className="text-xs text-muted-foreground mb-2">Secret (account name: AltheaSystems)</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 font-mono text-sm tracking-wider break-all">
+                      {setup.secret}
+                    </code>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={copySecret}
+                      aria-label="Copy secret"
+                    >
+                      {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </details>
 
               <Button
                 type="button"
