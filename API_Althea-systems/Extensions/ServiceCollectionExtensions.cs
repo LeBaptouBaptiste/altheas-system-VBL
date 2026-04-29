@@ -149,6 +149,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IContentService, ContentService>();
         services.AddSingleton<ITwoFactorStateStore, RedisTwoFactorStateStore>();
         services.AddSingleton<IStepUpConsumptionStore, RedisStepUpConsumptionStore>();
+        // Login-attempt throttling falls back to a no-op when Redis is not
+        // configured (dev / unit tests) so login still works locally without
+        // pulling Redis into every workflow.
+        services.AddSingleton<ILoginAttemptStore>(sp =>
+        {
+            var redis = sp.GetService<IConnectionMultiplexer>();
+            return redis is null
+                ? new NullLoginAttemptStore()
+                : new RedisLoginAttemptStore(redis);
+        });
         services.AddScoped<ITwoFactorService, TwoFactorService>();
 
         // Special services

@@ -36,7 +36,20 @@ public interface IAuthService
     Task<StepUpResponse> StepUpAsync(Guid userId, StepUpRequest request);
 
     Task<UserDto> GetCurrentUserAsync(Guid userId);
+
+    /// <summary>
+    /// DISABLED until a signed single-use token table is added.
+    /// See <see cref="AuthService.ConfirmEmailAsync"/> for context.
+    /// </summary>
+    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
     Task ConfirmEmailAsync(ConfirmEmailRequest request);
+
     Task ForgotPasswordAsync(ForgotPasswordRequest request);
+
+    /// <summary>
+    /// DISABLED until a signed single-use token table is added.
+    /// See <see cref="AuthService.ResetPasswordAsync"/> for context.
+    /// </summary>
+    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
     Task ResetPasswordAsync(ResetPasswordRequest request);
 }

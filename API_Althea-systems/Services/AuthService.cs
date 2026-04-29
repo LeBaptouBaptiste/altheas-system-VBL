@@ -9,21 +9,31 @@ namespace API_Althea_systems.Services;
 
 public class AuthService : IAuthService
 {
+    // Per-account brute-force protection: 5 failures within a 15 min window
+    // trigger a 15 min lockout. The IP-based "auth" rate-limiter remains in
+    // place as defence in depth; this complements it for distributed attacks.
+    private const int MaxFailuresBeforeLock = 5;
+    private static readonly TimeSpan FailureWindow = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(15);
+
     private readonly IUserRepository _userRepository;
     private readonly ITokenService _tokenService;
     private readonly ITwoFactorService _twoFactor;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly ILoginAttemptStore _loginAttempts;
 
     public AuthService(
         IUserRepository userRepository,
         ITokenService tokenService,
         ITwoFactorService twoFactor,
-        IPasswordHasher passwordHasher)
+        IPasswordHasher passwordHasher,
+        ILoginAttemptStore loginAttempts)
     {
         _userRepository = userRepository;
         _tokenService = tokenService;
         _twoFactor = twoFactor;
         _passwordHasher = passwordHasher;
+        _loginAttempts = loginAttempts;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -51,14 +61,29 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
-        var user = await _userRepository.GetByEmailAsync(request.Email.ToLowerInvariant())
-            ?? throw new UnauthorizedException("Invalid email or password.", reason: "invalid_credentials");
+        var normalizedEmail = request.Email.ToLowerInvariant();
 
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        // Account-level lockout — fires before we hit the database so a
+        // locked-out attacker can't even probe whether an email exists.
+        var lockRemaining = await _loginAttempts.GetLockRemainingAsync(normalizedEmail);
+        if (lockRemaining is { } remaining && remaining > TimeSpan.Zero)
+        {
+            throw new AccountLockedException((int)Math.Ceiling(remaining.TotalSeconds));
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail);
+        if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            await RecordFailureAndMaybeLockAsync(normalizedEmail);
             throw new UnauthorizedException("Invalid email or password.", reason: "invalid_credentials");
+        }
 
         if (user.Status == UserStatus.Inactive)
             throw new ForbiddenException("This account has been deactivated.");
+
+        // Successful password check — clear any partial failure trail before
+        // dispatching to the 2FA / setup / regular branch.
+        await _loginAttempts.ResetAsync(normalizedEmail);
 
         // Branch 1: 2FA enabled -> issue a challenge, do NOT update LastLogin yet
         // (that happens once the code is verified).
@@ -84,6 +109,15 @@ public class AuthService : IAuthService
         return new LoginResponse(
             LoginOutcome.Authenticated,
             Auth: new AuthResponse(accessToken, refreshToken, MapToDto(user)));
+    }
+
+    private async Task RecordFailureAndMaybeLockAsync(string normalizedEmail)
+    {
+        var failures = await _loginAttempts.IncrementFailureAsync(normalizedEmail, FailureWindow);
+        if (failures >= MaxFailuresBeforeLock)
+        {
+            await _loginAttempts.LockAsync(normalizedEmail, LockDuration);
+        }
     }
 
     public async Task<AuthResponse> CompleteTwoFactorChallengeAsync(VerifyTwoFactorChallengeRequest request)
@@ -175,15 +209,21 @@ public class AuthService : IAuthService
         return MapToDto(user);
     }
 
-    public async Task ConfirmEmailAsync(ConfirmEmailRequest request)
+    /// <summary>
+    /// DISABLED — the previous implementation treated the user's email as
+    /// the confirmation token, which allowed a trivial account take-over
+    /// (any caller who knew an email could mark it as verified).
+    /// Re-enable only after a signed, single-use token table is added
+    /// (EmailConfirmationTokens, 30 min TTL). The controller short-circuits
+    /// to 501 so this method is currently unreachable from HTTP.
+    /// TODO: implement signed single-use token table (EmailConfirmationTokens)
+    ///       with 30 min TTL.
+    /// </summary>
+    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
+    public Task ConfirmEmailAsync(ConfirmEmailRequest request)
     {
-        // In production, validate the token from an email service
-        // For now, we confirm based on a simple token lookup
-        var user = await _userRepository.GetByEmailAsync(request.Token)
-            ?? throw new NotFoundException("User", request.Token);
-
-        user.EmailConfirmed = true;
-        await _userRepository.UpdateAsync(user);
+        throw new NotSupportedException(
+            "ConfirmEmail is disabled until a signed single-use token table is implemented.");
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
@@ -196,15 +236,21 @@ public class AuthService : IAuthService
         // For now, this is a no-op stub
     }
 
-    public async Task ResetPasswordAsync(ResetPasswordRequest request)
+    /// <summary>
+    /// DISABLED — the previous implementation accepted the user's email as
+    /// the reset token, which allowed any attacker who knew an email to
+    /// reset the password and take over the account.
+    /// Re-enable only after a signed, single-use token table is added
+    /// (PasswordResetTokens, 30 min TTL). The controller short-circuits to
+    /// 501 so this method is currently unreachable from HTTP.
+    /// TODO: implement signed single-use token table (PasswordResetTokens)
+    ///       with 30 min TTL.
+    /// </summary>
+    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
+    public Task ResetPasswordAsync(ResetPasswordRequest request)
     {
-        // In production: validate the reset token
-        // For now, we use the token as email for simplicity
-        var user = await _userRepository.GetByEmailAsync(request.Token)
-            ?? throw new UnauthorizedException("Invalid or expired reset token.");
-
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        await _userRepository.UpdateAsync(user);
+        throw new NotSupportedException(
+            "ResetPassword is disabled until a signed single-use token table is implemented.");
     }
 
     private static UserDto MapToDto(User user) => new(

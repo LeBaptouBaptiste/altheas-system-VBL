@@ -70,11 +70,23 @@ public class AuthController : ControllerBase, IAuthController
         return Ok(user);
     }
 
+    /// <summary>
+    /// CRITICAL SECURITY ISSUE: the original implementation accepted the
+    /// user's email address as the "confirmation token", allowing an
+    /// attacker to confirm any account by guessing the email. The endpoint
+    /// is preserved (the frontend still calls it) but neutralized until a
+    /// proper signed single-use token table is implemented.
+    /// TODO: implement signed single-use token table (EmailConfirmationTokens)
+    ///       with 30 min TTL.
+    /// </summary>
     [HttpPost("confirm-email")]
-    public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
+    public Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
     {
-        await _authService.ConfirmEmailAsync(request);
-        return Ok(new { message = "Email confirmed successfully." });
+        IActionResult result = StatusCode(StatusCodes.Status501NotImplemented, new
+        {
+            message = "This endpoint is not implemented yet. Contact support."
+        });
+        return Task.FromResult(result);
     }
 
     [HttpPost("forgot-password")]
@@ -84,11 +96,23 @@ public class AuthController : ControllerBase, IAuthController
         return Ok(new { message = "If this email exists, a reset link has been sent." });
     }
 
+    /// <summary>
+    /// CRITICAL SECURITY ISSUE: the original implementation used the user's
+    /// email as the "reset token", which means anyone who knew an email
+    /// could reset that account's password. The endpoint is preserved (the
+    /// frontend still calls it) but neutralized until a signed single-use
+    /// token table is implemented.
+    /// TODO: implement signed single-use token table (PasswordResetTokens)
+    ///       with 30 min TTL.
+    /// </summary>
     [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
-        await _authService.ResetPasswordAsync(request);
-        return Ok(new { message = "Password reset successfully." });
+        IActionResult result = StatusCode(StatusCodes.Status501NotImplemented, new
+        {
+            message = "This endpoint is not implemented yet. Contact support."
+        });
+        return Task.FromResult(result);
     }
 
 }

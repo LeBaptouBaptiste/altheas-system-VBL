@@ -16,6 +16,7 @@ public class AuthServiceTests
     private readonly Mock<ITokenService> _tokenService = new();
     private readonly Mock<ITwoFactorService> _twoFactor = new();
     private readonly Mock<IPasswordHasher> _hasher = new();
+    private readonly Mock<ILoginAttemptStore> _loginAttempts = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -28,8 +29,15 @@ public class AuthServiceTests
         _tokenService.Setup(t => t.GenerateStepUpToken(It.IsAny<User>(), It.IsAny<StepUpPurpose>()))
                      .Returns("test-stepup-token");
 
+        // Default: account is never locked, increments are no-ops. Individual
+        // tests override these to exercise the lockout logic.
+        _loginAttempts.Setup(l => l.GetLockRemainingAsync(It.IsAny<string>()))
+                      .ReturnsAsync((TimeSpan?)null);
+        _loginAttempts.Setup(l => l.IncrementFailureAsync(It.IsAny<string>(), It.IsAny<TimeSpan>()))
+                      .ReturnsAsync(1);
+
         _sut = new AuthService(
-            _userRepo.Object, _tokenService.Object, _twoFactor.Object, _hasher.Object);
+            _userRepo.Object, _tokenService.Object, _twoFactor.Object, _hasher.Object, _loginAttempts.Object);
     }
 
     [Fact]
@@ -151,6 +159,77 @@ public class AuthServiceTests
         var act = () => _sut.LoginAsync(new LoginRequest("nobody@test.com", "anything"));
 
         await act.Should().ThrowAsync<UnauthorizedException>();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  Per-account login throttling
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task LoginAsync_AccountLocked_ThrowsAccountLocked_BeforeUserLookup()
+    {
+        _loginAttempts.Setup(l => l.GetLockRemainingAsync("test@test.com"))
+                      .ReturnsAsync(TimeSpan.FromSeconds(120));
+
+        var act = () => _sut.LoginAsync(new LoginRequest("test@test.com", "anything"));
+
+        var ex = await act.Should().ThrowAsync<AccountLockedException>();
+        ex.And.RetryAfterSeconds.Should().BeGreaterThan(0);
+        // Crucial: we must NOT hit the user repo when the account is locked
+        // — otherwise an attacker can use timing to fingerprint accounts.
+        _userRepo.Verify(r => r.GetByEmailAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WrongPassword_IncrementsFailureCounter()
+    {
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _loginAttempts.Setup(l => l.IncrementFailureAsync("test@test.com", It.IsAny<TimeSpan>()))
+                      .ReturnsAsync(1);
+
+        var act = () => _sut.LoginAsync(new LoginRequest("test@test.com", "Wrong"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+        _loginAttempts.Verify(l => l.IncrementFailureAsync("test@test.com", It.IsAny<TimeSpan>()), Times.Once);
+        _loginAttempts.Verify(l => l.LockAsync(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_FifthFailure_LocksAccount()
+    {
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync((User?)null);
+        _loginAttempts.Setup(l => l.IncrementFailureAsync("test@test.com", It.IsAny<TimeSpan>()))
+                      .ReturnsAsync(5);
+
+        var act = () => _sut.LoginAsync(new LoginRequest("test@test.com", "Wrong"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+        _loginAttempts.Verify(l => l.LockAsync("test@test.com", It.IsAny<TimeSpan>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_Success_ResetsFailureCounter()
+    {
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+
+        await _sut.LoginAsync(new LoginRequest("test@test.com", "Password1234"));
+
+        _loginAttempts.Verify(l => l.ResetAsync("test@test.com"), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_UnknownEmail_StillIncrementsFailure()
+    {
+        // Important so that an attacker enumerating emails ALSO hits the
+        // lockout (otherwise mass-checking emails is unbounded).
+        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
+
+        var act = () => _sut.LoginAsync(new LoginRequest("nobody@test.com", "anything"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
+        _loginAttempts.Verify(l => l.IncrementFailureAsync("nobody@test.com", It.IsAny<TimeSpan>()), Times.Once);
     }
 
     [Fact]
