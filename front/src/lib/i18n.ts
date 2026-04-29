@@ -95,6 +95,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'cart.remove': 'Supprimer',
     'cart.quantity': 'Quantité',
     'cart.unavailable_warning': 'Ce produit n\'est plus disponible',
+    'cart.added_to_cart': '{name} ajouté au panier',
 
     // Checkout
     'checkout.title': 'Passer commande',
@@ -352,6 +353,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'cart.remove': 'Remove',
     'cart.quantity': 'Quantity',
     'cart.unavailable_warning': 'This product is no longer available',
+    'cart.added_to_cart': '{name} added to cart',
 
     // Checkout
     'checkout.title': 'Checkout',
@@ -596,6 +598,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'cart.remove': 'Buang',
     'cart.quantity': 'Jumlah',
     'cart.unavailable_warning': 'Produk ini tidak lagi tersedia',
+    'cart.added_to_cart': '{name} ditambah ke troli',
     'checkout.title': 'Bayar',
     'checkout.step.auth': 'Log Masuk',
     'checkout.step.address': 'Alamat',
@@ -822,6 +825,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'cart.remove': 'إزالة',
     'cart.quantity': 'الكمية',
     'cart.unavailable_warning': 'لم يعد هذا المنتج متوفر الآن',
+    'cart.added_to_cart': 'أُضيف {name} إلى عربة التسوق',
     'checkout.title': 'تسجيل الخروج',
     'checkout.step.auth': 'تسجيل الدخول',
     'checkout.step.address': 'العناوين',

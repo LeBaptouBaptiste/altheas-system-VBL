@@ -44,8 +44,7 @@ export default function HomePage() {
 
   const handleAddToCart = (productId: string, name: string) => {
     addItem(productId);
-    const suffix: Record<string, string> = { fr: 'ajouté au panier', en: 'added to cart', ms: 'ditambah ke troli', ar: 'أُضيف إلى عربة التسوق' };
-    toast.success(`${name} ${suffix[locale] ?? 'added to cart'}`);
+    toast.success(t('cart.added_to_cart').replace('{name}', name));
   };
 
   return (
