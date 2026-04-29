@@ -11,6 +11,7 @@ import { authService } from '@/lib/api-services';
 import { isStepUpRequired } from '@/lib/api';
 import type { TwoFactorSetupResult, TwoFactorStatus } from '@/lib/api-types';
 import { useI18n } from '@/context/i18n-context';
+import { useAuth } from '@/context/auth-context';
 import { toast } from 'sonner';
 
 type View =
@@ -34,6 +35,7 @@ type StepUpState =
 
 export function TwoFactorSection() {
   const { locale } = useI18n();
+  const { applyAuth } = useAuth();
   const fr = locale === 'fr';
 
   const [view, setView] = useState<View>({ kind: 'loading' });
@@ -55,7 +57,11 @@ export function TwoFactorSection() {
   useEffect(() => {
     authService.getTwoFactorStatus()
       .then((status) => setView({ kind: 'status', status }))
-      .catch(() => toast.error(fr ? 'Impossible de charger le statut 2FA' : 'Failed to load 2FA status'));
+      .catch((err) => {
+        const fallback = fr ? 'Impossible de charger le statut 2FA' : 'Failed to load 2FA status';
+        const message = err instanceof Error && err.message ? err.message : fallback;
+        toast.error(message);
+      });
   }, [fr]);
 
   // ── Step-up helper ────────────────────────────────
@@ -148,10 +154,10 @@ export function TwoFactorSection() {
     setSubmitting(true);
     try {
       const result = await authService.enableTwoFactor(code);
-      // The new access token now carries amr=mfa, but we don't update
-      // localStorage here — applyAuth() would also reset the user state.
-      // Instead, simply fetch fresh status; for the codes display we use
-      // the response.
+      // CRITICAL: persist the new amr=mfa token so subsequent requests use
+      // an up-to-date JWT (also resets the LastLogin server-side ticking
+      // window). Without this we'd keep the old amr=pwd token around.
+      applyAuth(result.auth);
       setCode('');
       setSavedConfirmed(false);
       setView({ kind: 'recoveryCodes', codes: result.recoveryCodes });

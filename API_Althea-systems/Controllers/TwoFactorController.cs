@@ -23,9 +23,12 @@ namespace API_Althea_systems.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/auth/2fa")]
-[EnableRateLimiting("auth")]
 public class TwoFactorController : ControllerBase
 {
+    // NOTE: rate-limit "auth" (10/min/IP) is applied per-endpoint instead of
+    // class-wide, so the harmless GET /status (called every time the user
+    // visits account/security) doesn't eat the budget meant for sensitive
+    // write operations.
     private readonly ITwoFactorService _twoFactor;
     private readonly IAuthService _authService;
     private readonly IUserRepository _userRepository;
@@ -48,6 +51,7 @@ public class TwoFactorController : ControllerBase
     // ─────────────────────────────────────────────────────────
 
     [HttpPost("setup")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TwoFactorSetupResult>> Setup()
     {
         var user = await ResolveUserFromAccessOrSetupTokenAsync();
@@ -56,6 +60,7 @@ public class TwoFactorController : ControllerBase
     }
 
     [HttpPost("enable")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TwoFactorEnableResponse>> Enable([FromBody] EnableTwoFactorRequest request)
     {
         var user = await ResolveUserFromAccessOrSetupTokenAsync();
@@ -88,7 +93,7 @@ public class TwoFactorController : ControllerBase
     // ─────────────────────────────────────────────────────────
 
     [HttpPost("disable")]
-    [Authorize, RequireStepUp(StepUpPurpose.Action)]
+    [Authorize, RequireStepUp(StepUpPurpose.Action), EnableRateLimiting("auth")]
     public async Task<IActionResult> Disable()
     {
         var user = await GetCurrentUserAsync();
@@ -97,7 +102,7 @@ public class TwoFactorController : ControllerBase
     }
 
     [HttpPost("recovery-codes/regenerate")]
-    [Authorize, RequireStepUp(StepUpPurpose.Action)]
+    [Authorize, RequireStepUp(StepUpPurpose.Action), EnableRateLimiting("auth")]
     public async Task<ActionResult<RegenerateRecoveryCodesResponse>> RegenerateRecoveryCodes()
     {
         var user = await GetCurrentUserAsync();

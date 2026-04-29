@@ -27,6 +27,11 @@ export function isStepUpRequired(err: unknown): err is StepUpRequiredError {
   return err instanceof StepUpRequiredError;
 }
 
+/** True if the message coming from the server is something other than the default placeholder. */
+function errorBodyHasMessage(message: string): boolean {
+  return message !== 'An unexpected error occurred';
+}
+
 /**
  * Per-request overrides. Both fields are optional; omitting them keeps the
  * default behavior (Authorization header drawn from localStorage, no
@@ -135,6 +140,13 @@ async function apiFetch<T>(
     // must NOT nuke the user's main session.
     if (response.status === 401 && options.bearerToken === undefined) {
       clearToken();
+    }
+
+    // ASP.NET sends an empty body on 429 by default; surface a friendlier
+    // message so the UI can tell the user to wait instead of just "an
+    // unexpected error occurred".
+    if (response.status === 429 && !errorBodyHasMessage(message)) {
+      message = 'Too many requests. Please wait a moment and try again.';
     }
 
     throw new ApiError(response.status, message, errors);
