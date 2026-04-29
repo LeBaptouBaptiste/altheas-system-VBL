@@ -18,17 +18,23 @@ export default function HomePage() {
   const { t, localized, locale } = useI18n();
   const { addItem } = useCart();
   const [currentSlide, setCurrentSlide] = useState(0);
+  // Pauses the carousel autoplay. Required for WCAG 2.2.2 ("Pause, Stop,
+  // Hide") on auto-rotating content; also a nicer UX when the user is
+  // reading a slide. Triggered on hover and on keyboard focus so both
+  // mouse and keyboard users benefit.
+  const [paused, setPaused] = useState(false);
 
   const slides = heroSlides;
   const topProducts = products.filter(p => p.priorityRank > 0 && p.status === 'published').sort((a, b) => a.priorityRank - b.priorityRank).slice(0, 8);
   const activeCategories = categories.filter(c => c.active).sort((a, b) => a.displayOrder - b.displayOrder);
 
   useEffect(() => {
+    if (paused) return;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [slides.length]);
+  }, [slides.length, paused]);
 
   const heroImageMap: Record<string, string> = {
     slide1: imageUrls.hero.slide1,
@@ -45,7 +51,15 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero Carousel */}
-      <section className="relative h-[400px] md:h-[550px] overflow-hidden bg-brand-light" aria-label="Hero carousel">
+      <section
+        className="relative h-[400px] md:h-[550px] overflow-hidden bg-brand-light"
+        aria-label="Hero carousel"
+        aria-roledescription="carousel"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+      >
         {slides.map((slide, index) => (
           <div key={slide.id} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/90 to-brand-dark/40 z-10" />
@@ -67,9 +81,15 @@ export default function HomePage() {
             </div>
           </div>
         ))}
-<div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
           {slides.map((_, i) => (
-            <button key={i} onClick={() => setCurrentSlide(i)} className={`w-3 h-3 rounded-full transition-colors ${i === currentSlide ? 'bg-brand-primary' : 'bg-white/50'}`} aria-label={`Slide ${i + 1}`} />
+            <button
+              key={i}
+              onClick={() => setCurrentSlide(i)}
+              className={`w-3 h-3 rounded-full transition-colors ${i === currentSlide ? 'bg-brand-primary' : 'bg-white/50'}`}
+              aria-label={`Slide ${i + 1}`}
+              aria-current={i === currentSlide ? 'true' : undefined}
+            />
           ))}
         </div>
       </section>
