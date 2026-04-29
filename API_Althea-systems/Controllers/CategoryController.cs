@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Products;
 using API_Althea_systems.Services.IServices;
 
@@ -35,7 +36,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<CategoryDto>> Create([FromBody] CategoryCreateRequest request)
     {
         var category = await _categoryService.CreateAsync(request);
@@ -43,14 +44,14 @@ public class CategoryController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<CategoryDto>> Update(Guid id, [FromBody] CategoryUpdateRequest request)
     {
         return Ok(await _categoryService.UpdateAsync(id, request));
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await _categoryService.DeleteAsync(id);

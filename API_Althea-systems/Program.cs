@@ -27,6 +27,7 @@ public class Program
         builder.Services.AddSwaggerDocumentation();
         builder.Services.AddDatabase(builder.Configuration);
         builder.Services.AddRedisCache(builder.Configuration);
+        builder.Services.AddEncryption(builder.Configuration);
         builder.Services.AddJwtAuthentication(builder.Configuration);
         builder.Services.AddCorsPolicy(builder.Configuration);
         builder.Services.AddValidation();

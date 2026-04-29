@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Order;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Services.IServices;
@@ -47,7 +48,7 @@ public class OrderController : ControllerBase
     }
 
     [HttpPut("{id:guid}/status")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<OrderDto>> UpdateStatus(Guid id, [FromBody] OrderStatusUpdateRequest request)
     {
         var userId = Guid.Parse(HttpContext.Items["UserId"]?.ToString()!);

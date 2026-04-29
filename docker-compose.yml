@@ -7,6 +7,8 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: althea-front
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     depends_on:
       - api
 
@@ -16,6 +18,8 @@ services:
       dockerfile: Dockerfile
     container_name: althea-api
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       ConnectionStrings__PostgreSQL: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
@@ -24,6 +28,7 @@ services:
       JwtSettings__SecretKey: ${JWT_SECRET_KEY}
       JwtSettings__Issuer: ${JWT_ISSUER}
       JwtSettings__Audience: ${JWT_AUDIENCE}
+      Encryption__Key: ${ENCRYPTION_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,5 +75,3 @@ volumes:
 
 networks:
   default:
-    name: npm-network
-    external: true

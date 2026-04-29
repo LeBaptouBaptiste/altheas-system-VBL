@@ -38,6 +38,15 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddEncryption(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Eagerly construct the service so a missing/invalid Encryption:Key
+        // fails the application startup, mirroring the JWT secret behavior.
+        var encryption = new EncryptionService(configuration);
+        services.AddSingleton<IEncryptionService>(encryption);
+        return services;
+    }
+
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         var jwtSettings = configuration.GetSection("JwtSettings");
@@ -124,6 +133,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
+        services.AddScoped<IRecoveryCodeRepository, RecoveryCodeRepository>();
 
         // Services
         services.AddScoped<ITokenService, TokenService>();
@@ -137,6 +147,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IContentService, ContentService>();
+        services.AddSingleton<ITwoFactorStateStore, RedisTwoFactorStateStore>();
+        services.AddSingleton<IStepUpConsumptionStore, RedisStepUpConsumptionStore>();
+        services.AddScoped<ITwoFactorService, TwoFactorService>();
 
         // Special services
         services.AddSingleton<IVatCalculationService, VatCalculationService>();

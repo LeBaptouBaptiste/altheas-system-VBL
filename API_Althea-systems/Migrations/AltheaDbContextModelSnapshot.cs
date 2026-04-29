@@ -787,8 +787,12 @@ namespace API_Althea_systems.Migrations
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("TwoFactorEnabledAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("TwoFactorSecret")
-                        .HasColumnType("text");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -828,6 +832,33 @@ namespace API_Althea_systems.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("user_payment_methods", (string)null);
+                });
+
+            modelBuilder.Entity("API_Althea_systems.Models.Users.UserRecoveryCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("user_recovery_codes", (string)null);
                 });
 
             modelBuilder.Entity("API_Althea_systems.Models.Invoices.Invoice", b =>
@@ -1013,6 +1044,17 @@ namespace API_Althea_systems.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("API_Althea_systems.Models.Users.UserRecoveryCode", b =>
+                {
+                    b.HasOne("API_Althea_systems.Models.Users.User", "User")
+                        .WithMany("RecoveryCodes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("API_Althea_systems.Models.Messaging.ChatConversation", b =>
                 {
                     b.Navigation("Messages");
@@ -1057,6 +1099,8 @@ namespace API_Althea_systems.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("PaymentMethods");
+
+                    b.Navigation("RecoveryCodes");
                 });
 #pragma warning restore 612, 618
         }

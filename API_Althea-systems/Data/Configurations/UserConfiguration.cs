@@ -17,11 +17,31 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Role).HasConversion<string>().HasMaxLength(20);
         builder.Property(u => u.Status).HasConversion<string>().HasMaxLength(20);
 
+        // 2FA: TOTP secret is stored encrypted at rest (AES-GCM, base64).
+        // Length covers IV (12B) + ciphertext (~20B for a 160-bit base32 secret) + tag (16B), base64-encoded.
+        builder.Property(u => u.TwoFactorSecret).HasMaxLength(256);
+
         builder.HasIndex(u => u.Email).IsUnique();
 
         builder.HasMany(u => u.Addresses).WithOne(a => a.User).HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(u => u.PaymentMethods).WithOne(p => p.User).HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(u => u.Orders).WithOne(o => o.User).HasForeignKey(o => o.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(u => u.RecoveryCodes).WithOne(r => r.User).HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class UserRecoveryCodeConfiguration : IEntityTypeConfiguration<UserRecoveryCode>
+{
+    public void Configure(EntityTypeBuilder<UserRecoveryCode> builder)
+    {
+        builder.ToTable("user_recovery_codes");
+
+        builder.HasKey(r => r.Id);
+        // BCrypt hashes are 60 chars; allow some headroom for cost-factor changes.
+        builder.Property(r => r.CodeHash).HasMaxLength(100).IsRequired();
+
+        // Speeds up lookups when verifying a recovery code (we filter by user).
+        builder.HasIndex(r => r.UserId);
     }
 }
 

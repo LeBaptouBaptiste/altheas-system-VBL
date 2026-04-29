@@ -70,3 +70,7 @@ front/out/
 *.tmp
 *.temp
 /.claude
+sprints-clickup-detailed.csv
+CLAUDE.md
+sprints-clickup.csv
+SPRINTS.md

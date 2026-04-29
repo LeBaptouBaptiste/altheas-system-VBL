@@ -228,16 +228,6 @@ export default function CheckoutPage() {
               <CreditCard className="w-5 h-5 text-brand-primary" />
               <Label htmlFor="pay-card" className="cursor-pointer flex-1">{t('checkout.card')}</Label>
             </div>
-            <div className="flex items-center gap-3 p-4 border rounded-lg hover:border-brand-primary">
-              <RadioGroupItem value="bank_transfer" id="pay-bank" />
-              <Building2 className="w-5 h-5 text-brand-primary" />
-              <Label htmlFor="pay-bank" className="cursor-pointer flex-1">{t('checkout.bank_transfer')}</Label>
-            </div>
-            <div className="flex items-center gap-3 p-4 border rounded-lg hover:border-brand-primary">
-              <RadioGroupItem value="admin_mandate" id="pay-mandate" />
-              <FileText className="w-5 h-5 text-brand-primary" />
-              <Label htmlFor="pay-mandate" className="cursor-pointer flex-1">{t('checkout.admin_mandate')}</Label>
-            </div>
           </RadioGroup>
 
           {paymentMethod === 'card' && (

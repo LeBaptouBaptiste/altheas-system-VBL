@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Services.IServices;
@@ -19,7 +20,7 @@ public class UserController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<PaginatedResponse<UserDto>>> GetAll(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 12)
     {
@@ -39,14 +40,19 @@ public class UserController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await _userService.DeleteAsync(id);
         return NoContent();
     }
 
+    // Anonymize is the GDPR equivalent of "delete my account" — sensitive,
+    // hence gated by an action step-up. NOTE: dedicated change-password and
+    // change-email endpoints don't exist yet; when added (V2), they should
+    // also carry [RequireStepUp(StepUpPurpose.Action)].
     [HttpPost("{id:guid}/anonymize")]
+    [RequireStepUp(StepUpPurpose.Action)]
     public async Task<ActionResult<UserDto>> Anonymize(Guid id)
     {
         return Ok(await _userService.AnonymizeAsync(id));

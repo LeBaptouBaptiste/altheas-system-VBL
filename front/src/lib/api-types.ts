@@ -31,6 +31,77 @@ export interface AuthResponse {
   user: UserDto;
 }
 
+// LoginOutcome is serialized as a string by the API (JsonStringEnumConverter).
+// We keep it as a string union here — `outcome` is NOT in the api.ts
+// normalizeEnums mapping, so the value passes through untouched.
+export type LoginOutcome =
+  | 'Authenticated'
+  | 'TwoFactorRequired'
+  | 'TwoFactorSetupRequired';
+
+/**
+ * Discriminated union returned by POST /auth/login. Use `outcome` to branch:
+ *   - Authenticated:           `auth` is populated; store accessToken
+ *   - TwoFactorRequired:       call POST /auth/2fa/verify with `challengeToken`
+ *   - TwoFactorSetupRequired:  admin enrollment — call /2fa/setup + /enable
+ *                              using `setupToken` as bearer
+ */
+export interface LoginResponse {
+  outcome: LoginOutcome;
+  auth: AuthResponse | null;
+  challengeToken: string | null;
+  setupToken: string | null;
+}
+
+export interface VerifyTwoFactorChallengeRequest {
+  challengeToken: string;
+  code: string;
+}
+
+// ── Two-Factor (TOTP) ─────────────────────────────────
+
+export interface TwoFactorSetupResult {
+  /** Base32-encoded TOTP secret. Show as a fallback for users who can't scan. */
+  secret: string;
+  /** otpauth:// URI — render as a QR code. */
+  otpAuthUri: string;
+}
+
+export interface TwoFactorEnableResponse {
+  /** One-shot recovery codes (4-4-4-4 hex). Show ONCE, then they vanish. */
+  recoveryCodes: string[];
+  /** Fresh access token with amr=mfa, plus the user dto. */
+  auth: AuthResponse;
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+  enabledAt: string | null;
+  recoveryCodesRemaining: number;
+}
+
+export interface RegenerateRecoveryCodesResponse {
+  recoveryCodes: string[];
+}
+
+// ── Step-up ───────────────────────────────────────────
+
+export type StepUpPurpose = 'Action' | 'Admin';
+
+export interface StepUpRequest {
+  purpose: StepUpPurpose;
+  /** TOTP code (6 digits) OR recovery code (xxxx-xxxx-xxxx-xxxx). */
+  code?: string;
+  /** Only valid for purpose='Action' on accounts without 2FA. */
+  password?: string;
+}
+
+export interface StepUpResponse {
+  token: string;
+  /** Seconds until the token expires (60 for Action, 1800 for Admin). */
+  expiresIn: number;
+}
+
 // ── Users ─────────────────────────────────────────────
 
 export interface UserDto {

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Content;
 using API_Althea_systems.Services.IServices;
 
@@ -35,7 +36,7 @@ public class StaticPageController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<StaticPageDto>> Create([FromBody] StaticPageCreateRequest request)
     {
         var page = await _contentService.CreateStaticPageAsync(request);
@@ -43,14 +44,14 @@ public class StaticPageController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<StaticPageDto>> Update(Guid id, [FromBody] StaticPageUpdateRequest request)
     {
         return Ok(await _contentService.UpdateStaticPageAsync(id, request));
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await _contentService.DeleteStaticPageAsync(id);

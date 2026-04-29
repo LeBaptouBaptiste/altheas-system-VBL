@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Shared;
@@ -21,7 +22,7 @@ public class MessageController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<PaginatedResponse<ContactMessageDto>>> GetAll(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 12)
     {
@@ -29,7 +30,7 @@ public class MessageController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<ContactMessageDto>> GetById(Guid id)
     {
         return Ok(await _messageService.GetContactMessageByIdAsync(id));
@@ -43,7 +44,7 @@ public class MessageController : ControllerBase
     }
 
     [HttpPut("{id:guid}/status")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] MessageStatus status)
     {
         await _messageService.UpdateContactMessageStatusAsync(id, status);
@@ -51,7 +52,7 @@ public class MessageController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await _messageService.DeleteContactMessageAsync(id);

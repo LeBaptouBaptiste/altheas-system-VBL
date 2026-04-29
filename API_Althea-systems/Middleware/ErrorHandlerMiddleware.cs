@@ -29,64 +29,61 @@ public class ErrorHandlerMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        var (statusCode, message, errors) = exception switch
+        var mapping = exception switch
         {
-            NotFoundException ex => (
-                HttpStatusCode.NotFound,
+            NotFoundException ex => new ErrorMapping(HttpStatusCode.NotFound, ex.Message),
+            AppValidationException ex => new ErrorMapping(HttpStatusCode.BadRequest, ex.Message, Errors: ex.Errors),
+            UnauthorizedException ex => new ErrorMapping(HttpStatusCode.Unauthorized, ex.Message, Reason: ex.Reason),
+            ForbiddenException ex => new ErrorMapping(HttpStatusCode.Forbidden, ex.Message),
+            ConflictException ex => new ErrorMapping(HttpStatusCode.Conflict, ex.Message),
+            AccountLockedException ex => new ErrorMapping(
+                (HttpStatusCode)429,
                 ex.Message,
-                (IDictionary<string, string[]>?)null
-            ),
-            AppValidationException ex => (
-                HttpStatusCode.BadRequest,
-                ex.Message,
-                ex.Errors
-            ),
-            UnauthorizedException ex => (
-                HttpStatusCode.Unauthorized,
-                ex.Message,
-                (IDictionary<string, string[]>?)null
-            ),
-            ForbiddenException ex => (
-                HttpStatusCode.Forbidden,
-                ex.Message,
-                (IDictionary<string, string[]>?)null
-            ),
-            ConflictException ex => (
-                HttpStatusCode.Conflict,
-                ex.Message,
-                (IDictionary<string, string[]>?)null
-            ),
-            _ => (
-                HttpStatusCode.InternalServerError,
-                "An unexpected error occurred.",
-                (IDictionary<string, string[]>?)null
-            )
+                Reason: "account_locked",
+                RetryAfter: ex.RetryAfterSeconds),
+            _ => new ErrorMapping(HttpStatusCode.InternalServerError, "An unexpected error occurred.")
         };
 
         // Log based on severity
-        if (statusCode == HttpStatusCode.InternalServerError)
+        if (mapping.StatusCode == HttpStatusCode.InternalServerError)
             _logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
         else
-            _logger.LogWarning("Handled exception ({StatusCode}): {Message}", (int)statusCode, exception.Message);
+            _logger.LogWarning("Handled exception ({StatusCode}): {Message}", (int)mapping.StatusCode, exception.Message);
 
         context.Response.ContentType = "application/json";
-        context.Response.StatusCode = (int)statusCode;
+        context.Response.StatusCode = (int)mapping.StatusCode;
+
+        // Standard HTTP semantics: tell the client how long to wait before retrying.
+        if (mapping.RetryAfter is { } retryAfter)
+        {
+            context.Response.Headers["Retry-After"] = retryAfter.ToString();
+        }
 
         var response = new ErrorResponse
         {
             Success = false,
-            StatusCode = (int)statusCode,
-            Message = message,
-            Errors = errors
+            StatusCode = (int)mapping.StatusCode,
+            Message = mapping.Message,
+            Errors = mapping.Errors,
+            Reason = mapping.Reason,
+            RetryAfterSeconds = mapping.RetryAfter,
         };
 
         var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
         });
 
         await context.Response.WriteAsync(json);
     }
+
+    private record ErrorMapping(
+        HttpStatusCode StatusCode,
+        string Message,
+        IDictionary<string, string[]>? Errors = null,
+        string? Reason = null,
+        int? RetryAfter = null);
 }
 
 public class ErrorResponse
@@ -95,4 +92,6 @@ public class ErrorResponse
     public int StatusCode { get; set; }
     public string Message { get; set; } = string.Empty;
     public IDictionary<string, string[]>? Errors { get; set; }
+    public string? Reason { get; set; }
+    public int? RetryAfterSeconds { get; set; }
 }

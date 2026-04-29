@@ -27,9 +27,37 @@ public class AuthController : ControllerBase, IAuthController
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Final step of the 2FA login flow. Consumes the challengeToken
+    /// returned by /auth/login and a 6-digit TOTP code (or a recovery
+    /// code in xxxx-xxxx-xxxx-xxxx format).
+    /// </summary>
+    [HttpPost("2fa/verify")]
+    public async Task<ActionResult<AuthResponse>> VerifyTwoFactorChallenge(
+        [FromBody] VerifyTwoFactorChallengeRequest request)
+    {
+        var result = await _authService.CompleteTwoFactorChallengeAsync(request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Issues a step-up token. The caller must already be authenticated
+    /// (regular access token); identity is then re-verified using either
+    /// a fresh 2FA code (preferred) or a password (only allowed for
+    /// purpose=Action on accounts without 2FA).
+    /// </summary>
+    [HttpPost("step-up")]
+    [Authorize]
+    public async Task<ActionResult<StepUpResponse>> StepUp([FromBody] StepUpRequest request)
+    {
+        var userId = Guid.Parse(HttpContext.Items["UserId"]?.ToString()!);
+        var result = await _authService.StepUpAsync(userId, request);
         return Ok(result);
     }
 
@@ -63,12 +91,4 @@ public class AuthController : ControllerBase, IAuthController
         return Ok(new { message = "Password reset successfully." });
     }
 
-    [HttpPost("verify-2fa")]
-    [Authorize]
-    public async Task<IActionResult> Verify2Fa([FromBody] Verify2FaRequest request)
-    {
-        var userId = Guid.Parse(HttpContext.Items["UserId"]?.ToString()!);
-        await _authService.Verify2FaAsync(userId, request);
-        return Ok(new { message = "Two-factor authentication verified." });
-    }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Content;
 using API_Althea_systems.Services.IServices;
 
@@ -29,7 +30,7 @@ public class CarouselController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<HeroSlideDto>> Create([FromBody] HeroSlideCreateRequest request)
     {
         var slide = await _contentService.CreateHeroSlideAsync(request);
@@ -37,14 +38,14 @@ public class CarouselController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<HeroSlideDto>> Update(Guid id, [FromBody] HeroSlideUpdateRequest request)
     {
         return Ok(await _contentService.UpdateHeroSlideAsync(id, request));
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await _contentService.DeleteHeroSlideAsync(id);

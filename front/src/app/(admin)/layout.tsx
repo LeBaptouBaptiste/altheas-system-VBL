@@ -11,8 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Input } from '@/components/ui/input';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
+import { setAmbientStepUpToken } from '@/lib/api';
+import { authService } from '@/lib/api-services';
+import { getErrorMessage } from '@/lib/api-errors';
 import type { Locale } from '@/lib/i18n';
 
 const navItems = [
@@ -34,13 +39,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [twoFAVerified, setTwoFAVerified] = useState(false);
-  const [twoFACode, setTwoFACode] = useState('');
-  const [twoFAError, setTwoFAError] = useState(false);
+  // Admin step-up token (reusable, ~30 min). Lives in component state ONLY:
+  // never persisted, so leaving the admin area / closing the tab requires
+  // a re-prompt. Cleared on unmount via the cleanup effect below.
+  const [adminStepUpToken, setAdminStepUpToken] = useState<string | null>(null);
+  const [stepUpCode, setStepUpCode] = useState('');
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [stepUpError, setStepUpError] = useState('');
+  const [stepUpSubmitting, setStepUpSubmitting] = useState(false);
 
+  // Sync the ambient token to api.ts so every call from admin pages includes
+  // X-Step-Up-Token automatically. We do the actual write SYNCHRONOUSLY at
+  // the call sites (submitStepUp / handleLogout) so that the children's
+  // first render with adminStepUpToken set already sees the ambient. This
+  // useEffect only handles the unmount case (leaving the admin area), to
+  // make sure no stale token leaks into a non-admin context.
   useEffect(() => {
-    const verified = sessionStorage.getItem('admin_2fa_verified');
-    if (verified === 'true') setTwoFAVerified(true);
+    return () => { setAmbientStepUpToken(null); };
   }, []);
 
   // If not admin, redirect (wait for auth to finish loading first)
@@ -60,8 +76,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!isAuthenticated || !isAdmin) return null;
 
-  // 2FA gate
-  if (!twoFAVerified) {
+  // Admin step-up gate: every entry into the admin area must obtain a fresh
+  // admin step-up token by re-verifying with the authenticator (or a recovery
+  // code). The token is reusable for ~30 min while the admin stays here.
+  if (!adminStepUpToken) {
+    const submitStepUp = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const submitted = useRecovery ? recoveryCode.trim().toLowerCase() : stepUpCode;
+      if (!submitted) return;
+
+      setStepUpSubmitting(true);
+      setStepUpError('');
+      try {
+        const result = await authService.stepUp('Admin', { code: submitted });
+        // CRITICAL ORDERING: ambient must be set BEFORE the state update,
+        // otherwise children's useEffects (which fire bottom-up before the
+        // parent's) will fetch admin endpoints without X-Step-Up-Token.
+        setAmbientStepUpToken(result.token);
+        setAdminStepUpToken(result.token);
+      } catch (err) {
+        setStepUpError(getErrorMessage(err, t));
+        setStepUpCode('');
+        setRecoveryCode('');
+      } finally {
+        setStepUpSubmitting(false);
+      }
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="w-full max-w-sm bg-white rounded-lg shadow-lg p-8">
@@ -70,31 +111,63 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <LayoutDashboard className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-xl font-semibold text-brand-dark">{t('admin.2fa_title')}</h1>
-            <p className="text-sm text-muted-foreground mt-1">{t('admin.2fa_hint')}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {useRecovery
+                ? t('2fa.stepup_description_recovery')
+                : t('admin.2fa_hint')}
+            </p>
           </div>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (twoFACode === '123456') {
-              sessionStorage.setItem('admin_2fa_verified', 'true');
-              setTwoFAVerified(true);
-            } else {
-              setTwoFAError(true);
-            }
-          }}>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={twoFACode}
-              onChange={(e) => { setTwoFACode(e.target.value.replace(/\D/g, '')); setTwoFAError(false); }}
-              className={`w-full text-center text-2xl tracking-[0.5em] py-3 border rounded-lg mb-4 outline-none focus:border-brand-primary ${twoFAError ? 'border-error' : 'border-gray-200'}`}
-              placeholder="••••••"
-              autoFocus
-            />
-            {twoFAError && <p className="text-error text-sm text-center mb-3">Code incorrect</p>}
-            <Button type="submit" className="w-full bg-brand-primary hover:bg-brand-hover text-white" disabled={twoFACode.length !== 6}>
-              {locale === 'fr' ? 'Vérifier' : 'Verify'}
+          <form onSubmit={submitStepUp} className="space-y-4">
+            {!useRecovery ? (
+              <div className="flex justify-center">
+                <InputOTP
+                  maxLength={6}
+                  value={stepUpCode}
+                  onChange={(v) => { setStepUpCode(v); setStepUpError(''); }}
+                  autoFocus
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+            ) : (
+              <Input
+                value={recoveryCode}
+                onChange={(e) => { setRecoveryCode(e.target.value); setStepUpError(''); }}
+                placeholder={t('2fa.stepup_recovery_placeholder')}
+                autoFocus
+                className="font-mono tracking-wider text-center"
+              />
+            )}
+
+            {stepUpError && <p className="text-error text-sm text-center">{stepUpError}</p>}
+
+            <Button
+              type="submit"
+              className="w-full bg-brand-primary hover:bg-brand-hover text-white"
+              disabled={stepUpSubmitting || (useRecovery ? !recoveryCode.trim() : stepUpCode.length !== 6)}
+            >
+              {stepUpSubmitting ? '…' : t('auth.2fa_verify')}
             </Button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setUseRecovery((v) => !v);
+                setStepUpCode('');
+                setRecoveryCode('');
+                setStepUpError('');
+              }}
+              className="w-full text-sm text-brand-primary hover:underline"
+            >
+              {useRecovery ? t('auth.2fa_use_authenticator') : t('auth.2fa_use_recovery')}
+            </button>
           </form>
         </div>
       </div>
@@ -102,7 +175,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const handleLogout = () => {
-    sessionStorage.removeItem('admin_2fa_verified');
+    setAmbientStepUpToken(null);
+    setAdminStepUpToken(null);
     logout();
     router.push('/login');
   };

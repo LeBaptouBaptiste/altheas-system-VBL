@@ -32,6 +32,9 @@
     <!-- Password Hashing -->
     <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
 
+    <!-- TOTP (RFC 6238) for two-factor authentication -->
+    <PackageReference Include="Otp.NET" Version="1.4.0" />
+
     <!-- Validation -->
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
   </ItemGroup>
