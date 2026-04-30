@@ -36,7 +36,18 @@ public class UserService : IUserService
             ?? throw new NotFoundException("User", id);
 
         if (request.Name != null) user.Name = request.Name;
-        if (request.Email != null) user.Email = request.Email;
+        if (request.Email != null)
+        {
+            var newEmail = request.Email.ToLowerInvariant();
+            if (!string.Equals(newEmail, user.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                if (await _userRepository.EmailExistsAsync(newEmail))
+                    throw new ConflictException("User", "email", newEmail);
+
+                user.Email = newEmail;
+                user.EmailConfirmed = false;
+            }
+        }
         if (request.Status.HasValue) user.Status = request.Status.Value;
 
         await _userRepository.UpdateAsync(user);
