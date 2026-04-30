@@ -183,7 +183,7 @@ function SearchContent() {
                         <Link href={`/product/${product.slug}`}>
                           <div className="relative h-40">
                             <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover" />
-                            <div className="absolute top-2 left-2 flex gap-1">
+                            <div className="absolute top-2 start-2 flex gap-1">
                               {product.isNew && <Badge className="bg-brand-primary text-white text-xs">{t('product.new')}</Badge>}
                               {isOOS && <Badge className="bg-error text-white text-xs">{t('product.out_of_stock')}</Badge>}
                             </div>

@@ -109,8 +109,8 @@ export default function AdminOrdersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher par n° ou client...' : 'Search by # or customer...'} className="pl-9" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher par n° ou client...' : 'Search by # or customer...'} className="ps-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
@@ -131,13 +131,13 @@ export default function AdminOrdersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Commande' : 'Order'}</th>
-                  <th className="p-3 text-left">Client</th>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-right">Total TTC</th>
+                  <th className="p-3 text-start">{locale === 'fr' ? 'Commande' : 'Order'}</th>
+                  <th className="p-3 text-start">Client</th>
+                  <th className="p-3 text-start">Date</th>
+                  <th className="p-3 text-end">Total TTC</th>
                   <th className="p-3 text-center">{locale === 'fr' ? 'Paiement' : 'Payment'}</th>
                   <th className="p-3 text-center">Status</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,7 +154,7 @@ export default function AdminOrdersPage() {
                     <td className="p-3 text-muted-foreground">
                       {new Date(order.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}
                     </td>
-                    <td className="p-3 text-right font-medium">{fmt(order.totalTTC)}</td>
+                    <td className="p-3 text-end font-medium">{fmt(order.totalTTC)}</td>
                     <td className="p-3 text-center">
                       <span className={`text-xs font-medium ${PAYMENT_COLORS[order.paymentStatus] || ''}`}>
                         {enumLabel('PaymentStatus', order.paymentStatus, locale)}
@@ -165,7 +165,7 @@ export default function AdminOrdersPage() {
                         {enumLabel('OrderStatus', order.status, locale)}
                       </Badge>
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-end">
                       <Select value={String(order.status)} onValueChange={v => handleStatusChange(order.id, Number(v) as OrderStatusValue)}>
                         <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>

@@ -84,11 +84,11 @@ export default function AccountPage() {
 
       <Tabs defaultValue="settings">
         <TabsList className="mb-6 flex-wrap">
-          <TabsTrigger value="settings"><Settings className="w-4 h-4 mr-1" />{t('account.settings')}</TabsTrigger>
-          <TabsTrigger value="security"><Shield className="w-4 h-4 mr-1" />{t('account.security')}</TabsTrigger>
-          <TabsTrigger value="orders"><Package className="w-4 h-4 mr-1" />{t('account.orders')}</TabsTrigger>
-          <TabsTrigger value="addresses"><MapPin className="w-4 h-4 mr-1" />{t('account.addresses')}</TabsTrigger>
-          <TabsTrigger value="payments"><CreditCard className="w-4 h-4 mr-1" />{t('account.payment_methods')}</TabsTrigger>
+          <TabsTrigger value="settings"><Settings className="w-4 h-4 me-1" />{t('account.settings')}</TabsTrigger>
+          <TabsTrigger value="security"><Shield className="w-4 h-4 me-1" />{t('account.security')}</TabsTrigger>
+          <TabsTrigger value="orders"><Package className="w-4 h-4 me-1" />{t('account.orders')}</TabsTrigger>
+          <TabsTrigger value="addresses"><MapPin className="w-4 h-4 me-1" />{t('account.addresses')}</TabsTrigger>
+          <TabsTrigger value="payments"><CreditCard className="w-4 h-4 me-1" />{t('account.payment_methods')}</TabsTrigger>
         </TabsList>
 
         {/* Settings */}
@@ -121,7 +121,7 @@ export default function AccountPage() {
             <Separator />
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="destructive" className="mt-4"><AlertTriangle className="w-4 h-4 mr-2" />{t('account.anonymize')}</Button>
+                <Button variant="destructive" className="mt-4"><AlertTriangle className="w-4 h-4 me-2" />{t('account.anonymize')}</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>{t('account.anonymize')}</DialogTitle></DialogHeader>
@@ -177,13 +177,13 @@ export default function AccountPage() {
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div>
                             <span className="font-medium text-brand-dark">{order.id.slice(0, 8)}...</span>
-                            <span className="text-sm text-muted-foreground ml-3">{order.date.slice(0, 10)}</span>
+                            <span className="text-sm text-muted-foreground ms-3">{order.date.slice(0, 10)}</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <Badge className={statusColors[order.status] || 'bg-gray-200'}>{enumLabel('OrderStatus', order.status, locale)}</Badge>
                             <span className="font-bold">{fmt(order.totalTTC)}</span>
                             <Button variant="outline" size="sm" disabled title={locale === 'fr' ? 'Bientôt disponible' : 'Coming soon'}>
-                              <Download className="w-3 h-3 mr-1" />{t('account.download_invoice')}
+                              <Download className="w-3 h-3 me-1" />{t('account.download_invoice')}
                             </Button>
                           </div>
                         </div>

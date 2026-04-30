@@ -180,7 +180,7 @@ export function TwoFactorSection() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={regenerate} disabled={submitting}>
-                <KeyRound className="w-4 h-4 mr-2" />
+                <KeyRound className="w-4 h-4 me-2" />
                 {t('2fa.section_regenerate_button')}
               </Button>
               <Button variant="destructive" onClick={disable} disabled={submitting}>
@@ -327,7 +327,7 @@ export function TwoFactorSection() {
               onClick={() => downloadCodes(view.codes)}
               className="w-full mb-3"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <Download className="w-4 h-4 me-2" />
               {t('2fa.recovery_codes_download')}
             </Button>
             <label className="flex items-start gap-2 mb-4 text-sm cursor-pointer">

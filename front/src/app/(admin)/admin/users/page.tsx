@@ -88,8 +88,8 @@ export default function AdminUsersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher un utilisateur...' : 'Search users...'} className="pl-9" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher un utilisateur...' : 'Search users...'} className="ps-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
@@ -115,13 +115,13 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Utilisateur' : 'User'}</th>
-                  <th className="p-3 text-left">Email</th>
+                  <th className="p-3 text-start">{locale === 'fr' ? 'Utilisateur' : 'User'}</th>
+                  <th className="p-3 text-start">Email</th>
                   <th className="p-3 text-center">{locale === 'fr' ? 'Rôle' : 'Role'}</th>
                   <th className="p-3 text-center">Status</th>
                   <th className="p-3 text-center">{locale === 'fr' ? 'Commandes' : 'Orders'}</th>
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-start">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</th>
+                  <th className="p-3 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,7 +136,7 @@ export default function AdminUsersPage() {
                     <td className="p-3 text-muted-foreground">{user.email}</td>
                     <td className="p-3 text-center">
                       {user.role === UserRole.Admin ? (
-                        <Badge className="bg-brand-primary/10 text-brand-primary"><Shield className="w-3 h-3 mr-1" />Admin</Badge>
+                        <Badge className="bg-brand-primary/10 text-brand-primary"><Shield className="w-3 h-3 me-1" />Admin</Badge>
                       ) : (
                         <Badge variant="outline">{enumLabel('UserRole', user.role, locale)}</Badge>
                       )}
@@ -148,7 +148,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="p-3 text-center">{getUserOrders(user.id).length}</td>
                     <td className="p-3 text-muted-foreground text-xs">{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US') : '-'}</td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-end">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDetailUser(user)}>
                           <Eye className="w-3.5 h-3.5" />

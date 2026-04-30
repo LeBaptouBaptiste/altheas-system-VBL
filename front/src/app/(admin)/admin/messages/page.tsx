@@ -131,13 +131,13 @@ export default function AdminMessagesPage() {
       <Tabs defaultValue="messages">
         <TabsList>
           <TabsTrigger value="messages">
-            <Mail className="w-4 h-4 mr-1" />{locale === 'fr' ? 'Messages' : 'Messages'} ({messages.length})
+            <Mail className="w-4 h-4 me-1" />{locale === 'fr' ? 'Messages' : 'Messages'} ({messages.length})
           </TabsTrigger>
           <TabsTrigger value="chats">
-            <MessageSquare className="w-4 h-4 mr-1" />{locale === 'fr' ? 'Conversations' : 'Chats'} ({chats.length})
+            <MessageSquare className="w-4 h-4 me-1" />{locale === 'fr' ? 'Conversations' : 'Chats'} ({chats.length})
           </TabsTrigger>
           <TabsTrigger value="tickets">
-            <Ticket className="w-4 h-4 mr-1" />Tickets ({tickets.length})
+            <Ticket className="w-4 h-4 me-1" />Tickets ({tickets.length})
           </TabsTrigger>
         </TabsList>
 
@@ -148,11 +148,11 @@ export default function AdminMessagesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="p-3 text-left">Email</th>
-                    <th className="p-3 text-left">{locale === 'fr' ? 'Sujet' : 'Subject'}</th>
-                    <th className="p-3 text-left">Date</th>
+                    <th className="p-3 text-start">Email</th>
+                    <th className="p-3 text-start">{locale === 'fr' ? 'Sujet' : 'Subject'}</th>
+                    <th className="p-3 text-start">Date</th>
                     <th className="p-3 text-center">Status</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3 text-end">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -160,11 +160,11 @@ export default function AdminMessagesPage() {
                     <tr key={msg.id} className={`border-b hover:bg-gray-50/50 ${msg.status === MessageStatus.Unread ? 'bg-blue-50/30' : ''}`}>
                       <td className="p-3">
                         <button className="text-brand-primary hover:underline text-xs" onClick={() => copyEmail(msg.email)}>
-                          {msg.email} <Copy className="w-3 h-3 inline ml-1" />
+                          {msg.email} <Copy className="w-3 h-3 inline ms-1" />
                         </button>
                       </td>
                       <td className="p-3">
-                        <button onClick={() => { setViewMessage(msg); if (msg.status === MessageStatus.Unread) handleMessageStatus(msg.id, MessageStatus.Read); }} className="text-left hover:text-brand-primary">
+                        <button onClick={() => { setViewMessage(msg); if (msg.status === MessageStatus.Unread) handleMessageStatus(msg.id, MessageStatus.Read); }} className="text-start hover:text-brand-primary">
                           <span className={msg.status === MessageStatus.Unread ? 'font-semibold' : ''}>{msg.subject}</span>
                         </button>
                       </td>
@@ -172,7 +172,7 @@ export default function AdminMessagesPage() {
                       <td className="p-3 text-center">
                         <Badge variant="outline" className={MSG_STATUS_COLORS[msg.status] || ''}>{enumLabel('MessageStatus', msg.status, locale)}</Badge>
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-end">
                         <div className="flex items-center justify-end gap-1">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setViewMessage(msg); if (msg.status === MessageStatus.Unread) handleMessageStatus(msg.id, MessageStatus.Read); }}>
                             <Eye className="w-3.5 h-3.5" />
@@ -208,7 +208,7 @@ export default function AdminMessagesPage() {
                   </div>
                   <div className="text-xs text-muted-foreground mb-2">{chat.messages.length} messages</div>
                   <Button size="sm" variant="outline" onClick={() => setViewChat(chat)}>
-                    <Eye className="w-3.5 h-3.5 mr-1" />{locale === 'fr' ? 'Voir la conversation' : 'View conversation'}
+                    <Eye className="w-3.5 h-3.5 me-1" />{locale === 'fr' ? 'Voir la conversation' : 'View conversation'}
                   </Button>
                 </CardContent>
               </Card>
@@ -223,12 +223,12 @@ export default function AdminMessagesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="p-3 text-left">ID</th>
-                    <th className="p-3 text-left">{locale === 'fr' ? 'Sujet' : 'Subject'}</th>
-                    <th className="p-3 text-left">Email</th>
+                    <th className="p-3 text-start">ID</th>
+                    <th className="p-3 text-start">{locale === 'fr' ? 'Sujet' : 'Subject'}</th>
+                    <th className="p-3 text-start">Email</th>
                     <th className="p-3 text-center">Status</th>
-                    <th className="p-3 text-left">{locale === 'fr' ? 'Mis à jour' : 'Updated'}</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3 text-start">{locale === 'fr' ? 'Mis à jour' : 'Updated'}</th>
+                    <th className="p-3 text-end">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -243,7 +243,7 @@ export default function AdminMessagesPage() {
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground text-xs">{new Date(ticket.updatedAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-end">
                         <div className="flex items-center justify-end gap-1">
                           {ticket.status === TicketStatus.Open && (
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, TicketStatus.InProgress)}>
@@ -289,11 +289,11 @@ export default function AdminMessagesPage() {
                 <Separator />
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => copyEmail(viewMessage.email)}>
-                    <Copy className="w-3.5 h-3.5 mr-1" />{t('admin.copy_email')}
+                    <Copy className="w-3.5 h-3.5 me-1" />{t('admin.copy_email')}
                   </Button>
                   {viewMessage.status !== MessageStatus.Replied && viewMessage.status !== MessageStatus.Archived && (
                     <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => { handleMessageStatus(viewMessage.id, MessageStatus.Replied); setViewMessage(null); }}>
-                      <CheckCircle className="w-3.5 h-3.5 mr-1" />{t('admin.mark_treated')}
+                      <CheckCircle className="w-3.5 h-3.5 me-1" />{t('admin.mark_treated')}
                     </Button>
                   )}
                 </div>

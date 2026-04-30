@@ -135,7 +135,7 @@ export default function CheckoutPage() {
             <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium shrink-0 ${i < step ? 'bg-success text-white' : i === step ? 'bg-brand-primary text-white' : 'bg-gray-200 text-gray-500'}`}>
               {i < step ? <Check className="w-4 h-4" /> : i + 1}
             </div>
-            <span className={`ml-2 text-sm hidden sm:inline whitespace-nowrap ${i === step ? 'font-semibold text-brand-dark' : 'text-muted-foreground'}`}>{label}</span>
+            <span className={`ms-2 text-sm hidden sm:inline whitespace-nowrap ${i === step ? 'font-semibold text-brand-dark' : 'text-muted-foreground'}`}>{label}</span>
             {i < stepLabels.length - 1 && <div className="w-8 sm:w-16 h-0.5 bg-gray-200 mx-2 shrink-0" />}
           </div>
         ))}
@@ -189,7 +189,7 @@ export default function CheckoutPage() {
             </div>
           )}
           <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={() => setStep(0)}><ArrowLeft className="w-4 h-4 mr-2" />{t('checkout.previous')}</Button>
+            <Button variant="outline" onClick={() => setStep(0)}><ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}</Button>
             <Button className="bg-brand-primary hover:bg-brand-hover text-white" disabled={!isAddressValid(billing)} onClick={() => setStep(2)}>{t('checkout.next')}</Button>
           </div>
         </CardContent></Card>
@@ -211,7 +211,7 @@ export default function CheckoutPage() {
             ))}
           </RadioGroup>
           <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-2" />{t('checkout.previous')}</Button>
+            <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}</Button>
             <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => setStep(3)}>{t('checkout.next')}</Button>
           </div>
         </CardContent></Card>
@@ -265,7 +265,7 @@ export default function CheckoutPage() {
           </div>
 
           <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4 mr-2" />{t('checkout.previous')}</Button>
+            <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}</Button>
             <Button size="lg" className="flex-1 bg-brand-primary hover:bg-brand-hover text-white" onClick={handlePlaceOrder} disabled={placing}>
               {placing ? <Loader2 className="w-5 h-5 animate-spin" /> : t('checkout.place_order')}
             </Button>

@@ -35,7 +35,7 @@ export default function CategoriesPage() {
               <div className="relative h-48 md:h-56">
                 <Image src={getCategoryImageUrl(cat)} alt={localized(toLocalized(cat.nameFr, cat.nameEn))} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                 <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/80 via-brand-dark/20 to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4 text-white">
+                <div className="absolute bottom-4 start-4 end-4 text-white">
                   <h2 className="text-lg font-semibold mb-1">{localized(toLocalized(cat.nameFr, cat.nameEn))}</h2>
                   <p className="text-sm text-gray-200 line-clamp-2">{localized(toLocalized(cat.descriptionFr, cat.descriptionEn))}</p>
                 </div>

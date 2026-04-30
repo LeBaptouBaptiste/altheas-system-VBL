@@ -108,7 +108,7 @@ export default function AdminCategoriesPage() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{catList.length} {locale === 'fr' ? 'catégories' : 'categories'}</p>
         <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={openNew}>
-          <Plus className="w-4 h-4 mr-1" />{locale === 'fr' ? 'Nouvelle catégorie' : 'New category'}
+          <Plus className="w-4 h-4 me-1" />{locale === 'fr' ? 'Nouvelle catégorie' : 'New category'}
         </Button>
       </div>
 
@@ -118,11 +118,11 @@ export default function AdminCategoriesPage() {
             <thead>
               <tr className="border-b bg-gray-50">
                 <th className="p-3 w-10">#</th>
-                <th className="p-3 text-left">{locale === 'fr' ? 'Nom' : 'Name'}</th>
+                <th className="p-3 text-start">{locale === 'fr' ? 'Nom' : 'Name'}</th>
                 <th className="p-3 text-center">{locale === 'fr' ? 'Produits' : 'Products'}</th>
                 <th className="p-3 text-center">Status</th>
                 <th className="p-3 text-center">{locale === 'fr' ? 'Ordre' : 'Order'}</th>
-                <th className="p-3 text-right">Actions</th>
+                <th className="p-3 text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -152,7 +152,7 @@ export default function AdminCategoriesPage() {
                       </Button>
                     </div>
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-end">
                     <div className="flex items-center justify-end gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={async () => {
                         try {

@@ -241,7 +241,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Desktop Sidebar */}
-      <aside className={`hidden md:flex flex-col border-r bg-white shrink-0 transition-all duration-200 ${collapsed ? 'w-16' : 'w-56'}`}>
+      <aside className={`hidden md:flex flex-col border-e bg-white shrink-0 transition-all duration-200 ${collapsed ? 'w-16' : 'w-56'}`}>
         <SidebarContent />
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -276,7 +276,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex items-center gap-2">
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
               <SelectTrigger className="h-8 w-[140px] text-xs border-gray-200" aria-label="Language">
-                <Globe className="w-3 h-3 mr-1" />
+                <Globe className="w-3 h-3 me-1" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

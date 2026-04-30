@@ -108,8 +108,8 @@ export default function AdminInvoicesPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher...' : 'Search...'} className="pl-9" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher...' : 'Search...'} className="ps-9" />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
@@ -138,15 +138,15 @@ export default function AdminInvoicesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="p-3 text-left">N°</th>
-                  <th className="p-3 text-left">Type</th>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Commande' : 'Order'}</th>
-                  <th className="p-3 text-right">HT</th>
-                  <th className="p-3 text-right">TVA</th>
-                  <th className="p-3 text-right">TTC</th>
+                  <th className="p-3 text-start">N°</th>
+                  <th className="p-3 text-start">Type</th>
+                  <th className="p-3 text-start">Date</th>
+                  <th className="p-3 text-start">{locale === 'fr' ? 'Commande' : 'Order'}</th>
+                  <th className="p-3 text-end">HT</th>
+                  <th className="p-3 text-end">TVA</th>
+                  <th className="p-3 text-end">TTC</th>
                   <th className="p-3 text-center">Status</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,13 +166,13 @@ export default function AdminInvoicesPage() {
                     </td>
                     <td className="p-3 text-muted-foreground">{new Date(inv.date).toLocaleDateString(toIntlLocale(locale))}</td>
                     <td className="p-3 text-muted-foreground">{inv.orderId}</td>
-                    <td className="p-3 text-right">{fmt(inv.amountHT)}</td>
-                    <td className="p-3 text-right text-muted-foreground">{fmt(inv.vatAmount)}</td>
-                    <td className="p-3 text-right font-medium">{fmt(inv.amountTTC)}</td>
+                    <td className="p-3 text-end">{fmt(inv.amountHT)}</td>
+                    <td className="p-3 text-end text-muted-foreground">{fmt(inv.vatAmount)}</td>
+                    <td className="p-3 text-end font-medium">{fmt(inv.amountTTC)}</td>
                     <td className="p-3 text-center">
                       <Badge variant="outline" className={STATUS_COLORS[inv.status] || ''}>{enumLabel('InvoiceStatus', inv.status, locale)}</Badge>
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-end">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDownload(inv)}>
                         <Download className="w-3.5 h-3.5" />
                       </Button>

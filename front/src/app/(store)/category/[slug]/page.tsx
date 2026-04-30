@@ -113,7 +113,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                 <Link href={`/product/${product.slug}`}>
                   <div className="relative h-48">
                     <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                    <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                    <div className="absolute top-2 start-2 flex gap-1 flex-wrap">
                       {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
                       {product.stockStatus === StockStatus.InStock && <Badge className="bg-success text-white">{t('product.in_stock')}</Badge>}
                       {product.stockStatus === StockStatus.LowStock && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}

@@ -130,7 +130,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               </Button>
             </div>
             <Button size="lg" className="flex-1 bg-brand-primary hover:bg-brand-hover text-white" onClick={handleAddToCart} disabled={isOOS}>
-              <ShoppingCart className="w-5 h-5 mr-2" />
+              <ShoppingCart className="w-5 h-5 me-2" />
               {isOOS ? t('product.out_of_stock') : t('product.add_to_cart')}
             </Button>
           </div>

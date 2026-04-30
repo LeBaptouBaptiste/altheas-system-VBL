@@ -228,8 +228,8 @@ export default function AdminProductsPage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher un produit...' : 'Search products...'} className="pl-9" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher un produit...' : 'Search products...'} className="ps-9" />
         </div>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
@@ -246,9 +246,9 @@ export default function AdminProductsPage() {
             <SelectItem value={String(ProductStatus.Draft)}>{locale === 'fr' ? 'Brouillon' : 'Draft'}</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" onClick={exportCSV}><Download className="w-4 h-4 mr-1" />{t('admin.export_csv')}</Button>
+        <Button size="sm" variant="outline" onClick={exportCSV}><Download className="w-4 h-4 me-1" />{t('admin.export_csv')}</Button>
         <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={openNewDialog}>
-          <Plus className="w-4 h-4 mr-1" />{t('admin.add_product')}
+          <Plus className="w-4 h-4 me-1" />{t('admin.add_product')}
         </Button>
       </div>
 
@@ -273,10 +273,10 @@ export default function AdminProductsPage() {
                   <th className="p-3 w-10">
                     <input type="checkbox" checked={paged.length > 0 && selected.size === paged.length} onChange={toggleSelectAll} className="rounded" />
                   </th>
-                  <th className="p-3 text-left cursor-pointer select-none" onClick={() => toggleSort('name')}>
+                  <th className="p-3 text-start cursor-pointer select-none" onClick={() => toggleSort('name')}>
                     <span className="flex items-center gap-1">{locale === 'fr' ? 'Nom' : 'Name'} <SortIcon field="name" /></span>
                   </th>
-                  <th className="p-3 text-right cursor-pointer select-none" onClick={() => toggleSort('priceHT')}>
+                  <th className="p-3 text-end cursor-pointer select-none" onClick={() => toggleSort('priceHT')}>
                     <span className="flex items-center justify-end gap-1">{locale === 'fr' ? 'Prix HT' : 'Price excl.'} <SortIcon field="priceHT" /></span>
                   </th>
                   <th className="p-3 text-center cursor-pointer select-none" onClick={() => toggleSort('stockQty')}>
@@ -286,7 +286,7 @@ export default function AdminProductsPage() {
                     <span className="flex items-center justify-center gap-1">Status <SortIcon field="status" /></span>
                   </th>
                   <th className="p-3 text-center">{locale === 'fr' ? 'Catégorie' : 'Category'}</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -300,7 +300,7 @@ export default function AdminProductsPage() {
                       </div>
                       <span className="text-xs text-muted-foreground">{p.slug}</span>
                     </td>
-                    <td className="p-3 text-right font-medium">{fmt(p.priceHT)}</td>
+                    <td className="p-3 text-end font-medium">{fmt(p.priceHT)}</td>
                     <td className="p-3 text-center">
                       <Badge variant={p.stockStatus === StockStatus.InStock ? 'default' : p.stockStatus === StockStatus.LowStock ? 'secondary' : 'destructive'}
                         className={p.stockStatus === StockStatus.InStock ? 'bg-success/10 text-success border-success/20' : p.stockStatus === StockStatus.LowStock ? 'bg-warning/10 text-warning border-warning/20' : ''}>
@@ -315,7 +315,7 @@ export default function AdminProductsPage() {
                     <td className="p-3 text-center text-xs text-muted-foreground">
                       {p.categories.map(c => localized(toLocalized(c.nameFr, c.nameEn))).join(', ')}
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-end">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditDialog(p)}>
                           <Pencil className="w-3.5 h-3.5" />

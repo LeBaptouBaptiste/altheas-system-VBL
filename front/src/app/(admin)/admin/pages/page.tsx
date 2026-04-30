@@ -85,13 +85,13 @@ export default function AdminStaticPagesPage() {
                 </span>
                 {editingId !== page.id ? (
                   <Button size="sm" variant="outline" onClick={() => startEdit(page)}>
-                    <Pencil className="w-3.5 h-3.5 mr-1" />{locale === 'fr' ? 'Modifier' : 'Edit'}
+                    <Pencil className="w-3.5 h-3.5 me-1" />{locale === 'fr' ? 'Modifier' : 'Edit'}
                   </Button>
                 ) : (
                   <div className="flex gap-1">
                     <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>{locale === 'fr' ? 'Annuler' : 'Cancel'}</Button>
                     <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => handleSave(page.id)}>
-                      <Save className="w-3.5 h-3.5 mr-1" />{locale === 'fr' ? 'Enregistrer' : 'Save'}
+                      <Save className="w-3.5 h-3.5 me-1" />{locale === 'fr' ? 'Enregistrer' : 'Save'}
                     </Button>
                   </div>
                 )}

@@ -99,7 +99,7 @@ export default function HomePage() {
                     <Link href={slide.link}>
                       <Button size="lg" className="bg-brand-primary hover:bg-brand-hover text-white px-8">
                         {localized(toLocalized(slide.ctaFr, slide.ctaEn))}
-                        <ArrowRight className="ml-2 w-5 h-5" />
+                        <ArrowRight className="ms-2 w-5 h-5" />
                       </Button>
                     </Link>
                   </div>
@@ -107,7 +107,7 @@ export default function HomePage() {
               </div>
             </div>
           ))}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+          <div className="absolute bottom-4 start-1/2 -translate-x-1/2 z-30 flex gap-2">
             {slides.map((_, i) => (
               <button
                 key={i}
@@ -136,7 +136,7 @@ export default function HomePage() {
                 <div className="relative h-36 md:h-48">
                   <Image src={getCategoryImageUrl(cat)} alt={localized(toLocalized(cat.nameFr, cat.nameEn))} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                   <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/80 to-transparent" />
-                  <h3 className="absolute bottom-3 left-3 right-3 text-white text-sm md:text-base font-semibold">
+                  <h3 className="absolute bottom-3 start-3 end-3 text-white text-sm md:text-base font-semibold">
                     {localized(toLocalized(cat.nameFr, cat.nameEn))}
                   </h3>
                 </div>
@@ -165,7 +165,7 @@ export default function HomePage() {
                   <Link href={`/product/${product.slug}`}>
                     <div className="relative h-48">
                       <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <div className="absolute top-2 left-2 flex gap-1">
+                      <div className="absolute top-2 start-2 flex gap-1">
                         {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
                         {product.stockStatus === StockStatus.LowStock && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
                         {product.stockStatus === StockStatus.OutOfStock && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}

@@ -130,7 +130,7 @@ export function ChatbotBubble() {
               {!ticketCreated && messages.length > 2 && (
                 <div className="px-4 pb-2">
                   <Button variant="outline" size="sm" className="text-warning border-warning hover:bg-warning/10 text-xs" onClick={handleEscalate}>
-                    <LifeBuoy className="w-3.5 h-3.5 mr-1.5" />{t('chatbot.escalate')}
+                    <LifeBuoy className="w-3.5 h-3.5 me-1.5" />{t('chatbot.escalate')}
                   </Button>
                 </div>
               )}

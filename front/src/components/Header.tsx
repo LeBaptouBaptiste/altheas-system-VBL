@@ -51,7 +51,7 @@ export function Header() {
             )}
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
               <SelectTrigger className="h-7 w-[140px] border-white/20 bg-transparent text-white text-xs" aria-label="Language">
-                <Globe className="w-3 h-3 mr-1" />
+                <Globe className="w-3 h-3 me-1" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -84,11 +84,11 @@ export function Header() {
           {/* Search Bar (Desktop) */}
           <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-2xl">
             <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder={t('header.search_placeholder')}
-                className="w-full pl-10 pr-4"
+                className="w-full ps-10 pe-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 aria-label={t('common.search')}
@@ -104,7 +104,7 @@ export function Header() {
                 <>
                   <Link href="/account">
                     <Button variant="ghost" size="sm" className="text-brand-dark hover:bg-brand-light">
-                      <User className="w-4 h-4 mr-1" />
+                      <User className="w-4 h-4 me-1" />
                       <span className="max-w-[100px] truncate">{user?.name?.split(' ')[0]}</span>
                     </Button>
                   </Link>
@@ -115,7 +115,7 @@ export function Header() {
               ) : (
                 <Link href="/login">
                   <Button variant="ghost" size="sm" className="text-brand-dark hover:bg-brand-light">
-                    <User className="w-4 h-4 mr-1" />
+                    <User className="w-4 h-4 me-1" />
                     {t('nav.login')}
                   </Button>
                 </Link>
@@ -127,7 +127,7 @@ export function Header() {
               <Button variant="ghost" size="icon" className="relative hover:bg-brand-light" aria-label={`${t('nav.cart')} (${itemCount})`}>
                 <ShoppingCart className="w-5 h-5 text-brand-dark" />
                 {itemCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-brand-primary text-white text-xs">
+                  <Badge className="absolute -top-1 -end-1 h-5 w-5 flex items-center justify-center p-0 bg-brand-primary text-white text-xs">
                     {itemCount}
                   </Badge>
                 )}
@@ -146,11 +146,11 @@ export function Header() {
                 <div className="p-4">
                   <form onSubmit={(e) => { handleSearch(e); setMobileOpen(false); }}>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         type="search"
                         placeholder={t('header.search_placeholder')}
-                        className="pl-10"
+                        className="ps-10"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />

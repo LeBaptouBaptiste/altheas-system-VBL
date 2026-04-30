@@ -248,7 +248,7 @@ export default function AdminSetupPage() {
                 onClick={downloadCodes}
                 className="w-full mb-3"
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 me-2" />
                 {t('2fa.recovery_codes_download')}
               </Button>
 

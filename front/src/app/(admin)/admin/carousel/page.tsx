@@ -104,7 +104,7 @@ export default function AdminCarouselPage() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{slides.length} slides</p>
         <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={openNew}>
-          <Plus className="w-4 h-4 mr-1" />{locale === 'fr' ? 'Nouvelle slide' : 'New slide'}
+          <Plus className="w-4 h-4 me-1" />{locale === 'fr' ? 'Nouvelle slide' : 'New slide'}
         </Button>
       </div>
 

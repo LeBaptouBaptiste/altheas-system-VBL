@@ -151,17 +151,17 @@ export default function AdminDashboard() {
           <div className="flex flex-wrap gap-3">
             <Link href="/admin/products?action=new">
               <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white">
-                <Plus className="w-4 h-4 mr-1" />{t('admin.add_product')}
+                <Plus className="w-4 h-4 me-1" />{t('admin.add_product')}
               </Button>
             </Link>
             <Link href="/admin/orders">
               <Button size="sm" variant="outline">
-                <ShoppingCart className="w-4 h-4 mr-1" />{t('admin.orders')}
+                <ShoppingCart className="w-4 h-4 me-1" />{t('admin.orders')}
               </Button>
             </Link>
             <Link href="/admin/messages">
               <Button size="sm" variant="outline">
-                <Eye className="w-4 h-4 mr-1" />{t('admin.view_messages')}
+                <Eye className="w-4 h-4 me-1" />{t('admin.view_messages')}
               </Button>
             </Link>
             <Button size="sm" variant="outline" onClick={() => {
@@ -172,7 +172,7 @@ export default function AdminDashboard() {
               a.href = url; a.download = 'analytics.csv'; a.click();
               URL.revokeObjectURL(url);
             }}>
-              <Download className="w-4 h-4 mr-1" />{t('admin.export_csv')}
+              <Download className="w-4 h-4 me-1" />{t('admin.export_csv')}
             </Button>
           </div>
         </CardContent>
