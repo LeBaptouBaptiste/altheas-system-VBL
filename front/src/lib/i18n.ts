@@ -196,6 +196,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.escalate': 'Contacter le support',
     'chatbot.ticket_created': 'Un ticket a été créé. Notre équipe vous contactera par email.',
     'chatbot.welcome': 'Bonjour ! Je suis l\'assistant virtuel d\'Althea Systems. Comment puis-je vous aider ?',
+    'chatbot.start': 'Démarrer la conversation',
 
     // Static pages
     'cgu.title': 'Conditions Générales d\'Utilisation',
@@ -537,6 +538,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.escalate': 'Contact Support',
     'chatbot.ticket_created': 'A ticket has been created. Our team will contact you by email.',
     'chatbot.welcome': 'Hello! I\'m the Althea Systems virtual assistant. How can I help you?',
+    'chatbot.start': 'Start the conversation',
 
     // Static pages
     'cgu.title': 'Terms & Conditions',
@@ -855,6 +857,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.escalate': 'Hubungi Sokongan',
     'chatbot.ticket_created': 'Tiket telah dibuat. Pasukan kami akan menghubungi anda melalui e-mel.',
     'chatbot.welcome': 'Halo! Saya pembantu maya Althea Systems. Bagaimana saya boleh membantu anda?',
+    'chatbot.start': 'Mulakan perbualan',
     'cgu.title': 'Terma dan Syarat',
     'legal.title': 'Notis Undang-Undang',
     'about.title': 'Tentang Kami',
@@ -1166,6 +1169,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.escalate': 'الاتصال بالدعم',
     'chatbot.ticket_created': 'تم إنشاء تذكرة. سيتصل بك فريقنا عبر البريد الإلكتروني.',
     'chatbot.welcome': 'مرحباً! أنا المساعد الافتراضي لشركة Althea Systems. كيف يمكنني مساعدتك؟',
+    'chatbot.start': 'ابدأ المحادثة',
     'cgu.title': 'الشروط والأحكام',
     'legal.title': 'إشعار قانوني',
     'about.title': 'نبذة عنا',
