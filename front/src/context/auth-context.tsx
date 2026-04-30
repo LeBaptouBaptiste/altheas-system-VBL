@@ -134,6 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken();
     setUser(null);
     localStorage.removeItem('althea-user');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('althea:logout'));
+    }
   }, []);
 
   const confirmEmail = useCallback(async (token: string) => {
@@ -155,6 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken();
     setUser(null);
     localStorage.removeItem('althea-user');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('althea:logout'));
+    }
   }, [user]);
 
   const refreshUser = useCallback(async () => {

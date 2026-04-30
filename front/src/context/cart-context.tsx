@@ -109,6 +109,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
     saveCart([]);
   }, []);
 
+  // Wipe cart state on global logout event (dispatched by auth-context).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleLogout = () => {
+      setItems([]);
+      setProductCache(new Map());
+      try {
+        localStorage.removeItem('althea-cart');
+      } catch {
+        /* ignore storage errors */
+      }
+    };
+    window.addEventListener('althea:logout', handleLogout);
+    return () => {
+      window.removeEventListener('althea:logout', handleLogout);
+    };
+  }, []);
+
   const { subtotalHT, totalVAT, totalTTC, hasUnavailableItems } = useMemo(() => {
     let ht = 0;
     let vat = 0;
