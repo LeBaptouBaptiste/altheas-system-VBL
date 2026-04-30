@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using API_Althea_systems.Services.IServices;
 
@@ -6,13 +7,25 @@ namespace API_Althea_systems.Services;
 public partial class PasswordHasherService : IPasswordHasher
 {
     private const int WorkFactor = 12;
+    // BCrypt silently truncates inputs longer than 72 bytes — reject explicitly to avoid surprises.
+    private const int MaxBcryptByteLength = 72;
 
     public string Hash(string password)
-        => BCrypt.Net.BCrypt.HashPassword(password, WorkFactor);
+    {
+        if (password is null) throw new ArgumentNullException(nameof(password));
+        if (Encoding.UTF8.GetByteCount(password) > MaxBcryptByteLength)
+            throw new ArgumentException(
+                $"Password exceeds the {MaxBcryptByteLength}-byte BCrypt limit.",
+                nameof(password));
+
+        return BCrypt.Net.BCrypt.HashPassword(password, WorkFactor);
+    }
 
     public bool Verify(string password, string hash)
     {
-        if (string.IsNullOrEmpty(hash)) return false;
+        if (string.IsNullOrEmpty(hash) || password is null) return false;
+        // Reject oversized inputs to prevent prefix-only matches caused by BCrypt's silent truncation.
+        if (Encoding.UTF8.GetByteCount(password) > MaxBcryptByteLength) return false;
         return BCrypt.Net.BCrypt.Verify(password, hash);
     }
 

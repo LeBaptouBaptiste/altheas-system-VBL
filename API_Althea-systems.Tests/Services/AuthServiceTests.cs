@@ -36,6 +36,11 @@ public class AuthServiceTests
         _loginAttempts.Setup(l => l.IncrementFailureAsync(It.IsAny<string>(), It.IsAny<TimeSpan>()))
                       .ReturnsAsync(1);
 
+        // Default: password verification succeeds. Tests that exercise the
+        // failure branch override this with .Setup(...).Returns(false).
+        _hasher.Setup(h => h.Verify(It.IsAny<string>(), It.IsAny<string>())).Returns(true);
+        _hasher.Setup(h => h.Hash(It.IsAny<string>())).Returns<string>(p => $"hashed:{p}");
+
         _sut = new AuthService(
             _userRepo.Object, _tokenService.Object, _twoFactor.Object, _hasher.Object, _loginAttempts.Object);
     }
@@ -145,6 +150,7 @@ public class AuthServiceTests
     {
         var user = CreateTestUser();
         _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _hasher.Setup(h => h.Verify("WrongPassword", user.PasswordHash)).Returns(false);
 
         var act = () => _sut.LoginAsync(new LoginRequest("test@test.com", "WrongPassword"));
 
@@ -185,6 +191,7 @@ public class AuthServiceTests
     {
         var user = CreateTestUser();
         _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _hasher.Setup(h => h.Verify("Wrong", user.PasswordHash)).Returns(false);
         _loginAttempts.Setup(l => l.IncrementFailureAsync("test@test.com", It.IsAny<TimeSpan>()))
                       .ReturnsAsync(1);
 

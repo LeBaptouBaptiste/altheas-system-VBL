@@ -46,7 +46,7 @@ public class AuthService : IAuthService
             Id = Guid.NewGuid(),
             Name = request.Name,
             Email = request.Email.ToLowerInvariant(),
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            PasswordHash = _passwordHasher.Hash(request.Password),
             EmailConfirmed = false
         };
 
@@ -72,7 +72,7 @@ public class AuthService : IAuthService
         }
 
         var user = await _userRepository.GetByEmailAsync(normalizedEmail);
-        if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
         {
             await RecordFailureAndMaybeLockAsync(normalizedEmail);
             throw new UnauthorizedException("Invalid email or password.", reason: "invalid_credentials");
