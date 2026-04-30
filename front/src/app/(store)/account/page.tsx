@@ -63,9 +63,12 @@ export default function AccountPage() {
     if (!user) return;
     ordersService.getAll(1, 50)
       .then(res => setUserOrders(res.data.filter(o => o.userId === user.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())))
-      .catch(() => {})
+      .catch((err: unknown) => {
+        console.error('Failed to load orders', err);
+        toast.error(getErrorMessage(err, t));
+      })
       .finally(() => setOrdersLoading(false));
-  }, [user]);
+  }, [user, t]);
 
   if (authLoading || !user) {
     return <div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
