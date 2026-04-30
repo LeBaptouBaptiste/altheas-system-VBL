@@ -28,6 +28,68 @@ const VAT_RATE_VALUES: Record<number, number> = {
   [VatRate.Standard]: 0.20, [VatRate.Intermediate]: 0.10, [VatRate.Reduced]: 0.055, [VatRate.Zero]: 0,
 };
 
+interface FilterPanelProps {
+  categories: CategoryDto[];
+  selectedCategories: string[];
+  toggleCategory: (catId: string) => void;
+  priceMin: string;
+  setPriceMin: (v: string) => void;
+  priceMax: string;
+  setPriceMax: (v: string) => void;
+  availableOnly: boolean;
+  setAvailableOnly: (v: boolean) => void;
+  onReset: () => void;
+  t: (key: string) => string;
+  localized: (obj: Record<string, string> | undefined) => string;
+}
+
+function FilterPanel({
+  categories,
+  selectedCategories,
+  toggleCategory,
+  priceMin,
+  setPriceMin,
+  priceMax,
+  setPriceMax,
+  availableOnly,
+  setAvailableOnly,
+  onReset,
+  t,
+  localized,
+}: FilterPanelProps) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Label className="text-sm font-semibold mb-2 block">{t('search.categories')}</Label>
+        <div className="space-y-2">
+          {categories.map(cat => (
+            <div key={cat.id} className="flex items-center gap-2">
+              <Checkbox id={cat.id} checked={selectedCategories.includes(cat.id)} onCheckedChange={() => toggleCategory(cat.id)} />
+              <Label htmlFor={cat.id} className="text-sm font-normal cursor-pointer">{localized(toLocalized(cat.nameFr, cat.nameEn))}</Label>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Separator />
+      <div>
+        <Label className="text-sm font-semibold mb-2 block">{t('common.price')}</Label>
+        <div className="flex gap-2">
+          <Input type="number" placeholder={t('search.price_min')} value={priceMin} onChange={e => setPriceMin(e.target.value)} className="w-full" />
+          <Input type="number" placeholder={t('search.price_max')} value={priceMax} onChange={e => setPriceMax(e.target.value)} className="w-full" />
+        </div>
+      </div>
+      <Separator />
+      <div className="flex items-center gap-2">
+        <Switch id="available" checked={availableOnly} onCheckedChange={setAvailableOnly} />
+        <Label htmlFor="available" className="text-sm cursor-pointer">{t('search.available_only')}</Label>
+      </div>
+      <Button variant="outline" className="w-full" onClick={onReset}>
+        {t('search.reset')}
+      </Button>
+    </div>
+  );
+}
+
 function SearchContent() {
   const searchParams = useSearchParams();
   const { t, localized, locale } = useI18n();
@@ -96,41 +158,32 @@ function SearchContent() {
     return () => clearTimeout(timer);
   }, [doSearch]);
 
-  const toggleCategory = (catId: string) => {
+  const toggleCategory = useCallback((catId: string) => {
     setSelectedCategories(prev => prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]);
-  };
+  }, []);
 
-  const FilterPanel = () => (
-    <div className="space-y-6">
-      <div>
-        <Label className="text-sm font-semibold mb-2 block">{t('search.categories')}</Label>
-        <div className="space-y-2">
-          {categories.map(cat => (
-            <div key={cat.id} className="flex items-center gap-2">
-              <Checkbox id={cat.id} checked={selectedCategories.includes(cat.id)} onCheckedChange={() => toggleCategory(cat.id)} />
-              <Label htmlFor={cat.id} className="text-sm font-normal cursor-pointer">{localized(toLocalized(cat.nameFr, cat.nameEn))}</Label>
-            </div>
-          ))}
-        </div>
-      </div>
-      <Separator />
-      <div>
-        <Label className="text-sm font-semibold mb-2 block">{t('common.price')}</Label>
-        <div className="flex gap-2">
-          <Input type="number" placeholder={t('search.price_min')} value={priceMin} onChange={e => setPriceMin(e.target.value)} className="w-full" />
-          <Input type="number" placeholder={t('search.price_max')} value={priceMax} onChange={e => setPriceMax(e.target.value)} className="w-full" />
-        </div>
-      </div>
-      <Separator />
-      <div className="flex items-center gap-2">
-        <Switch id="available" checked={availableOnly} onCheckedChange={setAvailableOnly} />
-        <Label htmlFor="available" className="text-sm cursor-pointer">{t('search.available_only')}</Label>
-      </div>
-      <Button variant="outline" className="w-full" onClick={() => { setQuery(''); setPriceMin(''); setPriceMax(''); setSelectedCategories([]); setAvailableOnly(false); }}>
-        {t('search.reset')}
-      </Button>
-    </div>
-  );
+  const resetFilters = useCallback(() => {
+    setQuery('');
+    setPriceMin('');
+    setPriceMax('');
+    setSelectedCategories([]);
+    setAvailableOnly(false);
+  }, []);
+
+  const filterPanelProps: FilterPanelProps = {
+    categories,
+    selectedCategories,
+    toggleCategory,
+    priceMin,
+    setPriceMin,
+    priceMax,
+    setPriceMax,
+    availableOnly,
+    setAvailableOnly,
+    onReset: resetFilters,
+    t,
+    localized,
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -152,7 +205,7 @@ function SearchContent() {
           </SheetTrigger>
           <SheetContent side="left" className="w-[300px]">
             <h2 className="text-lg font-semibold mb-4">{t('search.filters')}</h2>
-            <FilterPanel />
+            <FilterPanel {...filterPanelProps} />
           </SheetContent>
         </Sheet>
       </div>
@@ -160,7 +213,7 @@ function SearchContent() {
       <div className="flex gap-8">
         <aside className="hidden md:block w-64 shrink-0">
           <h2 className="text-lg font-semibold mb-4">{t('search.filters')}</h2>
-          <FilterPanel />
+          <FilterPanel {...filterPanelProps} />
         </aside>
 
         <div className="flex-1">
