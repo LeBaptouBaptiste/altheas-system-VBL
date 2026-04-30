@@ -29,11 +29,14 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddRedisCache(this IServiceCollection services, IConfiguration configuration)
     {
         var redisConnectionString = configuration.GetConnectionString("Redis");
-        if (!string.IsNullOrEmpty(redisConnectionString))
+        if (string.IsNullOrWhiteSpace(redisConnectionString))
         {
-            services.AddSingleton<IConnectionMultiplexer>(
-                ConnectionMultiplexer.Connect(redisConnectionString));
+            throw new InvalidOperationException(
+                "Redis connection required for 2FA/Step-Up — set ConnectionStrings:Redis");
         }
+
+        services.AddSingleton<IConnectionMultiplexer>(
+            ConnectionMultiplexer.Connect(redisConnectionString));
 
         return services;
     }
@@ -51,6 +54,13 @@ public static class ServiceCollectionExtensions
     {
         var jwtSettings = configuration.GetSection("JwtSettings");
         var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey is not configured.");
+
+        if (Encoding.UTF8.GetByteCount(secretKey) < 32)
+        {
+            throw new InvalidOperationException(
+                "JWT SecretKey must be at least 32 bytes (HS256 requires >= 256 bits). " +
+                "Set JwtSettings:SecretKey to a strong random string of 32+ characters.");
+        }
 
         services.AddAuthentication(options =>
         {
@@ -166,6 +176,25 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAnonymizationService, AnonymizationService>();
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddHealthCheckServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        var healthChecks = services.AddHealthChecks();
+
+        var pgConn = configuration.GetConnectionString("PostgreSQL");
+        if (!string.IsNullOrWhiteSpace(pgConn))
+        {
+            healthChecks.AddNpgSql(pgConn, name: "postgresql");
+        }
+
+        var redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            healthChecks.AddRedis(redisConn, name: "redis");
+        }
 
         return services;
     }

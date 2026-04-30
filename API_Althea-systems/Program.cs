@@ -32,6 +32,7 @@ public class Program
         builder.Services.AddCorsPolicy(builder.Configuration);
         builder.Services.AddValidation();
         builder.Services.AddRateLimiting();
+        builder.Services.AddHealthCheckServices(builder.Configuration);
         builder.Services.AddApplicationServices();
 
         var app = builder.Build();
@@ -62,6 +63,9 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Health check endpoint (no auth — for container/orchestrator probes)
+        app.MapHealthChecks("/health");
 
         app.MapControllers();
 
