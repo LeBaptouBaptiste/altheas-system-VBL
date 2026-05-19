@@ -78,5 +78,16 @@ public class UserPaymentMethodConfiguration : IEntityTypeConfiguration<UserPayme
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Type).HasMaxLength(50).IsRequired();
         builder.Property(p => p.Label).HasMaxLength(100).IsRequired();
+
+        // Stripe-side fields. All nullable: existing rows pre-Stripe (if any)
+        // and future non-card payment methods (SEPA, bank transfer…) won't have them.
+        // Stripe pm_* ids are ~27 chars; 255 leaves comfortable headroom.
+        builder.Property(p => p.StripePaymentMethodId).HasMaxLength(255);
+        builder.Property(p => p.Brand).HasMaxLength(20);
+        builder.Property(p => p.Last4).HasMaxLength(4);
+
+        // Lookup by Stripe id is the webhook handler's hot path (payment_method.attached
+        // event arrives → we look up if we already saved it for this user).
+        builder.HasIndex(p => p.StripePaymentMethodId);
     }
 }
