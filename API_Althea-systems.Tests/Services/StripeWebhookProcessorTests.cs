@@ -2,10 +2,12 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using API_Althea_systems.Common.Enums;
+using API_Althea_systems.Models.Invoices;
 using API_Althea_systems.Models.Order;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.IServices;
 using StripeApi = Stripe;
 
 namespace API_Althea_systems.Tests.Services;
@@ -29,11 +31,24 @@ public class StripeWebhookProcessorTests
 {
     private readonly Mock<IOrderRepository> _orders = new();
     private readonly Mock<IUserRepository> _users = new();
+    private readonly Mock<IInvoiceService> _invoices = new();
     private readonly StripeWebhookProcessor _sut;
 
     public StripeWebhookProcessorTests()
     {
-        _sut = new StripeWebhookProcessor(_orders.Object, _users.Object, NullLogger<StripeWebhookProcessor>.Instance);
+        // Default the invoice ensure to a no-op so tests that don't care about
+        // the invoice side-effect don't have to set it up explicitly.
+        _invoices
+            .Setup(s => s.EnsureForOrderAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(new InvoiceDto(
+                Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow,
+                0m, 0m, 0m, InvoiceStatus.Paid, InvoiceType.Invoice, null));
+
+        _sut = new StripeWebhookProcessor(
+            _orders.Object,
+            _users.Object,
+            _invoices.Object,
+            NullLogger<StripeWebhookProcessor>.Instance);
     }
 
     private static StripeApi.Event MakeEvent(string type, StripeApi.PaymentIntent intent) => new()
@@ -85,6 +100,43 @@ public class StripeWebhookProcessorTests
         order.Status.Should().Be(OrderStatus.Processing);
         order.StripePaymentStatus.Should().Be("succeeded");
         _orders.Verify(r => r.UpdateAsync(order), Times.Once);
+    }
+
+    [Fact]
+    public async Task Succeeded_PendingOrder_AutoIssuesInvoice()
+    {
+        // The whole point of this hook for the customer is "I just paid →
+        // let me download my invoice". Verify EnsureForOrderAsync gets fired
+        // for the order we just validated.
+        var orderId = Guid.NewGuid();
+        var intent = MakeIntent("pi_inv", orderId);
+        var order = MakeOrder(orderId, "pi_inv");
+        _orders.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+
+        await _sut.ProcessAsync(MakeEvent("payment_intent.succeeded", intent));
+
+        _invoices.Verify(s => s.EnsureForOrderAsync(orderId), Times.Once);
+    }
+
+    [Fact]
+    public async Task Succeeded_InvoiceIssuanceFails_DoesNotThrow()
+    {
+        // The payment is valid even if invoice generation blows up — we log
+        // and move on; the startup backfill will retry. Surfacing the error
+        // would mean Stripe retries the webhook forever for a problem the
+        // customer can't fix.
+        var orderId = Guid.NewGuid();
+        var intent = MakeIntent("pi_boom", orderId);
+        var order = MakeOrder(orderId, "pi_boom");
+        _orders.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+        _invoices
+            .Setup(s => s.EnsureForOrderAsync(orderId))
+            .ThrowsAsync(new InvalidOperationException("pdf service down"));
+
+        var act = () => _sut.ProcessAsync(MakeEvent("payment_intent.succeeded", intent));
+
+        await act.Should().NotThrowAsync();
+        order.PaymentStatus.Should().Be(PaymentStatus.Validated);
     }
 
     [Fact]

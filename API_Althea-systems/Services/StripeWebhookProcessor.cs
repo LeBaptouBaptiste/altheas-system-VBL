@@ -10,15 +10,18 @@ public class StripeWebhookProcessor : IStripeWebhookProcessor
 {
     private readonly IOrderRepository _orders;
     private readonly IUserRepository _users;
+    private readonly IInvoiceService _invoices;
     private readonly ILogger<StripeWebhookProcessor> _logger;
 
     public StripeWebhookProcessor(
         IOrderRepository orders,
         IUserRepository users,
+        IInvoiceService invoices,
         ILogger<StripeWebhookProcessor> logger)
     {
         _orders = orders;
         _users = users;
+        _invoices = invoices;
         _logger = logger;
     }
 
@@ -90,6 +93,22 @@ public class StripeWebhookProcessor : IStripeWebhookProcessor
         _logger.LogInformation(
             "Order {OrderId} marked as Validated via PaymentIntent {IntentId}.",
             order.Id, intent.Id);
+
+        // Issue the invoice automatically — buyers expect to download it from
+        // /account/orders the moment payment clears. EnsureForOrderAsync is
+        // idempotent so Stripe redeliveries don't create duplicates. We swallow
+        // exceptions here on purpose: the payment IS valid, and the startup
+        // backfill will pick up any order that slipped through.
+        try
+        {
+            await _invoices.EnsureForOrderAsync(order.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to auto-issue invoice for order {OrderId} after payment succeeded — startup backfill will retry.",
+                order.Id);
+        }
     }
 
     private async Task HandlePaymentFailed(Event stripeEvent, CancellationToken ct)
