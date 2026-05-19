@@ -41,6 +41,9 @@
     <!-- Health checks -->
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
+
+    <!-- Stripe SDK (test mode keys, no real money moves) -->
+    <PackageReference Include="Stripe.net" Version="49.4.0" />
   </ItemGroup>
 
 </Project>
