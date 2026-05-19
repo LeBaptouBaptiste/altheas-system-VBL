@@ -352,6 +352,15 @@ export default function CheckoutPage() {
               saveCard={saveCard}
               onSaveCardChange={handleSaveCardToggle}
               saveCardLocked={preparingPayment}
+              onSuccess={() => {
+                // Sync-success path (no 3DS): jump straight to confirmation.
+                // The webhook will settle the order server-side; we trust the
+                // client-side PaymentIntent status to update the UI immediately.
+                setOrderPlaced(true);
+                setStep(4);
+                clearCart();
+                toast.success(t('checkout.order_confirmed'));
+              }}
             />
           ) : preparingPayment ? (
             <div className="flex items-center gap-2 p-6 text-muted-foreground">
