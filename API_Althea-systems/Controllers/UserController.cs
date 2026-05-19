@@ -35,6 +35,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequireStepUp(StepUpPurpose.Action)]
     public async Task<ActionResult<UserDto>> Update(Guid id, [FromBody] UserUpdateRequest request)
     {
         HttpContext.RequireOwnershipOrAdmin(id);
