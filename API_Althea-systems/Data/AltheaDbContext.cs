@@ -6,6 +6,7 @@ using API_Althea_systems.Models.Invoices;
 using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Content;
 using API_Althea_systems.Models.Analytics;
+using API_Althea_systems.Models.Payments;
 
 namespace API_Althea_systems.Data;
 
@@ -47,6 +48,9 @@ public class AltheaDbContext : DbContext
 
     // Analytics
     public DbSet<SalesAnalytics> SalesAnalytics => Set<SalesAnalytics>();
+
+    // Payments
+    public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
