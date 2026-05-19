@@ -43,7 +43,7 @@
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
 
     <!-- Stripe SDK (test mode keys, no real money moves) -->
-    <PackageReference Include="Stripe.net" Version="49.4.0" />
+    <PackageReference Include="Stripe.net" Version="50.0.0" />
   </ItemGroup>
 
 </Project>
