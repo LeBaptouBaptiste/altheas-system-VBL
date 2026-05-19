@@ -31,7 +31,7 @@ public class Program
         builder.Services.AddCorsPolicy(builder.Configuration);
         builder.Services.AddValidation();
         builder.Services.AddRateLimiting();
-        builder.Services.AddApplicationServices();
+        builder.Services.AddApplicationServices(builder.Configuration);
 
         var app = builder.Build();
 

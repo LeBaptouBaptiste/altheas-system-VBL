@@ -43,6 +43,10 @@ export const messagesService = {
   sendMessage: (conversationId: string, content: string) =>
     api.post<ChatMessageDto>(`/chat/${conversationId}/messages`, { content }),
 
+  // Assistant (LLM)
+  assistant: (conversationId: string, content: string) =>
+    api.post<ChatMessageDto>(`/chat/${conversationId}/assistant`, { content }),
+
   // Tickets
   getTickets: (page = 1, pageSize = 20) =>
     api.get<PaginatedResponse<SupportTicketDto>>(`/tickets?page=${page}&pageSize=${pageSize}`),

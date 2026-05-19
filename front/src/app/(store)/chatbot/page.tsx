@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/context/i18n-context';
-import { productsService } from '@/lib/api-services';
+import { productsService, messagesService } from '@/lib/api-services';
 import type { ProductDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice, calculateTTC } from '@/lib/money';
@@ -27,6 +27,7 @@ export default function ChatbotPage() {
   ]);
   const [input, setInput] = useState('');
   const [ticketCreated, setTicketCreated] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,20 +79,34 @@ export default function ChatbotPage() {
       : 'I\'m not sure I can answer this question. Would you like to contact our technical support?';
   };
 
+  const askAssistant = async (userInput: string): Promise<string> => {
+    try {
+      let convId = conversationId;
+      if (!convId) {
+        const conv = await messagesService.createConversation();
+        convId = conv.id as string;
+        setConversationId(convId);
+      }
+      const resp = await messagesService.assistant(convId, userInput);
+      return resp.content;
+    } catch (e) {
+      // fallback to local rule-based response when API/assistant unavailable
+      return await generateResponse(userInput);
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
 
-    const response = await generateResponse(userMsg);
+    const response = await askAssistant(userMsg);
     setMessages(prev => [...prev, { role: 'bot', content: response }]);
   };
 
   const handleEscalate = async () => {
     try {
-      const { messagesService } = await import('@/lib/api-services');
-      // Create a conversation first, then escalate by creating a ticket
       const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || 'Support request';
       await messagesService.create({
         email: 'chatbot@altheasystems.com',

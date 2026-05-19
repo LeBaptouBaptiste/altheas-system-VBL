@@ -10,10 +10,12 @@ namespace API_Althea_systems.Controllers;
 public class ChatController : ControllerBase
 {
     private readonly IChatService _chatService;
+    private readonly IChatAssistantService _chatAssistantService;
 
-    public ChatController(IChatService chatService)
+    public ChatController(IChatService chatService, IChatAssistantService chatAssistantService)
     {
         _chatService = chatService;
+        _chatAssistantService = chatAssistantService;
     }
 
     [HttpGet]
@@ -40,5 +42,11 @@ public class ChatController : ControllerBase
     public async Task<ActionResult<ChatMessageDto>> AddMessage(Guid conversationId, [FromBody] ChatMessageCreateRequest request)
     {
         return Created("", await _chatService.AddMessageAsync(conversationId, request));
+    }
+
+    [HttpPost("{conversationId:guid}/assistant")]
+    public async Task<ActionResult<ChatMessageDto>> AskAssistant(Guid conversationId, [FromBody] ChatMessageCreateRequest request)
+    {
+        return Ok(await _chatAssistantService.GenerateReplyAsync(conversationId, request));
     }
 }

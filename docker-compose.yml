@@ -6,15 +6,33 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: althea-front
+    ports:
+      - "3000:3000"
     restart: unless-stopped
     depends_on:
       - api
+
+  ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+    container_name: althea-ollama
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    environment:
+      OLLAMA_MODEL: tinyllama
+      OLLAMA_CONTEXT_LENGTH: 256
+    volumes:
+      - ollama_data:/root/.ollama
 
   api:
     build:
       context: ./API_Althea-systems
       dockerfile: Dockerfile
     container_name: althea-api
+    ports:
+      - "5207:8080"
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
@@ -24,12 +42,20 @@ services:
       JwtSettings__SecretKey: ${JWT_SECRET_KEY}
       JwtSettings__Issuer: ${JWT_ISSUER}
       JwtSettings__Audience: ${JWT_AUDIENCE}
+      Ollama__BaseUrl: http://ollama:11434
+      Ollama__Model: tinyllama
+      Ollama__MaxTokens: 512
+      Ollama__NumCtx: 256
+      Ollama__Temperature: 0.2
+      Ollama__SystemPrompt: "You are Althea Systems' assistant. Reply in the same language as the user. Be helpful and concise, and answer general questions when possible. If information is uncertain, state assumptions and ask one clarifying question instead of refusing immediately. Do not invent product-specific facts when you are not sure."
     depends_on:
       postgres:
         condition: service_healthy
       mongodb:
         condition: service_started
       redis:
+        condition: service_started
+      ollama:
         condition: service_started
 
   postgres:
@@ -67,6 +93,7 @@ volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  ollama_data:
 
 networks:
   default:

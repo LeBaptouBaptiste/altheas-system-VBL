@@ -114,7 +114,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Repositories
         services.AddScoped<IUserRepository, UserRepository>();
@@ -135,6 +135,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<IChatService, ChatService>();
+        services.AddHttpClient<IChatAssistantService, OllamaChatAssistantService>(client =>
+        {
+            var baseUrl = configuration["Ollama:BaseUrl"] ?? "http://localhost:11434";
+            client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IContentService, ContentService>();
 

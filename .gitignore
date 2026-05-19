@@ -70,3 +70,5 @@ front/out/
 *.tmp
 *.temp
 /.claude
+context/
+context/*
