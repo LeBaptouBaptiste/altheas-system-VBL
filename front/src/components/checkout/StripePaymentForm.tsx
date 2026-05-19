@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { stripePromise } from '@/lib/stripe';
+import { getStripeErrorMessage } from '@/lib/stripe-errors';
 import { useI18n } from '@/context/i18n-context';
 
 interface StripePaymentFormProps {
@@ -94,9 +95,10 @@ function Inner({ returnUrl, saveCard, onSaveCardChange, saveCardLocked, onSucces
     });
 
     if (stripeError) {
-      // card_declined / insufficient_funds / incorrect_cvc / expired_card …
-      // Stripe localizes the message based on the Elements locale we set.
-      setError(stripeError.message ?? t('common.error'));
+      // Translate via our dictionary first (covers MS/AR where Stripe falls
+      // back to EN), then Stripe's own localized message, then a generic
+      // fallback. See lib/stripe-errors.ts.
+      setError(getStripeErrorMessage(stripeError, t));
       setSubmitting(false);
       return;
     }
