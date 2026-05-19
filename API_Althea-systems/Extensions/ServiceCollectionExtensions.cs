@@ -176,7 +176,35 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAnonymizationService, AnonymizationService>();
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
+        services.AddScoped<IStripeService, StripeService>();
 
+        return services;
+    }
+
+    public static IServiceCollection AddStripe(this IServiceCollection services, IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Stripe");
+        var secretKey = section["SecretKey"];
+
+        // Fail fast at startup if Stripe is unconfigured — we'd rather refuse
+        // to boot than silently fail at the first PaymentIntent. Placeholders
+        // (sk_test_REPLACE_ME) are accepted so local dev without real keys
+        // can still build the project; the SDK call itself will reject them.
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            throw new InvalidOperationException(
+                "Stripe:SecretKey is not configured. Set STRIPE_SECRET_KEY (sk_test_* in dev) " +
+                "via env var or appsettings.json.");
+        }
+
+        if (!secretKey.StartsWith("sk_test_") && !secretKey.StartsWith("sk_live_"))
+        {
+            throw new InvalidOperationException(
+                $"Stripe:SecretKey has an invalid prefix (must start with 'sk_test_' or 'sk_live_'). " +
+                "Did you swap it with the publishable key?");
+        }
+
+        services.Configure<StripeOptions>(section);
         return services;
     }
 

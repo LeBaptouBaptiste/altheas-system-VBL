@@ -33,6 +33,7 @@ public class Program
         builder.Services.AddValidation();
         builder.Services.AddRateLimiting();
         builder.Services.AddHealthCheckServices(builder.Configuration);
+        builder.Services.AddStripe(builder.Configuration);
         builder.Services.AddApplicationServices();
 
         var app = builder.Build();
