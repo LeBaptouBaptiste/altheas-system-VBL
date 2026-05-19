@@ -18,6 +18,7 @@ public class StripeService : IStripeService
 
     private readonly CustomerService _customers;
     private readonly PaymentIntentService _paymentIntents;
+    private readonly PaymentMethodService _paymentMethods;
     private readonly IUserRepository _userRepository;
     private readonly IVatCalculationService _vat;
     private readonly ILogger<StripeService> _logger;
@@ -36,6 +37,7 @@ public class StripeService : IStripeService
         var stripeClient = new StripeClient(secretKey);
         _customers = new CustomerService(stripeClient);
         _paymentIntents = new PaymentIntentService(stripeClient);
+        _paymentMethods = new PaymentMethodService(stripeClient);
 
         _userRepository = userRepository;
         _vat = vat;
@@ -118,6 +120,24 @@ public class StripeService : IStripeService
             intent.Id, intent.Amount, intent.Currency, order.Id, user.Id, saveCard);
 
         return intent;
+    }
+
+    public async Task DetachPaymentMethodAsync(string stripePaymentMethodId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _paymentMethods.DetachAsync(stripePaymentMethodId, cancellationToken: ct);
+            _logger.LogInformation("Detached Stripe PaymentMethod {MethodId}", stripePaymentMethodId);
+        }
+        catch (StripeException ex) when (ex.StripeError?.Code == "resource_missing")
+        {
+            // Already detached on Stripe's side (manual dashboard cleanup, prior
+            // call that crashed after Stripe but before our DB delete, …) — the
+            // user's intent is satisfied either way.
+            _logger.LogInformation(
+                "PaymentMethod {MethodId} was already detached on Stripe — treating as no-op.",
+                stripePaymentMethodId);
+        }
     }
 }
 

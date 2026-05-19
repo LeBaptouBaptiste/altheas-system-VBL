@@ -9,10 +9,12 @@ namespace API_Althea_systems.Services;
 public class UserService : IUserService
 {
     private readonly IUserRepository _userRepository;
+    private readonly IStripeService _stripe;
 
-    public UserService(IUserRepository userRepository)
+    public UserService(IUserRepository userRepository, IStripeService stripe)
     {
         _userRepository = userRepository;
+        _stripe = stripe;
     }
 
     public async Task<UserDto> GetByIdAsync(Guid id)
@@ -176,6 +178,14 @@ public class UserService : IUserService
 
         var pm = user.PaymentMethods.FirstOrDefault(p => p.Id == paymentMethodId)
             ?? throw new NotFoundException("PaymentMethod", paymentMethodId);
+
+        // Detach FIRST on Stripe — if it fails, we still have the DB row to
+        // retry on. The reverse (DB delete then Stripe fail) would leave an
+        // orphan card on the customer with no way for our UI to see it again.
+        if (!string.IsNullOrEmpty(pm.StripePaymentMethodId))
+        {
+            await _stripe.DetachPaymentMethodAsync(pm.StripePaymentMethodId);
+        }
 
         user.PaymentMethods.Remove(pm);
         await _userRepository.UpdateAsync(user);

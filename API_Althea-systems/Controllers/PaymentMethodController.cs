@@ -35,7 +35,11 @@ public class PaymentMethodController : ControllerBase
         return Created("", await _userService.AddPaymentMethodAsync(userId, request));
     }
 
+    // Supprimer une carte = opération sensible : la carte est détachée
+    // côté Stripe, et reverser cette action requiert de re-saisir le PAN.
+    // → step-up Action obligatoire (60s, single-use).
     [HttpDelete("{paymentMethodId:guid}")]
+    [RequireStepUp(StepUpPurpose.Action)]
     public async Task<IActionResult> Delete(Guid userId, Guid paymentMethodId)
     {
         HttpContext.RequireOwnershipOrAdmin(userId);

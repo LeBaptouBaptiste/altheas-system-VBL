@@ -38,6 +38,14 @@ export const usersService = {
   addPaymentMethod: (userId: string, data: { type: string; label: string }) =>
     api.post<PaymentMethodDto>(`/users/${userId}/payment-methods`, data),
 
-  deletePaymentMethod: (userId: string, paymentMethodId: string) =>
-    api.delete(`/users/${userId}/payment-methods/${paymentMethodId}`),
+  /**
+   * Removes a saved card. Backend requires a step-up Action token
+   * ([RequireStepUp(Action)]) — pass it via `stepUpToken` (callers should
+   * obtain it via `useStepUp()`'s `withStepUp` wrapper).
+   */
+  deletePaymentMethod: (userId: string, paymentMethodId: string, stepUpToken?: string) =>
+    api.delete(
+      `/users/${userId}/payment-methods/${paymentMethodId}`,
+      stepUpToken ? { stepUpToken } : undefined,
+    ),
 };

@@ -236,24 +236,68 @@ export default function AccountPage() {
         {/* Payment Methods */}
         <TabsContent value="payments">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {user.paymentMethods.map(pm => (
-              <Card key={pm.id}><CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-brand-primary" />
-                  <span className="font-medium">{pm.label}</span>
-                </div>
-                <Button variant="outline" size="sm" className="text-error" onClick={async () => {
-                  try {
-                    await usersService.deletePaymentMethod(user.id, pm.id);
-                    await refreshUser();
-                    toast.success(locale === 'fr' ? 'Moyen de paiement supprimé' : 'Payment method deleted');
-                  } catch { toast.error(t('common.error')); }
-                }}>{t('common.delete')}</Button>
-              </CardContent></Card>
-            ))}
+            {user.paymentMethods.map(pm => {
+              // Detect expired cards (the user can still see them but the
+              // chip is colored differently and a tooltip explains).
+              const now = new Date();
+              const isExpired = pm.expYear !== null && pm.expMonth !== null && (
+                pm.expYear < now.getFullYear() ||
+                (pm.expYear === now.getFullYear() && pm.expMonth < now.getMonth() + 1)
+              );
+              return (
+                <Card key={pm.id} className={isExpired ? 'border-warning/50 bg-warning/5' : ''}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <CreditCard className={`w-5 h-5 shrink-0 ${isExpired ? 'text-warning' : 'text-brand-primary'}`} />
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{pm.label}</p>
+                        {pm.expMonth !== null && pm.expYear !== null && (
+                          <p className={`text-xs ${isExpired ? 'text-warning font-medium' : 'text-muted-foreground'}`}>
+                            {isExpired
+                              ? (locale === 'fr' ? 'Expirée — ' : 'Expired — ')
+                              : ''}
+                            {String(pm.expMonth).padStart(2, '0')}/{String(pm.expYear).slice(-2)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-error border-error/30 hover:bg-error/10"
+                      onClick={async () => {
+                        // Sensitive op — gated by [RequireStepUp(Action)] server-side.
+                        // withStepUp handles the 1st-call → 403 → modal → retry pattern.
+                        const out = await withStepUp((token) =>
+                          usersService.deletePaymentMethod(user.id, pm.id, token));
+                        if (out === null) return; // user cancelled the step-up modal
+                        try {
+                          await refreshUser();
+                          toast.success(locale === 'fr' ? 'Moyen de paiement supprimé' : 'Payment method deleted');
+                        } catch {
+                          toast.error(t('common.error'));
+                        }
+                      }}
+                    >
+                      {t('common.delete')}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-          {user.paymentMethods.length === 0 && <p className="text-muted-foreground text-sm py-4">{t('common.no_data')}</p>}
-          <p className="text-xs text-muted-foreground mt-2">{locale === 'fr' ? 'Aucune donnée sensible n\'est stockée' : 'No sensitive data is stored'}</p>
+          {user.paymentMethods.length === 0 && (
+            <p className="text-muted-foreground text-sm py-4">
+              {locale === 'fr'
+                ? 'Aucune carte enregistrée. Cochez "Sauvegarder ma carte" lors d\'un prochain paiement.'
+                : 'No saved cards. Tick "Save my card" on your next payment to add one.'}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            {locale === 'fr'
+              ? 'Aucune donnée sensible n\'est stockée (PAN, CVC). Seuls la marque, les 4 derniers chiffres et la date d\'expiration.'
+              : 'No sensitive data is stored (PAN, CVC). Only the brand, last 4 digits, and expiry.'}
+          </p>
         </TabsContent>
       </Tabs>
     </div>

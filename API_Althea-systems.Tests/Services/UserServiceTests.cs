@@ -5,17 +5,19 @@ using API_Althea_systems.Common.Exceptions;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Tests.Services;
 
 public class UserServiceTests
 {
     private readonly Mock<IUserRepository> _userRepo = new();
+    private readonly Mock<IStripeService> _stripe = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
-        _sut = new UserService(_userRepo.Object);
+        _sut = new UserService(_userRepo.Object, _stripe.Object);
     }
 
     [Fact]

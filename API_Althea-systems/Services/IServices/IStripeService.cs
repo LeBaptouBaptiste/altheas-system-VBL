@@ -37,4 +37,14 @@ public interface IStripeService
         User user,
         bool saveCard,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Detaches a PaymentMethod from its Customer on Stripe's side. Required
+    /// when the user removes a saved card from their profile — without it,
+    /// the card stays attached to the Stripe Customer and would resurface in
+    /// any future "list saved methods" call.
+    /// Idempotent : detaching an already-detached method throws a Stripe
+    /// "resource_missing" error which the caller should swallow.
+    /// </summary>
+    Task DetachPaymentMethodAsync(string stripePaymentMethodId, CancellationToken ct = default);
 }
