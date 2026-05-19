@@ -15,6 +15,14 @@ public class User
     public string? TwoFactorSecret { get; set; }
     public bool TwoFactorEnabled { get; set; }
     public DateTime? TwoFactorEnabledAt { get; set; }
+
+    /// <summary>
+    /// Stripe Customer ID (cus_xxx). Created on first payment, persisted so
+    /// subsequent PaymentIntents reuse the same customer and saved payment
+    /// methods stay attached.
+    /// </summary>
+    public string? StripeCustomerId { get; set; }
+
     public DateTime? LastLogin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
