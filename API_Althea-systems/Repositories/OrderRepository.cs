@@ -34,6 +34,9 @@ public class OrderRepository : IOrderRepository
             .Include(o => o.BillingAddress)
             .Include(o => o.ShippingAddress)
             .Include(o => o.StatusHistory)
+            // Invoices needed so OrderDto.LatestInvoiceId can be computed —
+            // drives the "Télécharger la facture" button in /account/orders.
+            .Include(o => o.Invoices)
             .AsQueryable();
 
         if (userId.HasValue)

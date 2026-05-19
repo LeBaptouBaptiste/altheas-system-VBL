@@ -21,7 +21,11 @@ public record OrderDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IEnumerable<OrderItemDto> Items,
-    IEnumerable<OrderStatusChangeDto> StatusHistory
+    IEnumerable<OrderStatusChangeDto> StatusHistory,
+    // ID of the most recent Invoice (Type=Invoice, not CreditNote) attached to
+    // this order, or null if no invoice has been issued yet. /account/orders
+    // uses it to decide whether to enable the "download" button.
+    Guid? LatestInvoiceId
 );
 
 public record OrderItemDto(

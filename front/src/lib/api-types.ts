@@ -220,6 +220,10 @@ export interface OrderDto {
   updatedAt: string;
   items: OrderItemDto[];
   statusHistory: OrderStatusChangeDto[];
+  // ID of the latest "real" invoice (Type=Invoice, excluding credit notes)
+  // attached to this order, or null if none has been issued yet. Used to
+  // enable/disable the "Télécharger la facture" button on /account/orders.
+  latestInvoiceId: string | null;
 }
 
 export interface OrderItemDto {

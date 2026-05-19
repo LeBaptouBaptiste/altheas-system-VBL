@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
-import { ordersService, usersService, authService } from '@/lib/api-services';
+import { ordersService, usersService, authService, downloadInvoicePdf } from '@/lib/api-services';
 import { TwoFactorSection } from '@/components/account/two-factor-section';
 import { useStepUp } from '@/components/two-factor/step-up-provider';
 import { getErrorMessage } from '@/lib/api-errors';
@@ -45,6 +45,23 @@ export default function AccountPage() {
   const [editEmail, setEditEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  // Per-row download state — only the clicked row shows a spinner so a slow
+  // PDF render doesn't freeze the whole orders list.
+  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async (order: OrderDto) => {
+    if (!order.latestInvoiceId || downloadingOrderId) return;
+    setDownloadingOrderId(order.id);
+    try {
+      await downloadInvoicePdf(order.latestInvoiceId);
+      toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+    } catch (err) {
+      console.error('Invoice download failed', err);
+      toast.error(locale === 'fr' ? 'Échec du téléchargement' : 'Download failed');
+    } finally {
+      setDownloadingOrderId(null);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -185,8 +202,21 @@ export default function AccountPage() {
                           <div className="flex items-center gap-3">
                             <Badge className={statusColors[order.status] || 'bg-gray-200'}>{enumLabel('OrderStatus', order.status, locale)}</Badge>
                             <span className="font-bold">{fmt(order.totalTTC)}</span>
-                            <Button variant="outline" size="sm" disabled title={locale === 'fr' ? 'Bientôt disponible' : 'Coming soon'}>
-                              <Download className="w-3 h-3 me-1" />{t('account.download_invoice')}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!order.latestInvoiceId || downloadingOrderId === order.id}
+                              onClick={() => handleDownloadInvoice(order)}
+                              title={
+                                !order.latestInvoiceId
+                                  ? (locale === 'fr' ? 'Facture pas encore émise' : 'Invoice not issued yet')
+                                  : (locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)')
+                              }
+                            >
+                              {downloadingOrderId === order.id
+                                ? <Loader2 className="w-3 h-3 me-1 animate-spin" />
+                                : <Download className="w-3 h-3 me-1" />}
+                              {t('account.download_invoice')}
                             </Button>
                           </div>
                         </div>

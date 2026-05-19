@@ -2,7 +2,7 @@ export { authService } from './auth.service';
 export { productsService } from './products.service';
 export { categoriesService } from './categories.service';
 export { ordersService } from './orders.service';
-export { invoicesService } from './invoices.service';
+export { invoicesService, downloadInvoicePdf } from './invoices.service';
 export { usersService } from './users.service';
 export { messagesService } from './messages.service';
 export { contentService } from './content.service';

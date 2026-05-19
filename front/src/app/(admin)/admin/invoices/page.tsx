@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useI18n } from '@/context/i18n-context';
-import { invoicesService } from '@/lib/api-services';
+import { invoicesService, downloadInvoicePdf } from '@/lib/api-services';
 import type { InvoiceDto } from '@/lib/api-types';
 import { formatPrice, toIntlLocale } from '@/lib/money';
 import { InvoiceStatus, InvoiceType } from '@/lib/enums';
@@ -57,14 +57,22 @@ export default function AdminInvoicesPage() {
     return list;
   }, [invoicesList, search, typeFilter, statusFilter]);
 
-  const handleDownload = (inv: InvoiceDto) => {
-    const content = `${inv.type === InvoiceType.CreditNote ? (locale === 'fr' ? 'AVOIR' : 'CREDIT NOTE') : (locale === 'fr' ? 'FACTURE' : 'INVOICE')}\n${inv.id}\nDate: ${inv.date}\nOrder: ${inv.orderId}\nHT: ${fmt(inv.amountHT)}\nTVA: ${fmt(inv.vatAmount)}\nTTC: ${fmt(inv.amountTTC)}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${inv.id}.txt`; a.click();
-    URL.revokeObjectURL(url);
-    toast.success(locale === 'fr' ? 'Téléchargement...' : 'Downloading...');
+  // Per-row download state so a slow PDF render doesn't freeze the whole
+  // table — only the clicked row shows a spinner.
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (inv: InvoiceDto) => {
+    if (downloadingId) return;  // ignore double-clicks
+    setDownloadingId(inv.id);
+    try {
+      await downloadInvoicePdf(inv.id);
+      toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+    } catch (err) {
+      console.error('Invoice download failed', err);
+      toast.error(locale === 'fr' ? 'Échec du téléchargement' : 'Download failed');
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const totals = filtered.reduce((acc, inv) => {
@@ -173,8 +181,17 @@ export default function AdminInvoicesPage() {
                       <Badge variant="outline" className={STATUS_COLORS[inv.status] || ''}>{enumLabel('InvoiceStatus', inv.status, locale)}</Badge>
                     </td>
                     <td className="p-3 text-end">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDownload(inv)}>
-                        <Download className="w-3.5 h-3.5" />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleDownload(inv)}
+                        disabled={downloadingId === inv.id}
+                        title={locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)'}
+                      >
+                        {downloadingId === inv.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Download className="w-3.5 h-3.5" />}
                       </Button>
                     </td>
                   </tr>

@@ -104,6 +104,17 @@ public class OrderService : IOrderService
     {
         var totalHT = o.Items.Sum(i => i.PriceHT * i.Quantity);
         var totalVAT = o.Items.Sum(i => i.PriceHT * i.Quantity * GetVatMultiplier(i.VatRate));
+
+        // Latest "real" invoice (Type=Invoice, excluding credit notes) for this
+        // order — null if none yet. Used by /account/orders to decide whether
+        // to enable the download button. Repository must Include(o.Invoices)
+        // for this to be populated (cf. OrderRepository.GetByIdAsync/GetAllAsync).
+        var latestInvoiceId = o.Invoices
+            .Where(inv => inv.Type == Models.Invoices.InvoiceType.Invoice)
+            .OrderByDescending(inv => inv.Date)
+            .Select(inv => (Guid?)inv.Id)
+            .FirstOrDefault();
+
         return new OrderDto(
             o.Id, o.UserId, o.User?.Name ?? "", o.Date, o.Status, o.PaymentStatus,
             o.PaymentMethod,
@@ -111,7 +122,8 @@ public class OrderService : IOrderService
             o.ShippingMethod, o.ShippingCost, totalHT, totalVAT, totalHT + totalVAT + o.ShippingCost,
             o.CreatedAt, o.UpdatedAt,
             o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductNameFr, i.ProductNameEn, i.Quantity, i.PriceHT, i.VatRate)),
-            o.StatusHistory.Select(s => new OrderStatusChangeDto(s.From, s.To, s.Date, s.UserId))
+            o.StatusHistory.Select(s => new OrderStatusChangeDto(s.From, s.To, s.Date, s.UserId)),
+            latestInvoiceId
         );
     }
 

@@ -249,4 +249,48 @@ export const api = {
 
   delete: (endpoint: string, options?: ApiRequestOptions) =>
     apiFetch<void>(endpoint, { method: 'DELETE' }, options),
+
+  /**
+   * Fetches a binary endpoint (e.g. PDF download). Goes through the same
+   * auth + step-up + error handling as the JSON helpers, but returns a Blob
+   * instead of a parsed JSON object so the caller can stream it to a
+   * download anchor without re-encoding.
+   */
+  getBlob: (endpoint: string, options?: ApiRequestOptions) =>
+    apiFetchBlob(endpoint, options ?? {}),
 };
+
+async function apiFetchBlob(
+  endpoint: string,
+  options: ApiRequestOptions,
+): Promise<Blob> {
+  const bearer = options.bearerToken ?? getToken();
+  const headers: Record<string, string> = {};
+  if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  const stepUp = options.stepUpToken ?? _ambientStepUpToken;
+  if (stepUp) headers['X-Step-Up-Token'] = stepUp;
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, { headers });
+
+  if (!response.ok) {
+    // Same error contract as apiFetch but no JSON body to parse — surface
+    // the status code with a generic message; callers can handle by code.
+    if (response.status === 403) {
+      // Try to detect step_up_required from the JSON body (server still
+      // sends one even when the success path is binary).
+      try {
+        const body = await response.json();
+        if (body?.reason === 'step_up_required') throw new StepUpRequiredError();
+      } catch (e) {
+        if (e instanceof StepUpRequiredError) throw e;
+      }
+    }
+    if (response.status === 401
+        && options.bearerToken === undefined) {
+      clearToken();
+    }
+    throw new ApiError(response.status, `Download failed (HTTP ${response.status})`);
+  }
+
+  return await response.blob();
+}
