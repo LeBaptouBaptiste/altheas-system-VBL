@@ -137,6 +137,13 @@ export interface PaymentMethodDto {
   id: string;
   type: string;
   label: string;
+  // Stripe-side identifier for re-charging a saved card. Always set for
+  // cards saved through the Stripe flow (commit 18 webhook handler).
+  stripePaymentMethodId: string | null;
+  brand: string | null;
+  last4: string | null;
+  expMonth: number | null;
+  expYear: number | null;
 }
 
 // ── Products ──────────────────────────────────────────

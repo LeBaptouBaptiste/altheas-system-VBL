@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { StripePaymentForm } from '@/components/checkout/StripePaymentForm';
+import { SavedCardPaymentForm } from '@/components/checkout/SavedCardPaymentForm';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
@@ -18,6 +19,7 @@ import { ordersService, paymentsService, usersService } from '@/lib/api-services
 import { formatPrice } from '@/lib/money';
 import { SHIPPING_METHODS } from '@/lib/constants';
 import { ShippingMethod, PaymentMethod } from '@/lib/enums';
+import type { PaymentMethodDto } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 const SHIPPING_MAP: Record<string, number> = {
@@ -59,14 +61,22 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState<string | null>(null);
 
   // Stripe flow state — Step 3 lifecycle:
-  //   1. user clicks "Suivant" on Step 2 → preparePayment() creates Order + PaymentIntent.
-  //   2. clientSecret arrives → StripePaymentForm renders Elements + PaymentElement.
+  //   1. user clicks "Suivant" on Step 2 → preparePayment() creates Order +
+  //      PaymentIntent AND fetches saved cards (parallel).
+  //   2. clientSecret arrives → user picks a saved card OR "new card".
+  //      Saved card path uses SavedCardPaymentForm (confirmCardPayment direct).
+  //      New card path uses StripePaymentForm (Elements + PaymentElement).
   //   3. user confirms → either inline success OR redirect to Stripe (3DS).
   //   4. on success we land back here via return_url with ?redirect_status=succeeded.
   const [preparingPayment, setPreparingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [saveCard, setSaveCard] = useState(false);
+  // Saved cards picker state.
+  // `selectedCardId` is the id of a saved UserPaymentMethod, or 'new' to
+  // show the PaymentElement (default when the user has no saved cards).
+  const [savedCards, setSavedCards] = useState<PaymentMethodDto[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string>('new');
 
   const [billing, setBilling] = useState<AddressForm>(emptyAddress);
   const [shipping, setShipping] = useState<AddressForm>(emptyAddress);
@@ -131,8 +141,19 @@ export default function CheckoutPage() {
       });
       setOrderId(order.id);
 
-      const intent = await paymentsService.createIntent(order.id, saveCard);
+      // Create the PaymentIntent and fetch the user's saved cards in
+      // parallel — the picker depends on both being ready.
+      const [intent, cards] = await Promise.all([
+        paymentsService.createIntent(order.id, saveCard),
+        usersService.listPaymentMethods(user.id).catch(() => [] as PaymentMethodDto[]),
+      ]);
       setClientSecret(intent.clientSecret);
+      // Filter to keep only Stripe-backed cards (the only ones we can charge).
+      const stripeCards = cards.filter(c => c.stripePaymentMethodId);
+      setSavedCards(stripeCards);
+      // Default selection: if user has saved cards, pick the first; otherwise
+      // fall back to "new card" (PaymentElement).
+      setSelectedCardId(stripeCards.length > 0 ? stripeCards[0].id : 'new');
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : (locale === 'fr' ? 'Erreur lors de la préparation du paiement' : 'Failed to prepare payment');
@@ -344,8 +365,63 @@ export default function CheckoutPage() {
             </div>
           </RadioGroup>
 
-          {/* Stripe Elements — renders once we have a clientSecret. */}
-          {clientSecret ? (
+          {/* Saved-cards picker (only shown if the user has cards on file).
+              Sits above the new-card form so the common case (returning
+              customer) is one click. */}
+          {clientSecret && savedCards.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-brand-dark">
+                {locale === 'fr' ? 'Vos cartes enregistrées' : 'Your saved cards'}
+              </p>
+              <RadioGroup value={selectedCardId} onValueChange={setSelectedCardId}>
+                {savedCards.map(card => (
+                  <div key={card.id} className="flex items-center gap-3 p-3 border rounded-lg hover:border-brand-primary cursor-pointer">
+                    <RadioGroupItem value={card.id} id={`saved-${card.id}`} />
+                    <CreditCard className="w-5 h-5 text-brand-primary" />
+                    <Label htmlFor={`saved-${card.id}`} className="cursor-pointer flex-1">
+                      <span className="font-medium">{card.label}</span>
+                      {card.expMonth && card.expYear && (
+                        <span className="text-muted-foreground text-sm ms-2">
+                          {String(card.expMonth).padStart(2, '0')}/{String(card.expYear).slice(-2)}
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+                <div className="flex items-center gap-3 p-3 border rounded-lg hover:border-brand-primary cursor-pointer">
+                  <RadioGroupItem value="new" id="saved-new" />
+                  <CreditCard className="w-5 h-5 text-muted-foreground" />
+                  <Label htmlFor="saved-new" className="cursor-pointer flex-1">
+                    {locale === 'fr' ? '+ Utiliser une nouvelle carte' : '+ Use a new card'}
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
+
+          {/* Payment form. Two paths:
+              - selectedCardId points to a saved card → SavedCardPaymentForm (no Elements)
+              - 'new' (default) → StripePaymentForm (Elements + PaymentElement) */}
+          {clientSecret && selectedCardId !== 'new' && (() => {
+            const card = savedCards.find(c => c.id === selectedCardId);
+            if (!card || !card.stripePaymentMethodId) return null;
+            return (
+              <SavedCardPaymentForm
+                clientSecret={clientSecret}
+                stripePaymentMethodId={card.stripePaymentMethodId}
+                returnUrl={orderId ? buildReturnUrl(orderId) : window.location.href}
+                label={card.label}
+                onSuccess={() => {
+                  setOrderPlaced(true);
+                  setStep(4);
+                  clearCart();
+                  toast.success(t('checkout.order_confirmed'));
+                }}
+              />
+            );
+          })()}
+
+          {clientSecret && selectedCardId === 'new' ? (
             <StripePaymentForm
               clientSecret={clientSecret}
               returnUrl={orderId ? buildReturnUrl(orderId) : window.location.href}
@@ -362,7 +438,7 @@ export default function CheckoutPage() {
                 toast.success(t('checkout.order_confirmed'));
               }}
             />
-          ) : preparingPayment ? (
+          ) : !clientSecret && preparingPayment ? (
             <div className="flex items-center gap-2 p-6 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" />
               {locale === 'fr' ? 'Préparation du paiement…' : 'Preparing payment…'}

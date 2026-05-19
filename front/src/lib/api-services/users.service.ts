@@ -32,6 +32,9 @@ export const usersService = {
     api.delete(`/users/${userId}/addresses/${addressId}`),
 
   // Payment methods
+  listPaymentMethods: (userId: string) =>
+    api.get<PaymentMethodDto[]>(`/users/${userId}/payment-methods`),
+
   addPaymentMethod: (userId: string, data: { type: string; label: string }) =>
     api.post<PaymentMethodDto>(`/users/${userId}/payment-methods`, data),
 

@@ -166,7 +166,7 @@ public class UserService : IUserService
         user.PaymentMethods.Add(pm);
         await _userRepository.UpdateAsync(user);
 
-        return new PaymentMethodDto(pm.Id, pm.Type, pm.Label);
+        return MapPaymentMethod(pm);
     }
 
     public async Task DeletePaymentMethodAsync(Guid userId, Guid paymentMethodId)
@@ -186,6 +186,10 @@ public class UserService : IUserService
         user.Anonymized, user.EmailConfirmed, user.TwoFactorEnabled,
         user.LastLogin, user.CreatedAt,
         user.Addresses.Select(a => new AddressDto(a.Id, a.Label, a.FirstName, a.LastName, a.Company, a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone)),
-        user.PaymentMethods.Select(p => new PaymentMethodDto(p.Id, p.Type, p.Label))
+        user.PaymentMethods.Select(MapPaymentMethod)
     );
+
+    private static PaymentMethodDto MapPaymentMethod(UserPaymentMethod p) => new(
+        p.Id, p.Type, p.Label,
+        p.StripePaymentMethodId, p.Brand, p.Last4, p.ExpMonth, p.ExpYear);
 }

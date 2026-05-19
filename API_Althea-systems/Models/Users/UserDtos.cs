@@ -53,7 +53,15 @@ public record AddressCreateRequest(
 public record PaymentMethodDto(
     Guid Id,
     string Type,
-    string Label
+    string Label,
+    // Stripe-side identifier, used at checkout to re-confirm a PaymentIntent
+    // with a saved card (stripe.confirmCardPayment({ payment_method: pm_xxx })).
+    string? StripePaymentMethodId,
+    // Display metadata — safe to ship to the browser, never sensitive.
+    string? Brand,
+    string? Last4,
+    int? ExpMonth,
+    int? ExpYear
 );
 
 public record PaymentMethodCreateRequest(

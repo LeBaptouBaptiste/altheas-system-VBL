@@ -268,6 +268,8 @@ public class AuthService : IAuthService
             a.Id, a.Label, a.FirstName, a.LastName, a.Company,
             a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone
         )),
-        user.PaymentMethods.Select(p => new PaymentMethodDto(p.Id, p.Type, p.Label))
+        user.PaymentMethods.Select(p => new PaymentMethodDto(
+            p.Id, p.Type, p.Label,
+            p.StripePaymentMethodId, p.Brand, p.Last4, p.ExpMonth, p.ExpYear))
     );
 }

@@ -18,6 +18,16 @@ public class PaymentMethodController : ControllerBase
         _userService = userService;
     }
 
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<PaymentMethodDto>>> GetAll(Guid userId)
+    {
+        // Lists the user's saved payment methods. Used by /checkout to show a
+        // picker before the new-card form, and by /account/payments to manage.
+        HttpContext.RequireOwnershipOrAdmin(userId);
+        var user = await _userService.GetByIdAsync(userId);
+        return Ok(user.PaymentMethods);
+    }
+
     [HttpPost]
     public async Task<ActionResult<PaymentMethodDto>> Create(Guid userId, [FromBody] PaymentMethodCreateRequest request)
     {
