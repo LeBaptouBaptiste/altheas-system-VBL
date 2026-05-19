@@ -44,6 +44,11 @@
 
     <!-- Stripe SDK (test mode keys, no real money moves) -->
     <PackageReference Include="Stripe.net" Version="50.0.0" />
+
+    <!-- PDF generation (invoice download). Community license is free for
+         organisations with revenue < $1M USD / year — fine for our scale.
+         The license is set explicitly in Program.cs. -->
+    <PackageReference Include="QuestPDF" Version="2024.12.3" />
   </ItemGroup>
 
 </Project>

@@ -178,6 +178,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IStripeService, StripeService>();
         services.AddScoped<IStripeWebhookProcessor, StripeWebhookProcessor>();
+        // PDF rendering is stateless and fast (QuestPDF reuses a thread-local
+        // engine), Singleton is appropriate.
+        services.AddSingleton<IInvoicePdfService, InvoicePdfService>();
 
         return services;
     }

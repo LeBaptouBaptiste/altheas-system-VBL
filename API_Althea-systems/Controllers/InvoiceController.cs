@@ -17,15 +17,21 @@ public class InvoiceController : ControllerBase
     private readonly IInvoiceService _invoiceService;
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IOrderRepository _orderRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IInvoicePdfService _pdf;
 
     public InvoiceController(
         IInvoiceService invoiceService,
         IInvoiceRepository invoiceRepository,
-        IOrderRepository orderRepository)
+        IOrderRepository orderRepository,
+        IUserRepository userRepository,
+        IInvoicePdfService pdf)
     {
         _invoiceService = invoiceService;
         _invoiceRepository = invoiceRepository;
         _orderRepository = orderRepository;
+        _userRepository = userRepository;
+        _pdf = pdf;
     }
 
     /// <summary>
@@ -62,5 +68,42 @@ public class InvoiceController : ControllerBase
     {
         var invoice = await _invoiceService.CreateAsync(request);
         return CreatedAtAction(nameof(GetById), new { id = invoice.Id }, invoice);
+    }
+
+    /// <summary>
+    /// Downloads the invoice as a real PDF rendered server-side by QuestPDF.
+    /// Same AuthZ semantics as GetById : admin OR owner of the underlying order.
+    ///
+    /// The PDF is generated on the fly (not cached) because it's cheap (~50 ms
+    /// for a typical invoice) and we want it to always reflect the current
+    /// status / data. If we ever need to freeze a PDF (legal archive), we'd
+    /// snapshot the bytes at issuance time and store them in object storage.
+    /// </summary>
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> DownloadPdf(Guid id)
+    {
+        var invoice = await _invoiceRepository.GetByIdAsync(id)
+            ?? throw new NotFoundException("Invoice", id);
+
+        var order = await _orderRepository.GetByIdAsync(invoice.OrderId)
+            ?? throw new NotFoundException("Order", invoice.OrderId);
+
+        // Ownership : same gate as GetById. Admins bypass.
+        HttpContext.RequireOwnershipOrAdmin(order.UserId);
+
+        var user = await _userRepository.GetByIdAsync(order.UserId)
+            ?? throw new NotFoundException("User", order.UserId);
+
+        // The order's BillingAddress nav property may not be loaded depending
+        // on the repository's includes — re-resolve from the user's addresses.
+        var billing = user.Addresses.FirstOrDefault(a => a.Id == order.BillingAddressId)
+            ?? throw new NotFoundException("BillingAddress", order.BillingAddressId);
+
+        var bytes = _pdf.Render(invoice, order, user, billing);
+
+        // Short id in the filename so the user gets something readable instead
+        // of a 36-char guid. Same convention as the on-screen label.
+        var filename = $"facture-{invoice.Id.ToString()[..8].ToUpperInvariant()}.pdf";
+        return File(bytes, "application/pdf", filename);
     }
 }

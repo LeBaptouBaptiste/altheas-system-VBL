@@ -3,6 +3,7 @@ using API_Althea_systems.Data.Seed;
 using API_Althea_systems.Extensions;
 using API_Althea_systems.Middleware;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 
 namespace API_Althea_systems;
 
@@ -10,6 +11,12 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
+        // QuestPDF license must be set BEFORE the first Document.Generate call.
+        // Community License: free for organisations under $1M USD revenue
+        // (https://www.questpdf.com/license/). Switch to Professional or
+        // Enterprise when we cross that threshold.
+        QuestPDF.Settings.License = LicenseType.Community;
+
         var builder = WebApplication.CreateBuilder(args);
 
         // ── Services ──────────────────────────────────────────
