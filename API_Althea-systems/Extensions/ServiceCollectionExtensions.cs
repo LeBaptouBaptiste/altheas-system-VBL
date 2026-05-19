@@ -177,6 +177,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAnonymizationService, AnonymizationService>();
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IStripeService, StripeService>();
+        services.AddScoped<IStripeWebhookProcessor, StripeWebhookProcessor>();
 
         return services;
     }

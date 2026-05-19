@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using API_Althea_systems.Data;
 using API_Althea_systems.Models.Payments;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.IServices;
 using Stripe;
 
 namespace API_Althea_systems.Controllers;
@@ -34,15 +35,18 @@ public class StripeWebhookController : ControllerBase
 {
     private readonly StripeOptions _options;
     private readonly AltheaDbContext _db;
+    private readonly IStripeWebhookProcessor _processor;
     private readonly ILogger<StripeWebhookController> _logger;
 
     public StripeWebhookController(
         IOptions<StripeOptions> options,
         AltheaDbContext db,
+        IStripeWebhookProcessor processor,
         ILogger<StripeWebhookController> logger)
     {
         _options = options.Value;
         _db = db;
+        _processor = processor;
         _logger = logger;
     }
 
@@ -110,20 +114,10 @@ public class StripeWebhookController : ControllerBase
         });
         await _db.SaveChangesAsync(ct);
 
-        // 5. Dispatch. Specific handlers come in the next commit; for now
-        //    we log unhandled events so ops can see what Stripe is sending.
-        switch (stripeEvent.Type)
-        {
-            // case "payment_intent.succeeded":
-            // case "payment_intent.payment_failed":
-            // case "payment_method.attached":
-            //   → next commit
-            default:
-                _logger.LogInformation(
-                    "Stripe webhook {Type} ({EventId}) accepted but no handler wired yet.",
-                    stripeEvent.Type, stripeEvent.Id);
-                break;
-        }
+        // 5. Dispatch to the per-type handlers. The processor swallows
+        //    "I have no handler" cases by logging; only persistence /
+        //    business-logic exceptions bubble up here.
+        await _processor.ProcessAsync(stripeEvent, ct);
 
         return Ok();
     }
