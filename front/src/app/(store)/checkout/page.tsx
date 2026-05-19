@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, CreditCard, Building2, FileText, Truck, MapPin, ArrowLeft, Download, Loader2 } from 'lucide-react';
+import { Check, CreditCard, Truck, MapPin, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,10 +10,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { StripePaymentForm } from '@/components/checkout/StripePaymentForm';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
-import { ordersService, usersService } from '@/lib/api-services';
+import { ordersService, paymentsService, usersService } from '@/lib/api-services';
 import { formatPrice } from '@/lib/money';
 import { SHIPPING_METHODS } from '@/lib/constants';
 import { ShippingMethod, PaymentMethod } from '@/lib/enums';
@@ -56,7 +57,16 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
-  const [placing, setPlacing] = useState(false);
+
+  // Stripe flow state — Step 3 lifecycle:
+  //   1. user clicks "Suivant" on Step 2 → preparePayment() creates Order + PaymentIntent.
+  //   2. clientSecret arrives → StripePaymentForm renders Elements + PaymentElement.
+  //   3. user confirms → either inline success OR redirect to Stripe (3DS).
+  //   4. on success we land back here via return_url with ?redirect_status=succeeded.
+  const [preparingPayment, setPreparingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [saveCard, setSaveCard] = useState(false);
 
   const [billing, setBilling] = useState<AddressForm>(emptyAddress);
   const [shipping, setShipping] = useState<AddressForm>(emptyAddress);
@@ -70,12 +80,28 @@ export default function CheckoutPage() {
   const isAddressValid = (addr: AddressForm) =>
     addr.firstName && addr.lastName && addr.street && addr.city && addr.postalCode && addr.country;
 
-  const handlePlaceOrder = async () => {
-    if (!user) { toast.error(locale === 'fr' ? 'Veuillez vous connecter' : 'Please log in'); return; }
+  /**
+   * Builds the URL Stripe redirects to after a 3DS / wallet flow. We pass
+   * the orderId in the path so the confirmation step can display it even
+   * after a full page reload.
+   */
+  const buildReturnUrl = useCallback((id: string) => {
+    const u = new URL(window.location.href);
+    u.searchParams.set('orderId', id);
+    return u.toString();
+  }, []);
 
-    setPlacing(true);
+  /**
+   * Creates the addresses + Order + PaymentIntent server-side, then surfaces
+   * the clientSecret to render Stripe Elements. Called once when the user
+   * leaves Step 2; if it fails we keep them on Step 2 to retry.
+   */
+  const preparePayment = useCallback(async () => {
+    if (!user) { toast.error(locale === 'fr' ? 'Veuillez vous connecter' : 'Please log in'); return false; }
+
+    setPreparingPayment(true);
+    setPaymentError(null);
     try {
-      // Create billing address via API
       const billingAddr = await usersService.addAddress(user.id, {
         label: locale === 'fr' ? 'Facturation' : 'Billing',
         ...billing,
@@ -84,7 +110,6 @@ export default function CheckoutPage() {
         street2: null,
       });
 
-      // Create or reuse shipping address
       let shippingAddrId = billingAddr.id;
       if (!sameAddress) {
         const shipAddr = await usersService.addAddress(user.id, {
@@ -97,7 +122,6 @@ export default function CheckoutPage() {
         shippingAddrId = shipAddr.id;
       }
 
-      // Create the order
       const order = await ordersService.create({
         billingAddressId: billingAddr.id,
         shippingAddressId: shippingAddrId,
@@ -105,18 +129,76 @@ export default function CheckoutPage() {
         paymentMethod: PAYMENT_MAP[paymentMethod] ?? PaymentMethod.Card,
         items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
       });
-
       setOrderId(order.id);
+
+      const intent = await paymentsService.createIntent(order.id, saveCard);
+      setClientSecret(intent.clientSecret);
+      return true;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : (locale === 'fr' ? 'Erreur lors de la préparation du paiement' : 'Failed to prepare payment');
+      setPaymentError(msg);
+      toast.error(msg);
+      return false;
+    } finally {
+      setPreparingPayment(false);
+    }
+  }, [user, locale, billing, sameAddress, shipping, shippingMethod, paymentMethod, items, saveCard]);
+
+  /**
+   * Step-2-Next handler: prepare payment first, only advance to Step 3 if
+   * the server accepted the order and returned a clientSecret.
+   */
+  const handleProceedToPayment = async () => {
+    const ok = await preparePayment();
+    if (ok) setStep(3);
+  };
+
+  /**
+   * The "save card" checkbox affects setup_future_usage on the PaymentIntent.
+   * Since that flag is read at intent creation (not at confirmation), toggling
+   * it after Step 3 has rendered requires us to recreate the intent.
+   */
+  const handleSaveCardToggle = useCallback(async (next: boolean) => {
+    setSaveCard(next);
+    if (!orderId) return;
+    setPreparingPayment(true);
+    try {
+      const intent = await paymentsService.createIntent(orderId, next);
+      setClientSecret(intent.clientSecret);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : (locale === 'fr' ? 'Erreur' : 'Error');
+      toast.error(msg);
+    } finally {
+      setPreparingPayment(false);
+    }
+  }, [orderId, locale]);
+
+  /**
+   * Handles the return from a Stripe redirect (3DS / wallet) or the inline
+   * success path. Stripe appends ?redirect_status=succeeded|failed and
+   * ?payment_intent=pi_xxx to the return_url.
+   */
+  useEffect(() => {
+    // Parse the redirect callback via window.location instead of useSearchParams()
+    // — the latter requires a <Suspense> boundary (Next 15+), and we only read
+    // once on mount so reactive tracking is not needed.
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('redirect_status');
+    const returnedOrderId = params.get('orderId');
+    if (status === 'succeeded' && returnedOrderId) {
+      setOrderId(returnedOrderId);
       setOrderPlaced(true);
       setStep(4);
       clearCart();
       toast.success(t('checkout.order_confirmed'));
-    } catch {
-      toast.error(locale === 'fr' ? 'Erreur lors de la commande' : 'Order failed');
-    } finally {
-      setPlacing(false);
+    } else if (status === 'failed') {
+      setPaymentError(locale === 'fr'
+        ? 'Le paiement a échoué. Veuillez réessayer.'
+        : 'Payment failed. Please try again.');
     }
-  };
+    // Run once at mount; further state changes come from in-page actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stepLabels = [t('checkout.step.auth'), t('checkout.step.address'), t('checkout.step.shipping'), t('checkout.step.payment'), t('checkout.step.confirmation')];
 
@@ -212,7 +294,13 @@ export default function CheckoutPage() {
           </RadioGroup>
           <div className="flex gap-4 pt-4">
             <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}</Button>
-            <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => setStep(3)}>{t('checkout.next')}</Button>
+            <Button
+              className="bg-brand-primary hover:bg-brand-hover text-white"
+              onClick={handleProceedToPayment}
+              disabled={preparingPayment}
+            >
+              {preparingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : t('checkout.next')}
+            </Button>
           </div>
         </CardContent></Card>
       )}
@@ -222,6 +310,9 @@ export default function CheckoutPage() {
         <Card><CardContent className="p-6 space-y-6">
           <h2 className="text-xl font-semibold">{t('checkout.payment_method')}</h2>
           <p className="text-sm text-muted-foreground">{t('checkout.payment_in_eur')}</p>
+
+          {/* Method picker. Only Card (Stripe) is enabled for now —
+              bank_transfer / admin_mandate flows return in a later sprint. */}
           <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
             <div className="flex items-center gap-3 p-4 border rounded-lg hover:border-brand-primary">
               <RadioGroupItem value="card" id="pay-card" />
@@ -230,29 +321,28 @@ export default function CheckoutPage() {
             </div>
           </RadioGroup>
 
-          {paymentMethod === 'card' && (
-            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <p className="text-sm font-medium">{locale === 'fr' ? 'Paiement sécurisé' : 'Secure Payment'}</p>
-              <Input placeholder="•••• •••• •••• ••••" className="bg-white" />
-              <div className="flex gap-3">
-                <Input placeholder="MM/YY" className="bg-white" />
-                <Input placeholder="CVC" className="bg-white" />
-              </div>
-              <p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Aucune donnée de carte n\'est stockée' : 'No card data is stored'}</p>
+          {/* Stripe Elements — renders once we have a clientSecret. */}
+          {clientSecret ? (
+            <StripePaymentForm
+              clientSecret={clientSecret}
+              returnUrl={orderId ? buildReturnUrl(orderId) : window.location.href}
+              saveCard={saveCard}
+              onSaveCardChange={handleSaveCardToggle}
+              saveCardLocked={preparingPayment}
+            />
+          ) : preparingPayment ? (
+            <div className="flex items-center gap-2 p-6 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              {locale === 'fr' ? 'Préparation du paiement…' : 'Preparing payment…'}
             </div>
-          )}
-          {paymentMethod === 'bank_transfer' && (
-            <div className="bg-gray-50 p-4 rounded-lg text-sm">
-              <p className="font-medium mb-2">{locale === 'fr' ? 'Instructions de virement' : 'Bank Transfer Instructions'}</p>
-              <p>IBAN: FR76 1234 5678 9012 3456 7890 123</p>
-              <p>BIC: BNPAFRPP</p>
+          ) : paymentError ? (
+            <div className="p-4 bg-error/10 border border-error/30 rounded-md text-sm text-error">
+              {paymentError}
+              <Button variant="outline" size="sm" className="ms-3" onClick={preparePayment}>
+                {locale === 'fr' ? 'Réessayer' : 'Retry'}
+              </Button>
             </div>
-          )}
-          {paymentMethod === 'admin_mandate' && (
-            <div className="bg-gray-50 p-4 rounded-lg text-sm">
-              <p>{locale === 'fr' ? 'Veuillez envoyer votre mandat administratif à : commandes@altheasystems.com' : 'Please send your administrative mandate to: orders@altheasystems.com'}</p>
-            </div>
-          )}
+          ) : null}
 
           {/* Order summary */}
           <Separator />
@@ -265,9 +355,8 @@ export default function CheckoutPage() {
           </div>
 
           <div className="flex gap-4 pt-4">
-            <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}</Button>
-            <Button size="lg" className="flex-1 bg-brand-primary hover:bg-brand-hover text-white" onClick={handlePlaceOrder} disabled={placing}>
-              {placing ? <Loader2 className="w-5 h-5 animate-spin" /> : t('checkout.place_order')}
+            <Button variant="outline" onClick={() => setStep(2)}>
+              <ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}
             </Button>
           </div>
         </CardContent></Card>
