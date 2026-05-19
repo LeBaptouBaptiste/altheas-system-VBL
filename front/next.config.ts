@@ -17,17 +17,24 @@ const connectSrcOrigins = [
   apiOrigin,
   'http://localhost:5207',
   'https://localhost:5207',
+  // Stripe.js fait des XHR vers api.stripe.com (PaymentIntent confirms,
+  // Elements telemetry, 3DS challenge meta) — whitelist obligatoire.
+  'https://api.stripe.com',
 ]
   .filter((v, i, arr): v is string => Boolean(v) && arr.indexOf(v) === i)
   .join(' ');
 
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  // Stripe.js sert depuis js.stripe.com ; sans ce host, loadStripe()
+  // est bloqué par le CSP et le PaymentElement ne s'affiche pas.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   `connect-src ${connectSrcOrigins}`,
+  // 3DS challenges et Stripe Elements iframes vivent sur ces origines.
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
   "frame-ancestors 'none'",
 ].join('; ') + ';';
 
