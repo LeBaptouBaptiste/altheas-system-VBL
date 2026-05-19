@@ -8,3 +8,5 @@ export { messagesService } from './messages.service';
 export { contentService } from './content.service';
 export { analyticsService } from './analytics.service';
 export { shippingService } from './shipping.service';
+export { paymentsService } from './payments.service';
+export type { CreatePaymentIntentResponse } from './payments.service';
