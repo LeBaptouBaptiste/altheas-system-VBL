@@ -55,6 +55,10 @@ export function StripePaymentForm(props: StripePaymentFormProps) {
     },
   };
 
+  // clientSecret is now stable across the lifetime of Step 3 — we no longer
+  // recreate the PaymentIntent on "save card" toggle (setup_future_usage is
+  // passed at confirmPayment instead). So no `key={clientSecret}` is needed
+  // and Stripe Elements stays mounted, preserving the user's PAN/CVC input.
   return (
     <Elements stripe={stripePromise} options={options}>
       <Inner {...props} />
@@ -86,7 +90,14 @@ function Inner({ returnUrl, saveCard, onSaveCardChange, saveCardLocked, onSucces
 
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: { return_url: returnUrl },
+      confirmParams: {
+        return_url: returnUrl,
+        // Pass setup_future_usage at confirm time (not at PaymentIntent
+        // creation). The user can toggle "Save my card" AFTER typing their
+        // PAN without losing input, because the clientSecret stays stable
+        // and Stripe Elements doesn't remount. `null` = don't save (default).
+        setup_future_usage: saveCard ? 'off_session' : null,
+      },
       // 'if_required' = handle 3DS / wallet redirects only when Stripe deems
       // them necessary. For non-3DS cards the promise resolves here with
       // the final paymentIntent.status; for 3DS, Stripe takes over the page

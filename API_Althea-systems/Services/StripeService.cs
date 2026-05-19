@@ -101,10 +101,14 @@ public class StripeService : IStripeService
             {
                 Enabled = true,
             },
-            // off_session means the card can be charged later WITHOUT user
-            // interaction. Stripe will ask for 3DS at the first charge if needed,
-            // then the saved method works for one-click checkout afterwards.
-            SetupFutureUsage = saveCard ? "off_session" : null,
+            // Intentionally NOT setting SetupFutureUsage here. The front-end
+            // decides whether to save the card at confirmPayment time via
+            // confirmParams.setup_future_usage. This way the same clientSecret
+            // survives a "save card" toggle change in the UI — otherwise we'd
+            // need to recreate the PaymentIntent on every toggle, which forces
+            // Stripe Elements to remount and the user loses their PAN/CVC input.
+            // The `saveCard` parameter is still accepted for backwards compat
+            // but ignored — see CreatePaymentIntentAsync signature.
             Metadata = new Dictionary<string, string>
             {
                 ["orderId"] = order.Id.ToString(),
