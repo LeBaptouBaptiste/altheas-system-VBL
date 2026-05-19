@@ -90,7 +90,13 @@ public class UserService : IUserService
 
         var address = new Address
         {
-            Id = Guid.NewGuid(),
+            // Don't pre-set Id with Guid.NewGuid(): when adding a child through
+            // a tracked parent's navigation collection (user.Addresses.Add),
+            // EF Core's heuristic treats non-default PKs as "existing entity"
+            // and emits UPDATE … WHERE Id = <new-guid> instead of INSERT.
+            // That UPDATE matches 0 rows → DbUpdateConcurrencyException.
+            // Leaving Id at default(Guid) lets EF mark the entity as Added
+            // and generate a fresh Guid client-side at SaveChanges time.
             UserId = userId,
             Label = request.Label,
             FirstName = request.FirstName,
@@ -159,7 +165,9 @@ public class UserService : IUserService
 
         var pm = new UserPaymentMethod
         {
-            Id = Guid.NewGuid(),
+            // Same EF-navigation-Add caveat as AddAddressAsync: leave Id at
+            // default so EF treats this as a fresh entity (INSERT) instead of
+            // assuming it exists in DB (UPDATE WHERE Id → 0 rows).
             UserId = userId,
             Type = request.Type,
             Label = request.Label

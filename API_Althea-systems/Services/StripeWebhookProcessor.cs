@@ -186,7 +186,10 @@ public class StripeWebhookProcessor : IStripeWebhookProcessor
 
         user.PaymentMethods.Add(new UserPaymentMethod
         {
-            Id = Guid.NewGuid(),
+            // Leave Id at default(Guid): adding via tracked parent's
+            // navigation collection — EF generates a fresh PK and marks
+            // the entity as Added. Setting Id explicitly would trigger
+            // EF's "this exists" heuristic and emit UPDATE → 0 rows.
             UserId = user.Id,
             Type = "card",
             // Display label as it'll appear in /account/payments and at checkout.
