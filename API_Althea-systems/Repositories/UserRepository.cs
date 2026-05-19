@@ -35,6 +35,16 @@ public class UserRepository : IUserRepository
         return await _context.Users.AnyAsync(u => u.Email == email);
     }
 
+    public async Task<User?> GetByStripeCustomerIdAsync(string stripeCustomerId)
+    {
+        // Include PaymentMethods because the main caller (Stripe webhook)
+        // needs to dedupe attached methods before INSERTing — avoids a
+        // second roundtrip just to fetch them.
+        return await _context.Users
+            .Include(u => u.PaymentMethods)
+            .FirstOrDefaultAsync(u => u.StripeCustomerId == stripeCustomerId);
+    }
+
     public async Task<User> CreateAsync(User user)
     {
         _context.Users.Add(user);

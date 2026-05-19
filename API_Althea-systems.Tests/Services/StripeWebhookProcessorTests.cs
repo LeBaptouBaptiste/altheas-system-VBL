@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Models.Order;
+using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
 using StripeApi = Stripe;
@@ -27,11 +28,12 @@ namespace API_Althea_systems.Tests.Services;
 public class StripeWebhookProcessorTests
 {
     private readonly Mock<IOrderRepository> _orders = new();
+    private readonly Mock<IUserRepository> _users = new();
     private readonly StripeWebhookProcessor _sut;
 
     public StripeWebhookProcessorTests()
     {
-        _sut = new StripeWebhookProcessor(_orders.Object, NullLogger<StripeWebhookProcessor>.Instance);
+        _sut = new StripeWebhookProcessor(_orders.Object, _users.Object, NullLogger<StripeWebhookProcessor>.Instance);
     }
 
     private static StripeApi.Event MakeEvent(string type, StripeApi.PaymentIntent intent) => new()
@@ -189,6 +191,112 @@ public class StripeWebhookProcessorTests
         await _sut.ProcessAsync(MakeEvent("payment_intent.payment_failed", intent));
 
         _orders.Verify(r => r.UpdateAsync(It.IsAny<Order>()), Times.Never);
+    }
+
+    // ── payment_method.attached ──────────────────────────
+
+    private static StripeApi.PaymentMethod MakeCard(string id, string customerId, string brand = "visa", string last4 = "4242") => new()
+    {
+        Id = id,
+        CustomerId = customerId,
+        Type = "card",
+        Card = new StripeApi.PaymentMethodCard { Brand = brand, Last4 = last4, ExpMonth = 12, ExpYear = 2030 },
+    };
+
+    private static StripeApi.Event MakeMethodEvent(string type, StripeApi.PaymentMethod method) => new()
+    {
+        Id = $"evt_{Guid.NewGuid():N}",
+        Type = type,
+        Data = new StripeApi.EventData { Object = method },
+    };
+
+    private static User MakeUserWithCustomer(string customerId, params UserPaymentMethod[] existingMethods) => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = "Test",
+        Email = "test@test.com",
+        PasswordHash = "x",
+        Role = UserRole.Customer,
+        Status = UserStatus.Active,
+        StripeCustomerId = customerId,
+        PaymentMethods = existingMethods.ToList(),
+    };
+
+    [Fact]
+    public async Task PaymentMethodAttached_NewCard_PersistsOnUser()
+    {
+        var customerId = "cus_abc";
+        var user = MakeUserWithCustomer(customerId);
+        var pm = MakeCard("pm_123", customerId, brand: "visa", last4: "4242");
+        _users.Setup(r => r.GetByStripeCustomerIdAsync(customerId)).ReturnsAsync(user);
+
+        await _sut.ProcessAsync(MakeMethodEvent("payment_method.attached", pm));
+
+        user.PaymentMethods.Should().HaveCount(1);
+        var saved = user.PaymentMethods.Single();
+        saved.StripePaymentMethodId.Should().Be("pm_123");
+        saved.Brand.Should().Be("visa");
+        saved.Last4.Should().Be("4242");
+        saved.ExpMonth.Should().Be(12);
+        saved.ExpYear.Should().Be(2030);
+        saved.Label.Should().Be("Visa •••• 4242", "the label should be human-friendly");
+        _users.Verify(r => r.UpdateAsync(user), Times.Once);
+    }
+
+    [Fact]
+    public async Task PaymentMethodAttached_DuplicateAttach_IsNoOp()
+    {
+        // Stripe redelivers, or the user attaches the same card twice.
+        var customerId = "cus_dup";
+        var existing = new UserPaymentMethod
+        {
+            Id = Guid.NewGuid(), Type = "card", Label = "Visa •••• 4242",
+            StripePaymentMethodId = "pm_dup", Brand = "visa", Last4 = "4242",
+        };
+        var user = MakeUserWithCustomer(customerId, existing);
+        var pm = MakeCard("pm_dup", customerId);
+        _users.Setup(r => r.GetByStripeCustomerIdAsync(customerId)).ReturnsAsync(user);
+
+        await _sut.ProcessAsync(MakeMethodEvent("payment_method.attached", pm));
+
+        user.PaymentMethods.Should().HaveCount(1);
+        _users.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PaymentMethodAttached_NonCardType_IsIgnored()
+    {
+        // SEPA, link, paypal etc. — out of scope for now.
+        var pm = new StripeApi.PaymentMethod { Id = "pm_sepa", CustomerId = "cus_x", Type = "sepa_debit" };
+
+        await _sut.ProcessAsync(MakeMethodEvent("payment_method.attached", pm));
+
+        _users.Verify(r => r.GetByStripeCustomerIdAsync(It.IsAny<string>()), Times.Never);
+        _users.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PaymentMethodAttached_NoCustomer_IsIgnored()
+    {
+        // Defensive: a PaymentMethod with no customer is orphaned and shouldn't
+        // happen with our flow, but Stripe doesn't prevent it.
+        var pm = new StripeApi.PaymentMethod { Id = "pm_orphan", Type = "card", Card = new StripeApi.PaymentMethodCard { Brand = "visa", Last4 = "0000" } };
+
+        await _sut.ProcessAsync(MakeMethodEvent("payment_method.attached", pm));
+
+        _users.Verify(r => r.GetByStripeCustomerIdAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PaymentMethodAttached_UnknownCustomer_IsIgnored()
+    {
+        // Env mismatch: webhook from a different Stripe account got routed here.
+        var pm = MakeCard("pm_x", "cus_unknown");
+        _users.Setup(r => r.GetByStripeCustomerIdAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
+
+        await _sut.ProcessAsync(MakeMethodEvent("payment_method.attached", pm));
+
+        _users.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
     }
 
     // ── unknown event ────────────────────────────────────
