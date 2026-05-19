@@ -81,6 +81,46 @@ services:
       timeout: 3s
       retries: 5
 
+  # Stripe CLI sidecar — forwards Stripe webhook events from your test-mode
+  # account to the API container over the internal Docker network.
+  #
+  # Activated only with `docker compose --profile dev up` so it never runs
+  # in production (where Stripe POSTs directly to the public webhook URL
+  # registered in the dashboard).
+  #
+  # First-run setup:
+  #   1. docker compose --profile dev up -d
+  #   2. docker logs althea-stripe-cli  → copy the printed whsec_...
+  #   3. Put STRIPE_WEBHOOK_SECRET=whsec_... in .env
+  #   4. docker compose restart api  (picks up the new secret)
+  #   5. Trigger a test event:
+  #      docker exec althea-stripe-cli stripe trigger payment_intent.succeeded
+  #
+  # The secret is regenerated each time `stripe listen` starts. For a stable
+  # secret across restarts, register a webhook endpoint in the Stripe
+  # dashboard (any URL works for dev) and add `--use-configured-webhooks`
+  # to the command below.
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: althea-stripe-cli
+    profiles:
+      - dev
+    # tini-based init so SIGTERM from `docker compose down` reaches the CLI
+    # cleanly instead of hanging the shutdown.
+    init: true
+    command:
+      - listen
+      - --api-key=${STRIPE_SECRET_KEY}
+      - --forward-to=http://api:8080/api/webhooks/stripe
+      # --skip-verify : trust the internal Docker network; no TLS between
+      # the sidecar and the API (which serves plain HTTP on :8080 inside
+      # the network anyway).
+      - --skip-verify
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mongo_data:
