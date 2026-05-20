@@ -60,12 +60,21 @@ public interface IAuthService
     /// </summary>
     Task ResendConfirmationAsync(ResendConfirmationRequest request);
 
+    /// <summary>
+    /// Anti-enumeration: always succeeds from the caller's POV. If the email
+    /// matches a real account and the user hasn't requested one in the last
+    /// 5 minutes, issues a single-use reset token (30 min TTL) and mails the
+    /// link. SMTP failures are swallowed so we don't leak which addresses
+    /// exist.
+    /// </summary>
     Task ForgotPasswordAsync(ForgotPasswordRequest request);
 
     /// <summary>
-    /// DISABLED until a signed single-use token table is added.
-    /// See <see cref="AuthService.ResetPasswordAsync"/> for context.
+    /// Consumes the reset token mailed at /forgot-password, rotates the
+    /// user's password hash, marks the token consumed. Failure modes
+    /// (token_expired, token_consumed, invalid_token, weak_password,
+    /// passwords_mismatch) surface as 400 with a machine-readable `reason`
+    /// for the front to branch on.
     /// </summary>
-    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
     Task ResetPasswordAsync(ResetPasswordRequest request);
 }

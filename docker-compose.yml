@@ -40,6 +40,7 @@ services:
       Smtp__FromName: ${SMTP_FROM_NAME}
       Smtp__UseStartTls: ${SMTP_USE_STARTTLS}
       EmailConfirmation__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
+      PasswordReset__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
     depends_on:
       postgres:

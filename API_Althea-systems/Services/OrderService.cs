@@ -3,6 +3,7 @@ using API_Althea_systems.Models.Order;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Repositories.IRepositories;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Services;
@@ -11,11 +12,19 @@ public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
+    private readonly IOrderStatusChangeSender _statusChangeSender;
+    private readonly ILogger<OrderService> _logger;
 
-    public OrderService(IOrderRepository orderRepository, IProductRepository productRepository)
+    public OrderService(
+        IOrderRepository orderRepository,
+        IProductRepository productRepository,
+        IOrderStatusChangeSender statusChangeSender,
+        ILogger<OrderService> logger)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
+        _statusChangeSender = statusChangeSender;
+        _logger = logger;
     }
 
     public async Task<OrderDto> GetByIdAsync(Guid id)
@@ -93,6 +102,26 @@ public class OrderService : IOrderService
         order.Status = request.Status;
 
         await _orderRepository.UpdateAsync(order);
+
+        // Phase 5: fire customer notification AFTER the DB commit. Sender
+        // allow-lists Shipped + Delivered internally — everything else is
+        // a no-op there. Independent try/catch so a flaky SMTP doesn't
+        // surface as a 500 to the admin who just clicked the status dropdown.
+        try
+        {
+            if (order.User is not null)
+            {
+                await _statusChangeSender.SendAsync(order, order.User, request.Status);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Order-status-change email failed for order {OrderId} → {Status}. " +
+                "Status was committed; mail can be re-fired manually if needed.",
+                order.Id, request.Status);
+        }
+
         return await GetByIdAsync(order.Id);
     }
 

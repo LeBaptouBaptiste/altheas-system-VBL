@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Common.Exceptions;
@@ -7,6 +8,7 @@ using API_Althea_systems.Models.Products;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.Email;
 
 namespace API_Althea_systems.Tests.Services;
 
@@ -14,11 +16,16 @@ public class OrderServiceTests
 {
     private readonly Mock<IOrderRepository> _orderRepo = new();
     private readonly Mock<IProductRepository> _productRepo = new();
+    private readonly Mock<IOrderStatusChangeSender> _statusSender = new();
     private readonly OrderService _sut;
 
     public OrderServiceTests()
     {
-        _sut = new OrderService(_orderRepo.Object, _productRepo.Object);
+        _sut = new OrderService(
+            _orderRepo.Object,
+            _productRepo.Object,
+            _statusSender.Object,
+            NullLogger<OrderService>.Instance);
     }
 
     [Fact]
@@ -81,6 +88,70 @@ public class OrderServiceTests
 
         order.Status.Should().Be(OrderStatus.Shipped);
         order.StatusHistory.Should().HaveCount(1);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  Phase 5 — status-change notifications
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateStatusAsync_ToShipped_FiresShippedNotification()
+    {
+        var order = CreateTestOrder();
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id)).ReturnsAsync(order);
+
+        await _sut.UpdateStatusAsync(order.Id, Guid.NewGuid(), new OrderStatusUpdateRequest(OrderStatus.Shipped));
+
+        _statusSender.Verify(s => s.SendAsync(order, order.User, OrderStatus.Shipped,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ToDelivered_FiresDeliveredNotification()
+    {
+        var order = CreateTestOrder();
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id)).ReturnsAsync(order);
+
+        await _sut.UpdateStatusAsync(order.Id, Guid.NewGuid(), new OrderStatusUpdateRequest(OrderStatus.Delivered));
+
+        _statusSender.Verify(s => s.SendAsync(order, order.User, OrderStatus.Delivered,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ToProcessing_StillCallsSender_WhichAllowListsAtItsLayer()
+    {
+        // OrderService is dumb on which statuses notify — the allow-list
+        // lives in OrderStatusChangeSender. Verify the call happens; the
+        // sender's own tests cover the no-op branch.
+        var order = CreateTestOrder();
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id)).ReturnsAsync(order);
+
+        await _sut.UpdateStatusAsync(order.Id, Guid.NewGuid(), new OrderStatusUpdateRequest(OrderStatus.Processing));
+
+        _statusSender.Verify(s => s.SendAsync(order, order.User, OrderStatus.Processing,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_NotificationFails_DoesNotRollBackStatus()
+    {
+        // Admin clicked the status dropdown — committing the DB change is
+        // what they expect. A flaky SMTP must not surface as a 500 that
+        // makes them think the status change failed.
+        var order = CreateTestOrder();
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id)).ReturnsAsync(order);
+        _statusSender
+            .Setup(s => s.SendAsync(It.IsAny<Order>(), It.IsAny<User>(),
+                It.IsAny<OrderStatus>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception()));
+
+        var act = () => _sut.UpdateStatusAsync(order.Id, Guid.NewGuid(),
+            new OrderStatusUpdateRequest(OrderStatus.Shipped));
+
+        await act.Should().NotThrowAsync();
+        order.Status.Should().Be(OrderStatus.Shipped);
+        _orderRepo.Verify(r => r.UpdateAsync(order), Times.Once);
     }
 
     private static Order CreateTestOrder()

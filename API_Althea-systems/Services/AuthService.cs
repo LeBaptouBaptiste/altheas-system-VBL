@@ -25,35 +25,49 @@ public class AuthService : IAuthService
     // responsive after a typo'd email, long enough to deter abuse.
     private static readonly TimeSpan ResendCooldown = TimeSpan.FromMinutes(5);
 
+    // Phase 5: same throttling logic for password reset emails. Same
+    // 5 min so an attacker can't farm us as an SMTP relay or DoS a user's
+    // inbox.
+    private static readonly TimeSpan PasswordResetCooldown = TimeSpan.FromMinutes(5);
+
     private readonly IUserRepository _userRepository;
     private readonly IEmailConfirmationTokenRepository _confirmationTokens;
+    private readonly IPasswordResetTokenRepository _passwordResetTokens;
     private readonly ITokenService _tokenService;
     private readonly ITwoFactorService _twoFactor;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILoginAttemptStore _loginAttempts;
     private readonly IEmailConfirmationSender _confirmationSender;
+    private readonly IPasswordResetSender _passwordResetSender;
     private readonly EmailConfirmationOptions _confirmationOptions;
+    private readonly PasswordResetOptions _passwordResetOptions;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository userRepository,
         IEmailConfirmationTokenRepository confirmationTokens,
+        IPasswordResetTokenRepository passwordResetTokens,
         ITokenService tokenService,
         ITwoFactorService twoFactor,
         IPasswordHasher passwordHasher,
         ILoginAttemptStore loginAttempts,
         IEmailConfirmationSender confirmationSender,
+        IPasswordResetSender passwordResetSender,
         IOptions<EmailConfirmationOptions> confirmationOptions,
+        IOptions<PasswordResetOptions> passwordResetOptions,
         ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
         _confirmationTokens = confirmationTokens;
+        _passwordResetTokens = passwordResetTokens;
         _tokenService = tokenService;
         _twoFactor = twoFactor;
         _passwordHasher = passwordHasher;
         _loginAttempts = loginAttempts;
         _confirmationSender = confirmationSender;
+        _passwordResetSender = passwordResetSender;
         _confirmationOptions = confirmationOptions.Value;
+        _passwordResetOptions = passwordResetOptions.Value;
         _logger = logger;
     }
 
@@ -379,29 +393,128 @@ public class AuthService : IAuthService
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
     {
-        var user = await _userRepository.GetByEmailAsync(request.Email.ToLowerInvariant());
-        // Always return success to prevent email enumeration
-        if (user == null) return;
+        var normalizedEmail = request.Email.ToLowerInvariant();
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail);
 
-        // In production: generate a reset token and send via email service
-        // For now, this is a no-op stub
+        // Anti-enumeration: unknown emails, throttled users, and successful
+        // sends all return the same 200 to the caller. Log so ops can see
+        // the breakdown without exposing it.
+        if (user is null)
+        {
+            _logger.LogInformation(
+                "Forgot-password requested for unknown email {Email} — silent no-op.",
+                normalizedEmail);
+            return;
+        }
+
+        var lastIssuedAt = await _passwordResetTokens.GetMostRecentCreatedAtAsync(user.Id);
+        if (lastIssuedAt is { } last && DateTime.UtcNow - last < PasswordResetCooldown)
+        {
+            _logger.LogInformation(
+                "Forgot-password throttled for user {UserId} — last issued {Seconds}s ago.",
+                user.Id, (int)(DateTime.UtcNow - last).TotalSeconds);
+            return;
+        }
+
+        var (rawToken, _) = await IssuePasswordResetTokenAsync(user);
+        try
+        {
+            await _passwordResetSender.SendAsync(user, rawToken);
+        }
+        catch (Exception ex)
+        {
+            // Don't surface SMTP errors to the caller — same anti-enumeration
+            // concern as ResendConfirmationAsync.
+            _logger.LogError(ex,
+                "Forgot-password mail failed to send for user {UserId} ({Email}).",
+                user.Id, user.Email);
+        }
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+        {
+            throw new BadRequestException("Reset token is missing.", reason: "invalid_token");
+        }
+
+        if (request.NewPassword != request.ConfirmPassword)
+        {
+            // Server-side defence — the FluentValidation rule already catches
+            // this but a custom client could send a mismatched payload.
+            throw new BadRequestException("Passwords do not match.", reason: "passwords_mismatch");
+        }
+
+        if (!_passwordHasher.MeetsRequirements(request.NewPassword, out _))
+        {
+            throw new BadRequestException(
+                "Password does not meet requirements.", reason: "weak_password");
+        }
+
+        var hash = HashToken(request.Token);
+
+        var token = await _passwordResetTokens.GetAnyByHashAsync(hash);
+        if (token is null)
+        {
+            throw new BadRequestException("Invalid reset token.", reason: "invalid_token");
+        }
+
+        if (token.ConsumedAt is not null)
+        {
+            throw new BadRequestException(
+                "This reset link has already been used.", reason: "token_consumed");
+        }
+
+        if (token.ExpiresAt <= DateTime.UtcNow)
+        {
+            throw new BadRequestException(
+                "This reset link has expired. Request a new one.", reason: "token_expired");
+        }
+
+        var user = token.User
+            ?? throw new InvalidOperationException(
+                $"Password reset token {token.Id} has no associated User — DB integrity issue.");
+
+        // Mark consumed BEFORE rotating the password so a race between two
+        // concurrent clicks can't double-flip (the second click finds
+        // ConsumedAt set and throws).
+        token.ConsumedAt = DateTime.UtcNow;
+        await _passwordResetTokens.UpdateAsync(token);
+
+        user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
+
+        // Defensive: reset the per-account login-attempt counter so a user
+        // who got locked out can come straight back in after resetting.
+        await _loginAttempts.ResetAsync(user.Email);
+
+        await _userRepository.UpdateAsync(user);
+
+        _logger.LogInformation(
+            "Password reset for user {UserId} ({Email}) via token {TokenId}.",
+            user.Id, user.Email, token.Id);
     }
 
     /// <summary>
-    /// DISABLED — the previous implementation accepted the user's email as
-    /// the reset token, which allowed any attacker who knew an email to
-    /// reset the password and take over the account.
-    /// Re-enable only after a signed, single-use token table is added
-    /// (PasswordResetTokens, 30 min TTL). The controller short-circuits to
-    /// 501 so this method is currently unreachable from HTTP.
-    /// TODO: implement signed single-use token table (PasswordResetTokens)
-    ///       with 30 min TTL.
+    /// Mirrors <see cref="IssueConfirmationTokenAsync"/> — fresh 32 random
+    /// bytes → URL-safe base64 → SHA-256 hash stored, raw token returned for
+    /// mailing. Lifetime comes from <see cref="PasswordResetOptions"/>.
     /// </summary>
-    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
-    public Task ResetPasswordAsync(ResetPasswordRequest request)
+    private async Task<(string Raw, string Hash)> IssuePasswordResetTokenAsync(User user)
     {
-        throw new NotSupportedException(
-            "ResetPassword is disabled until a signed single-use token table is implemented.");
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        var raw = Convert.ToBase64String(bytes)
+            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        var hash = HashToken(raw);
+
+        var entity = new PasswordResetToken
+        {
+            UserId = user.Id,
+            TokenHash = hash,
+            ExpiresAt = DateTime.UtcNow.Add(_passwordResetOptions.TokenLifetime),
+            CreatedAt = DateTime.UtcNow,
+        };
+        await _passwordResetTokens.CreateAsync(entity);
+        return (raw, hash);
     }
 
     /// <summary>

@@ -17,11 +17,13 @@ public class AuthServiceTests
 {
     private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<IEmailConfirmationTokenRepository> _confirmationTokens = new();
+    private readonly Mock<IPasswordResetTokenRepository> _passwordResetTokens = new();
     private readonly Mock<ITokenService> _tokenService = new();
     private readonly Mock<ITwoFactorService> _twoFactor = new();
     private readonly Mock<IPasswordHasher> _hasher = new();
     private readonly Mock<ILoginAttemptStore> _loginAttempts = new();
     private readonly Mock<IEmailConfirmationSender> _confirmationSender = new();
+    private readonly Mock<IPasswordResetSender> _passwordResetSender = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -50,22 +52,37 @@ public class AuthServiceTests
         // confirmation send is a no-op so the happy path doesn't blow up.
         _confirmationTokens.Setup(r => r.GetMostRecentCreatedAtAsync(It.IsAny<Guid>()))
                            .ReturnsAsync((DateTime?)null);
+        // Phase 5: same for password-reset throttle.
+        _passwordResetTokens.Setup(r => r.GetMostRecentCreatedAtAsync(It.IsAny<Guid>()))
+                            .ReturnsAsync((DateTime?)null);
+        // Default password strength check: pass anything. Individual tests
+        // override to exercise the weak-password branch.
+        _hasher.Setup(h => h.MeetsRequirements(It.IsAny<string>(), out It.Ref<IList<string>>.IsAny))
+               .Returns(true);
 
         var confirmationOptions = Options.Create(new EmailConfirmationOptions
         {
             FrontendBaseUrl = "http://localhost:3000",
             TokenLifetime = TimeSpan.FromHours(24),
         });
+        var passwordResetOptions = Options.Create(new PasswordResetOptions
+        {
+            FrontendBaseUrl = "http://localhost:3000",
+            TokenLifetime = TimeSpan.FromMinutes(30),
+        });
 
         _sut = new AuthService(
             _userRepo.Object,
             _confirmationTokens.Object,
+            _passwordResetTokens.Object,
             _tokenService.Object,
             _twoFactor.Object,
             _hasher.Object,
             _loginAttempts.Object,
             _confirmationSender.Object,
+            _passwordResetSender.Object,
             confirmationOptions,
+            passwordResetOptions,
             NullLogger<AuthService>.Instance);
     }
 
@@ -879,6 +896,195 @@ public class AuthServiceTests
         var act = () => _sut.ResendConfirmationAsync(new ResendConfirmationRequest("test@test.com"));
 
         await act.Should().NotThrowAsync();
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  ForgotPasswordAsync / ResetPasswordAsync (phase 5)
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ForgotPasswordAsync_UnknownEmail_IsSilentNoOp()
+    {
+        // Anti-enumeration: must look exactly like the happy path from the
+        // caller's POV. No token issued, no mail sent.
+        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
+
+        await _sut.ForgotPasswordAsync(new ForgotPasswordRequest("nobody@x.com"));
+
+        _passwordResetTokens.Verify(r => r.CreateAsync(It.IsAny<PasswordResetToken>()),
+            Times.Never);
+        _passwordResetSender.Verify(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_KnownEmail_IssuesTokenAndSendsMail()
+    {
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+
+        await _sut.ForgotPasswordAsync(new ForgotPasswordRequest("test@test.com"));
+
+        _passwordResetTokens.Verify(r => r.CreateAsync(It.Is<PasswordResetToken>(t =>
+            t.UserId == user.Id
+            && t.TokenHash.Length == 64
+            && t.ConsumedAt == null
+            && t.ExpiresAt > DateTime.UtcNow)), Times.Once);
+        _passwordResetSender.Verify(s => s.SendAsync(user, It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_WithinCooldown_IsSilentNoOp()
+    {
+        // Last token issued 1 min ago → cooldown is 5 min → skip.
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _passwordResetTokens.Setup(r => r.GetMostRecentCreatedAtAsync(user.Id))
+                            .ReturnsAsync(DateTime.UtcNow.AddMinutes(-1));
+
+        await _sut.ForgotPasswordAsync(new ForgotPasswordRequest("test@test.com"));
+
+        _passwordResetTokens.Verify(r => r.CreateAsync(It.IsAny<PasswordResetToken>()),
+            Times.Never);
+        _passwordResetSender.Verify(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_SmtpFailure_StillSucceedsSilently()
+    {
+        // Email-existence oracle: surfacing the SMTP error to the caller
+        // would reveal "this email exists, we tried to mail it, it failed".
+        var user = CreateTestUser();
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _passwordResetSender
+            .Setup(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception()));
+
+        var act = () => _sut.ForgotPasswordAsync(new ForgotPasswordRequest("test@test.com"));
+
+        await act.Should().NotThrowAsync();
+    }
+
+    // ── ResetPasswordAsync ───────────────────────────────
+
+    private static string Sha256HexShort(string raw) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(raw)));
+
+    [Fact]
+    public async Task ResetPasswordAsync_ValidToken_RotatesPassword_AndMarksConsumed()
+    {
+        var user = CreateTestUser();
+        var raw = "fresh-reset-token";
+        var token = new PasswordResetToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            TokenHash = Sha256HexShort(raw),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+        };
+        _passwordResetTokens.Setup(r => r.GetAnyByHashAsync(token.TokenHash))
+                            .ReturnsAsync(token);
+
+        await _sut.ResetPasswordAsync(new ResetPasswordRequest(raw, "NewPass123!", "NewPass123!"));
+
+        token.ConsumedAt.Should().NotBeNull();
+        user.PasswordHash.Should().Be("hashed:NewPass123!");
+        _passwordResetTokens.Verify(r => r.UpdateAsync(token), Times.Once);
+        _userRepo.Verify(r => r.UpdateAsync(user), Times.Once);
+        // Lock-out counter wiped so the user can log in immediately.
+        _loginAttempts.Verify(l => l.ResetAsync(user.Email), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_UnknownToken_ThrowsInvalidToken()
+    {
+        _passwordResetTokens.Setup(r => r.GetAnyByHashAsync(It.IsAny<string>()))
+                            .ReturnsAsync((PasswordResetToken?)null);
+
+        var act = () => _sut.ResetPasswordAsync(
+            new ResetPasswordRequest("bogus", "NewPass123!", "NewPass123!"));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("invalid_token");
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ConsumedToken_ThrowsTokenConsumed()
+    {
+        var user = CreateTestUser();
+        var raw = "already-used";
+        var token = new PasswordResetToken
+        {
+            UserId = user.Id, User = user,
+            TokenHash = Sha256HexShort(raw),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            ConsumedAt = DateTime.UtcNow.AddMinutes(-1),
+        };
+        _passwordResetTokens.Setup(r => r.GetAnyByHashAsync(token.TokenHash))
+                            .ReturnsAsync(token);
+
+        var act = () => _sut.ResetPasswordAsync(
+            new ResetPasswordRequest(raw, "NewPass123!", "NewPass123!"));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("token_consumed");
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ExpiredToken_ThrowsTokenExpired()
+    {
+        var user = CreateTestUser();
+        var raw = "stale";
+        var token = new PasswordResetToken
+        {
+            UserId = user.Id, User = user,
+            TokenHash = Sha256HexShort(raw),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-1),
+        };
+        _passwordResetTokens.Setup(r => r.GetAnyByHashAsync(token.TokenHash))
+                            .ReturnsAsync(token);
+
+        var act = () => _sut.ResetPasswordAsync(
+            new ResetPasswordRequest(raw, "NewPass123!", "NewPass123!"));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("token_expired");
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_PasswordsMismatch_ThrowsBeforeTokenLookup()
+    {
+        // Defensive: validator catches this client-side but the service
+        // must also guard so an attacker can't probe token validity by
+        // sending a mismatched payload (the response shape would differ
+        // between "invalid_token" and "passwords_mismatch").
+        var act = () => _sut.ResetPasswordAsync(
+            new ResetPasswordRequest("any", "NewPass123!", "Different"));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("passwords_mismatch");
+        _passwordResetTokens.Verify(r => r.GetAnyByHashAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WeakPassword_ThrowsWeakPassword()
+    {
+        _hasher.Setup(h => h.MeetsRequirements("weak", out It.Ref<IList<string>>.IsAny))
+               .Returns(false);
+
+        var act = () => _sut.ResetPasswordAsync(
+            new ResetPasswordRequest("any", "weak", "weak"));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("weak_password");
+        _passwordResetTokens.Verify(r => r.GetAnyByHashAsync(It.IsAny<string>()), Times.Never);
     }
 
     private static User CreateTestUser() => new()

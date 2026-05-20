@@ -107,22 +107,15 @@ public class AuthController : ControllerBase, IAuthController
     }
 
     /// <summary>
-    /// CRITICAL SECURITY ISSUE: the original implementation used the user's
-    /// email as the "reset token", which means anyone who knew an email
-    /// could reset that account's password. The endpoint is preserved (the
-    /// frontend still calls it) but neutralized until a signed single-use
-    /// token table is implemented.
-    /// TODO: implement signed single-use token table (PasswordResetTokens)
-    ///       with 30 min TTL.
+    /// Consumes the reset token mailed at /forgot-password and rotates the
+    /// user's password. Failure surfaces as 400 with `reason` ∈
+    /// { invalid_token, token_consumed, token_expired, weak_password,
+    /// passwords_mismatch } — the front renders each case distinctly.
     /// </summary>
     [HttpPost("reset-password")]
-    public Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
-        IActionResult result = StatusCode(StatusCodes.Status501NotImplemented, new
-        {
-            message = "This endpoint is not implemented yet. Contact support."
-        });
-        return Task.FromResult(result);
+        await _authService.ResetPasswordAsync(request);
+        return Ok(new { message = "Password updated. You can now log in." });
     }
-
 }

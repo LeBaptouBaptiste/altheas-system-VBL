@@ -143,6 +143,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IEmailConfirmationTokenRepository, EmailConfirmationTokenRepository>();
+        services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
         services.AddScoped<IRecoveryCodeRepository, RecoveryCodeRepository>();
@@ -223,6 +224,13 @@ public static class ServiceCollectionExtensions
         // Phase 4b: 2FA code sender (setup + login codes for the Email
         // method). Consumed by TwoFactorService.
         services.AddScoped<ITwoFactorCodeSender, TwoFactorCodeSender>();
+
+        // Phase 5: password-reset link sender + options.
+        services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
+        services.AddScoped<IPasswordResetSender, PasswordResetSender>();
+
+        // Phase 5: order-status notifications (Shipped / Delivered).
+        services.AddScoped<IOrderStatusChangeSender, OrderStatusChangeSender>();
 
         return services;
     }
