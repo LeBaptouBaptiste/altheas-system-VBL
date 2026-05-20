@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Check, CreditCard, Building2, FileText, Truck, MapPin, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,36 @@ export default function CheckoutPage() {
 
   const [billing, setBilling] = useState<AddressForm>(emptyAddress);
   const [shipping, setShipping] = useState<AddressForm>(emptyAddress);
+
+  // Pre-fill the address form with the user's most recently used address
+  // on mount. Without this the form starts blank at every checkout, the
+  // user re-types their address, and the dedupe on the server side has to
+  // catch the duplicate every time. With this, the form is ready to go and
+  // the user just clicks "Next" if nothing changed. Tracked by a ref so we
+  // only auto-fill ONCE — subsequent renders (e.g. user.addresses gaining
+  // a new entry mid-checkout) don't clobber what the user typed.
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (prefilledRef.current) return;
+    if (!user?.addresses || user.addresses.length === 0) return;
+    // Pick the address most likely to be the user's "main" one: their
+    // billing-flavoured label first, otherwise the first one.
+    const main = user.addresses.find(a =>
+      a.label?.toLowerCase().includes('facturation')
+      || a.label?.toLowerCase().includes('billing')
+    ) ?? user.addresses[0];
+    setBilling({
+      firstName: main.firstName,
+      lastName: main.lastName,
+      company: main.company ?? '',
+      street: main.street,
+      city: main.city,
+      postalCode: main.postalCode,
+      country: main.country,
+      phone: main.phone ?? '',
+    });
+    prefilledRef.current = true;
+  }, [user]);
 
   const shippingCost = SHIPPING_METHODS.find(m => m.id === shippingMethod)?.price || 15;
   const grandTotal = totalTTC + shippingCost;

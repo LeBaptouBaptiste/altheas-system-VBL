@@ -88,6 +88,28 @@ public class UserService : IUserService
         var user = await _userRepository.GetByIdAsync(userId)
             ?? throw new NotFoundException("User", userId);
 
+        // Dedup: if the user already has an address with the same postal
+        // fingerprint (firstname + lastname + street + postalCode + city +
+        // country), return THAT one instead of inserting a duplicate. Fixes
+        // the case where checkout always POST /addresses with the same
+        // billing info → /account/addresses ends up with a row per checkout.
+        // Label is intentionally NOT part of the fingerprint — "Billing" vs
+        // "Livraison" pointing at the same place is still a single address
+        // from a logistics POV.
+        var existing = user.Addresses.FirstOrDefault(a =>
+            string.Equals(a.FirstName, request.FirstName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.LastName, request.LastName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(NormalizeStreet(a.Street), NormalizeStreet(request.Street), StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.PostalCode, request.PostalCode, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.City, request.City, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.Country, request.Country, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            return new AddressDto(existing.Id, existing.Label, existing.FirstName, existing.LastName,
+                existing.Company, existing.Street, existing.Street2, existing.City, existing.PostalCode,
+                existing.Country, existing.Phone);
+        }
+
         var address = new Address
         {
             // Don't pre-set Id with Guid.NewGuid(): when adding a child through
@@ -117,6 +139,15 @@ public class UserService : IUserService
             address.Company, address.Street, address.Street2, address.City, address.PostalCode,
             address.Country, address.Phone);
     }
+
+    /// <summary>
+    /// Normalises street strings for fingerprint comparison: trims, collapses
+    /// runs of whitespace to single spaces. Lets "12 Rue de la Paix" match
+    /// "12  Rue de la Paix " (typo / paste artifact) without considering
+    /// "12 rue paix" equivalent (street numbers / words matter).
+    /// </summary>
+    private static string NormalizeStreet(string s) =>
+        System.Text.RegularExpressions.Regex.Replace(s?.Trim() ?? "", @"\s+", " ");
 
     public async Task<AddressDto> UpdateAddressAsync(Guid userId, Guid addressId, AddressCreateRequest request)
     {
