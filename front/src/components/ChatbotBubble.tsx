@@ -61,8 +61,10 @@ export function ChatbotBubble() {
     setSending(true);
     try {
       // Backend persists the user message, calls Ollama, persists the bot
-      // reply, and returns the bot's reply (role=Bot=1).
-      const reply = await messagesService.sendMessage(conversationId, userMsg);
+      // reply, and returns the bot's reply (role=Bot=1). Pass the current
+      // UI locale so the bot answers in the customer's language even if
+      // the conversation history is mixed (user switched mid-chat).
+      const reply = await messagesService.sendMessage(conversationId, userMsg, locale);
       setMessages((prev) => [...prev, { role: 'bot', content: reply.content }]);
     } catch (err) {
       console.error('Chat send failed', err);

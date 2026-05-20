@@ -18,5 +18,14 @@ public interface IChatContextBuilder
     /// here is the customer's own + the public catalog, no third-party
     /// PII leak.
     /// </summary>
-    Task<string> BuildAsync(Guid? userId, string userMessage, CancellationToken ct = default);
+    /// <param name="locale">
+    /// Front-end UI language (<c>fr</c> / <c>en</c> / <c>ms</c> / <c>ar</c>).
+    /// Used to instruct the model to reply in that language. Null / unknown
+    /// values fall back to French (the historic default).
+    /// </param>
+    Task<string> BuildAsync(
+        Guid? userId,
+        string userMessage,
+        string? locale = null,
+        CancellationToken ct = default);
 }

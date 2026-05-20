@@ -130,8 +130,11 @@ public class ChatService : IChatService
         //    The context block (customer profile, recent orders, catalog,
         //    product matches) is prepended as an extra "system" message
         //    right before the user's latest question — so the model sees
-        //    fresh facts every turn, even on a long conversation.
-        var contextBlock = await _contextBuilder.BuildAsync(conv.UserId, request.Content);
+        //    fresh facts every turn, even on a long conversation. The
+        //    locale (front's currently selected UI language) tells the
+        //    builder which language to instruct the model in.
+        var contextBlock = await _contextBuilder.BuildAsync(
+            conv.UserId, request.Content, request.Locale);
 
         var history = conv.Messages
             .OrderBy(m => m.Timestamp)
@@ -155,12 +158,10 @@ public class ChatService : IChatService
         {
             // Model isn't pulled yet (common right after `docker compose up`
             // while ollama-init is still downloading the ~2 GB blob).
-            // Distinct copy so the user knows to retry vs. give up.
             _logger.LogWarning(ex,
                 "Ollama model not pulled yet for conversation {ConversationId}.",
                 conversationId);
-            reply = "Notre assistant est en cours d'initialisation (téléchargement du modèle). " +
-                    "Réessayez dans une à deux minutes — la prochaine question fonctionnera.";
+            reply = FallbackWarmingUp(request.Locale);
         }
         catch (Exception ex)
         {
@@ -170,8 +171,7 @@ public class ChatService : IChatService
             _logger.LogError(ex,
                 "Ollama call failed for conversation {ConversationId}; returning fallback reply.",
                 conversationId);
-            reply = "Désolé, notre assistant n'est pas disponible pour l'instant. " +
-                    "Vous pouvez créer un ticket support et un membre de notre équipe vous répondra rapidement.";
+            reply = FallbackUnavailable(request.Locale);
         }
 
         // 3. Persist the bot reply. The endpoint returns the BOT message —
@@ -192,6 +192,27 @@ public class ChatService : IChatService
     private static ChatConversationDto MapToDto(ChatConversation c) => new(
         c.Id, c.UserId, c.Email, c.Escalated, c.TicketId, c.CreatedAt,
         c.Messages.Select(m => new ChatMessageDto(m.Id, m.Role, m.Content, m.Timestamp)));
+
+    // ── Locale-aware fallback messages ───────────────────
+    // Used when Ollama is unavailable / the model isn't pulled yet. Keep
+    // them short and inline rather than going through the EmailTemplateRenderer
+    // — chat is real-time and the strings are stable.
+
+    private static string FallbackUnavailable(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "Sorry, our assistant is unavailable right now. You can open a support ticket and a team member will get back to you shortly.",
+        "ms" => "Maaf, pembantu kami tidak tersedia buat masa ini. Anda boleh buka tiket sokongan dan ahli pasukan kami akan menghubungi anda tidak lama lagi.",
+        "ar" => "عذراً، مساعدنا غير متاح في الوقت الحالي. يمكنك فتح تذكرة دعم وسيتواصل معك أحد أعضاء فريقنا قريباً.",
+        _ => "Désolé, notre assistant n'est pas disponible pour l'instant. Vous pouvez créer un ticket support et un membre de notre équipe vous répondra rapidement.",
+    };
+
+    private static string FallbackWarmingUp(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "Our assistant is initialising (downloading the model). Try again in one to two minutes — the next question will work.",
+        "ms" => "Pembantu kami sedang dimulakan (memuat turun model). Cuba semula dalam satu hingga dua minit — soalan seterusnya akan berfungsi.",
+        "ar" => "مساعدنا قيد التهيئة (جارٍ تنزيل النموذج). أعد المحاولة خلال دقيقة إلى دقيقتين، وسيعمل سؤالك التالي.",
+        _ => "Notre assistant est en cours d'initialisation (téléchargement du modèle). Réessayez dans une à deux minutes — la prochaine question fonctionnera.",
+    };
 }
 
 public class TicketService : ITicketService

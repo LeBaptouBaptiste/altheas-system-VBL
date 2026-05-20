@@ -40,8 +40,13 @@ export const messagesService = {
     return api.post<ChatConversationDto>(endpoint);
   },
 
-  sendMessage: (conversationId: string, content: string) =>
-    api.post<ChatMessageDto>(`/chat/${conversationId}/messages`, { content }),
+  /**
+   * `locale` is the UI language currently selected on the front (fr / en /
+   * ms / ar). The backend uses it to instruct the LLM to reply in the
+   * same language. Omit / null = backend falls back to French.
+   */
+  sendMessage: (conversationId: string, content: string, locale?: string) =>
+    api.post<ChatMessageDto>(`/chat/${conversationId}/messages`, { content, locale }),
 
   // Tickets
   getTickets: (page = 1, pageSize = 20) =>

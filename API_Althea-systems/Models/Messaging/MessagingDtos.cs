@@ -34,7 +34,13 @@ public record ChatMessageDto(
     DateTime Timestamp
 );
 
-public record ChatMessageCreateRequest(string Content);
+/// <summary>
+/// Body of <c>POST /chat/{conversationId}/messages</c>.
+/// <para><c>Locale</c> is the front-end's currently selected UI language
+/// (fr / en / ms / ar). The chatbot uses it to reply in the same language.
+/// Optional — defaults to French if missing (the historic behaviour).</para>
+/// </summary>
+public record ChatMessageCreateRequest(string Content, string? Locale = null);
 
 public record SupportTicketDto(
     Guid Id,

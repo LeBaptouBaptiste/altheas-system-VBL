@@ -44,9 +44,18 @@ public class ChatContextBuilder : IChatContextBuilder
         _logger = logger;
     }
 
-    public async Task<string> BuildAsync(Guid? userId, string userMessage, CancellationToken ct = default)
+    public async Task<string> BuildAsync(
+        Guid? userId,
+        string userMessage,
+        string? locale = null,
+        CancellationToken ct = default)
     {
         var sb = new StringBuilder();
+        // Language banner at the TOP — small models (qwen2.5:3b) tend to
+        // mirror the language of the conversation history even when a final
+        // directive says otherwise. Stating the target language up front
+        // AND at the bottom anchors it on both ends.
+        sb.AppendLine(BuildLanguageBanner(locale));
         sb.AppendLine("=== Contexte du client (utilise ces données réelles, ne les invente pas) ===");
 
         // ── 1. Customer profile ──────────────────────────
@@ -175,12 +184,44 @@ public class ChatContextBuilder : IChatContextBuilder
 
         sb.AppendLine();
         sb.AppendLine("=== Fin du contexte ===");
-        // /no_think is the Qwen3 convention for disabling reasoning mode
-        // inline. Belt-and-suspenders with the top-level `think:false` flag
-        // — works even on older Ollama builds that ignore the field.
-        sb.AppendLine("/no_think Réponds en français, de manière concise et factuelle (3-5 phrases maximum). Si la question demande une donnée précise (prix, statut de commande, solde), utilise EXACTEMENT les valeurs du contexte ci-dessus. Si l'information n'y est pas, dis-le clairement et propose de créer un ticket support. N'expose JAMAIS ton raisonnement, donne directement la réponse finale.");
+        // Locale-aware final directive. The context block above is in French
+        // (most compact, the model handles mixed-language fine) but this
+        // last line tells the model the target reply language explicitly.
+        // /no_think disables Qwen3 reasoning mode inline (belt-and-suspenders
+        // with the top-level `think:false` flag for older Ollama builds).
+        sb.AppendLine(BuildReplyDirective(locale));
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Top-of-context language banner. Stating the target language BEFORE
+    /// dumping data makes small models commit to it more reliably than a
+    /// trailing directive alone, especially when the conversation history
+    /// is in a different language.
+    /// </summary>
+    private static string BuildLanguageBanner(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "!! LANGUAGE OVERRIDE !! Reply ONLY in English for this turn, regardless of the language of previous messages. The customer just switched the UI to English.",
+        "ms" => "!! ARAHAN BAHASA !! Jawab HANYA dalam Bahasa Melayu untuk giliran ini, tanpa mengira bahasa mesej sebelumnya. Pelanggan baru sahaja menukar UI kepada Bahasa Melayu.",
+        "ar" => "!! تجاوز اللغة !! أجب فقط بالعربية في هذه الجولة، بغض النظر عن لغة الرسائل السابقة. لقد قام العميل للتو بتبديل واجهة المستخدم إلى العربية.",
+        _ => "!! LANGUE IMPOSÉE !! Réponds UNIQUEMENT en français pour ce tour, quelle que soit la langue des messages précédents. Le client vient de basculer l'interface en français.",
+    };
+
+    /// <summary>
+    /// Final instruction line, localised. The model sees the rest of the
+    /// context in French; this last line overrides the output language.
+    /// Falls back to French for unknown locales.
+    /// </summary>
+    private static string BuildReplyDirective(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "/no_think Reply in English, concise and factual (3-5 sentences max). Use EXACTLY the prices, order ids, statuses, and balance from the context above — never invent. The catalog above is stored in French: TRANSLATE generic product names into English in your reply (e.g. \"Gants Nitrile\" → \"Nitrile Gloves\", \"Blouse jetable\" → \"Disposable Gown\"), but keep brand names, model numbers, and proper nouns verbatim. If the info isn't there, say so plainly and offer to open a support ticket. NEVER expose your reasoning, give the final answer directly.",
+
+        "ms" => "/no_think Jawab dalam Bahasa Melayu, ringkas dan tepat (maksimum 3-5 ayat). Gunakan TEPAT harga, nombor pesanan, status, dan baki dari konteks di atas — jangan reka. Katalog di atas disimpan dalam bahasa Perancis: TERJEMAHKAN nama produk generik ke dalam Bahasa Melayu (cth. \"Gants Nitrile\" → \"Sarung Tangan Nitril\"), tetapi kekalkan nama jenama, nombor model, dan kata nama khas seperti asal. Jika maklumat tiada, beritahu pelanggan dengan jelas dan tawarkan untuk buka tiket sokongan. JANGAN PERNAH dedahkan penaakulan anda, beri jawapan akhir secara terus.",
+
+        "ar" => "/no_think أجب باللغة العربية، بإيجاز ودقة (3-5 جمل كحد أقصى). استخدم بالضبط الأسعار وأرقام الطلبات والحالات والرصيد من السياق أعلاه — لا تخترع. الكتالوج أعلاه مخزن بالفرنسية: تَرجِم أسماء المنتجات العامة إلى العربية (مثلاً \"Gants Nitrile\" → \"قفازات نتريل\")، لكن احتفظ بأسماء العلامات التجارية وأرقام الموديلات والأسماء الخاصة كما هي. إذا لم تكن المعلومات موجودة، فقل ذلك بوضوح واعرض فتح تذكرة دعم. لا تُظهر استدلالك أبداً، أعطِ الإجابة النهائية مباشرة.",
+
+        _ => "/no_think Réponds en français, de manière concise et factuelle (3-5 phrases maximum). Si la question demande une donnée précise (prix, statut de commande, solde), utilise EXACTEMENT les valeurs du contexte ci-dessus. Si l'information n'y est pas, dis-le clairement et propose de créer un ticket support. N'expose JAMAIS ton raisonnement, donne directement la réponse finale.",
+    };
 
     // ─────────────────────────────────────────────────────
     //  Helpers
