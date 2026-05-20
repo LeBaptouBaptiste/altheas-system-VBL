@@ -1,40 +1,30 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, LifeBuoy, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Send, Bot, User, X, LifeBuoy, MessageCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useI18n } from '@/context/i18n-context';
-import { botString } from '@/lib/chatbot-strings';
+import { useAuth } from '@/context/auth-context';
+import { messagesService } from '@/lib/api-services';
 import { toast } from 'sonner';
 
 interface Message { role: 'user' | 'bot'; content: string; }
 
-// NOTE: product-name matching was removed when the front merged into the
-// API-backed branch — the mocks (and their `Record<locale, string>` shape)
-// are gone. Re-introducing it would require an API search call here, which
-// is out of scope. The bot still answers price/shipping/returns/hours/etc.
-function generateBotResponse(input: string, locale: string): string {
-  const q = input.toLowerCase();
-
-  // Common intents
-  if (q.includes('prix') || q.includes('price') || q.includes('tarif') || q.includes('harga') || q.includes('سعر')) return botString('price', locale);
-  if (q.includes('livraison') || q.includes('delivery') || q.includes('shipping') || q.includes('penghantaran') || q.includes('شحن')) return botString('shipping', locale);
-  if (q.includes('retour') || q.includes('return') || q.includes('sav') || q.includes('pemulangan') || q.includes('إرجاع')) return botString('returns', locale);
-  if (q.includes('horaire') || q.includes('hour') || q.includes('contact') || q.includes('waktu') || q.includes('ساعة')) return botString('hours', locale);
-  if (q.includes('bonjour') || q.includes('hello') || q.includes('hi') || q.includes('salut') || q.includes('helo') || q.includes('مرحبا') || q.includes('مرحباً')) return botString('greeting', locale);
-
-  return botString('fallback', locale);
-}
-
 export function ChatbotBubble() {
-  const { t, locale, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
+  const { isAuthenticated, user } = useAuth();
   const isRtl = dir === 'rtl';
   const [open, setOpen] = useState(false);
   const [started, setStarted] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  // Disable input + show spinner while Ollama is generating a reply.
+  // CPU-only models take 5-20 seconds — a clear loading state matters.
+  const [sending, setSending] = useState(false);
   const [ticketCreated, setTicketCreated] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,20 +34,53 @@ export function ChatbotBubble() {
     }
   }, [messages, open]);
 
-  const startChat = () => {
-    setStarted(true);
-    setMessages([{ role: 'bot', content: t('chatbot.welcome') }]);
+  const startChat = async () => {
+    if (!isAuthenticated || !user) return;
+    // Create a conversation on the backend so subsequent sendMessage calls
+    // have a target. Failure here means the chat can't start at all —
+    // surface an explicit error rather than landing on a broken UI.
+    try {
+      const conv = await messagesService.createConversation(user.id);
+      setConversationId(conv.id);
+      setStarted(true);
+      setMessages([{ role: 'bot', content: t('chatbot.welcome') }]);
+    } catch (err) {
+      console.error('Failed to create chat conversation', err);
+      toast.error(locale === 'fr'
+        ? 'Impossible de démarrer la conversation'
+        : 'Failed to start conversation');
+    }
   };
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    if (!input.trim() || !conversationId || sending) return;
     const userMsg = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setTimeout(() => {
-      const response = generateBotResponse(userMsg, locale);
-      setMessages(prev => [...prev, { role: 'bot', content: response }]);
-    }, 600);
+    // Optimistic append so the customer sees their message immediately.
+    setMessages((prev) => [...prev, { role: 'user', content: userMsg }]);
+    setSending(true);
+    try {
+      // Backend persists the user message, calls Ollama, persists the bot
+      // reply, and returns the bot's reply (role=Bot=1).
+      const reply = await messagesService.sendMessage(conversationId, userMsg);
+      setMessages((prev) => [...prev, { role: 'bot', content: reply.content }]);
+    } catch (err) {
+      console.error('Chat send failed', err);
+      // Polite inline error so the customer knows the bubble isn't broken,
+      // just temporarily unresponsive. The user message stays — the
+      // transcript on the server reflects the same.
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'bot',
+          content: locale === 'fr'
+            ? "Désolé, je n'ai pas pu répondre. Réessayez dans un instant ou créez un ticket."
+            : "Sorry, I couldn't reply. Try again in a moment or open a ticket.",
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleEscalate = () => {
@@ -99,15 +122,34 @@ export function ChatbotBubble() {
           </div>
 
           {!started ? (
-            /* Start screen */
+            /* Start screen — gated on auth. The Ollama-backed endpoint
+               requires JWT, so anonymous visitors get a login CTA instead
+               of a broken "Send" button. */
             <div className="flex flex-col items-center justify-center flex-1 p-8 gap-4 text-center" style={{ minHeight: '200px' }}>
               <div className="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center">
                 <Bot className="w-7 h-7 text-brand-primary" />
               </div>
-              <p className="text-sm text-muted-foreground">{t('chatbot.welcome')}</p>
-              <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={startChat}>
-                {t('chatbot.start') || 'Démarrer la conversation'}
-              </Button>
+              {isAuthenticated ? (
+                <>
+                  <p className="text-sm text-muted-foreground">{t('chatbot.welcome')}</p>
+                  <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={startChat}>
+                    {t('chatbot.start') || 'Démarrer la conversation'}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {locale === 'fr'
+                      ? 'Connectez-vous pour discuter avec notre assistant.'
+                      : 'Log in to chat with our assistant.'}
+                  </p>
+                  <Button asChild className="bg-brand-primary hover:bg-brand-hover text-white">
+                    <Link href="/login">
+                      {locale === 'fr' ? 'Se connecter' : 'Log in'}
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -123,6 +165,19 @@ export function ChatbotBubble() {
                     </div>
                   </div>
                 ))}
+                {/* Typing indicator while Ollama is generating — CPU-only
+                    models can take 10-20 s so explicit feedback matters. */}
+                {sending && (
+                  <div className="flex gap-2">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-brand-light">
+                      <Bot className="w-3.5 h-3.5 text-brand-primary" />
+                    </div>
+                    <div className="rounded-xl px-3 py-2 text-sm bg-gray-100 text-muted-foreground inline-flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{locale === 'fr' ? 'Réflexion…' : 'Thinking…'}</span>
+                    </div>
+                  </div>
+                )}
                 <div ref={scrollRef} />
               </div>
 
@@ -144,9 +199,10 @@ export function ChatbotBubble() {
                     placeholder={t('chatbot.placeholder')}
                     className="flex-1 text-sm h-9"
                     aria-label={t('chatbot.placeholder')}
+                    disabled={sending}
                   />
-                  <Button type="submit" size="sm" className="bg-brand-primary hover:bg-brand-hover text-white h-9 px-3" disabled={!input.trim()}>
-                    <Send className="w-3.5 h-3.5" />
+                  <Button type="submit" size="sm" className="bg-brand-primary hover:bg-brand-hover text-white h-9 px-3" disabled={!input.trim() || sending}>
+                    {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                   </Button>
                 </form>
               </div>

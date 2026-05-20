@@ -3,6 +3,7 @@ using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services.IServices;
+using API_Althea_systems.Services.Ollama;
 
 namespace API_Althea_systems.Services;
 
@@ -65,10 +66,17 @@ public class MessageService : IMessageService
 public class ChatService : IChatService
 {
     private readonly IMessageRepository _messageRepository;
+    private readonly IOllamaService _ollama;
+    private readonly ILogger<ChatService> _logger;
 
-    public ChatService(IMessageRepository messageRepository)
+    public ChatService(
+        IMessageRepository messageRepository,
+        IOllamaService ollama,
+        ILogger<ChatService> logger)
     {
         _messageRepository = messageRepository;
+        _ollama = ollama;
+        _logger = logger;
     }
 
     public async Task<ChatConversationDto> GetConversationByIdAsync(Guid id)
@@ -100,19 +108,72 @@ public class ChatService : IChatService
 
     public async Task<ChatMessageDto> AddMessageAsync(Guid conversationId, ChatMessageCreateRequest request)
     {
-        _ = await _messageRepository.GetConversationByIdAsync(conversationId)
+        var conv = await _messageRepository.GetConversationByIdAsync(conversationId)
             ?? throw new NotFoundException("ChatConversation", conversationId);
 
-        var msg = new ChatMessage
+        // 1. Persist the user message first so it's never lost even if Ollama
+        //    blows up later. The conversation history needs it on disk before
+        //    we ship it to the model.
+        var userMsg = new ChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
             Role = ChatRole.User,
             Content = request.Content
         };
+        await _messageRepository.AddChatMessageAsync(userMsg);
 
-        await _messageRepository.AddChatMessageAsync(msg);
-        return new ChatMessageDto(msg.Id, msg.Role, msg.Content, msg.Timestamp);
+        // 2. Build the running history (oldest first) and call Ollama.
+        //    Past messages from the DB + the user message we just stored.
+        var history = conv.Messages
+            .OrderBy(m => m.Timestamp)
+            .Select(m => (
+                Role: m.Role == ChatRole.User ? "user" : "assistant",
+                Content: m.Content))
+            .ToList();
+        history.Add(("user", request.Content));
+
+        string reply;
+        try
+        {
+            reply = await _ollama.GenerateReplyAsync(history);
+        }
+        catch (OllamaModelNotReadyException ex)
+        {
+            // Model isn't pulled yet (common right after `docker compose up`
+            // while ollama-init is still downloading the ~2 GB blob).
+            // Distinct copy so the user knows to retry vs. give up.
+            _logger.LogWarning(ex,
+                "Ollama model not pulled yet for conversation {ConversationId}.",
+                conversationId);
+            reply = "Notre assistant est en cours d'initialisation (téléchargement du modèle). " +
+                    "Réessayez dans une à deux minutes — la prochaine question fonctionnera.";
+        }
+        catch (Exception ex)
+        {
+            // Don't let an LLM outage break the customer's chat — surface a
+            // polite fallback that still gets persisted (so the admin can
+            // see the failure in the conversation transcript and follow up).
+            _logger.LogError(ex,
+                "Ollama call failed for conversation {ConversationId}; returning fallback reply.",
+                conversationId);
+            reply = "Désolé, notre assistant n'est pas disponible pour l'instant. " +
+                    "Vous pouvez créer un ticket support et un membre de notre équipe vous répondra rapidement.";
+        }
+
+        // 3. Persist the bot reply. The endpoint returns the BOT message —
+        //    the front already shows the user's input optimistically, so it
+        //    just needs the assistant's answer to append.
+        var botMsg = new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            Role = ChatRole.Bot,
+            Content = reply
+        };
+        await _messageRepository.AddChatMessageAsync(botMsg);
+
+        return new ChatMessageDto(botMsg.Id, botMsg.Role, botMsg.Content, botMsg.Timestamp);
     }
 
     private static ChatConversationDto MapToDto(ChatConversation c) => new(

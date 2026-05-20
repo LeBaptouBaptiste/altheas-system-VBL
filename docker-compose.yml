@@ -41,6 +41,8 @@ services:
       Smtp__UseStartTls: ${SMTP_USE_STARTTLS}
       EmailConfirmation__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
       PasswordReset__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
+      Ollama__BaseUrl: "http://ollama:11434"
+      Ollama__Model: ${OLLAMA_MODEL:-llama3.2:3b}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
     depends_on:
       postgres:
@@ -131,10 +133,63 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # ── Ollama (LLM backend for the customer chatbot) ─────────────────────
+  # Runs entirely on CPU by default — no GPU passthrough needed for the
+  # demo. The `ollama-init` sidecar (below) pulls the model on first
+  # `docker compose up`, then exits. The api container can start in
+  # parallel — until the pull completes the chatbot returns the polite
+  # "service unavailable" fallback from OllamaService's catch.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: althea-ollama
+    restart: unless-stopped
+    ports:
+      # Expose on host for `ollama pull` from outside Docker if desired.
+      # Internal services reach it via the Docker network at ollama:11434.
+      - "11434:11434"
+    volumes:
+      # Model cache (~2 GB for llama3.2:3b). Persistent so a `docker compose
+      # down` doesn't force a re-download on next boot.
+      - ollama_data:/root/.ollama
+    healthcheck:
+      # /api/tags returns 200 once the daemon is ready to accept requests.
+      # ollama-init polls this before starting the pull, otherwise the very
+      # first `ollama pull` call races the daemon startup and 503s.
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  # One-shot model puller. `docker compose up` triggers it once; it waits
+  # for ollama to be ready, then `ollama pull <model>`, then exits. The
+  # next time you bring the stack up it runs again but the model is
+  # already in the cache — the pull is a fast no-op.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: althea-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      # OLLAMA_HOST tells the CLI which daemon to talk to (defaults to
+      # localhost:11434, which inside this container would point at the
+      # sidecar itself, not the actual ollama container).
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+        echo "[ollama-init] Pulling $$MODEL (this can take a few minutes on first run)…"
+        ollama pull "$$MODEL"
+        echo "[ollama-init] Model $$MODEL is ready."
+    restart: "no"
+
 volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  ollama_data:
 
 networks:
   default:

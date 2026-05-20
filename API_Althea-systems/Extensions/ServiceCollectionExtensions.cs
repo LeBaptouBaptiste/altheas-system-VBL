@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using FluentValidation;
@@ -15,6 +16,7 @@ using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
 using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
+using API_Althea_systems.Services.Ollama;
 
 namespace API_Althea_systems.Extensions;
 
@@ -198,6 +200,16 @@ public static class ServiceCollectionExtensions
         // Phase 7: refund-side of the Stripe API, separated so InvoiceService
         // can mock it in isolation. Stateless wrapper — Scoped is fine.
         services.AddScoped<IStripeRefundService, StripeRefundService>();
+        // Ollama LLM backend for the customer chatbot.
+        // Settings are bound via AddOllama() (called from Program.cs).
+        // HttpClient lifetime is Transient-via-IHttpClientFactory — handled
+        // by AddHttpClient, no manual disposal needed.
+        services.AddHttpClient<IOllamaService, OllamaService>((sp, client) =>
+        {
+            var settings = sp.GetRequiredService<IOptions<OllamaSettings>>().Value;
+            client.BaseAddress = new Uri(settings.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+        });
         // PDF rendering is stateless and fast (QuestPDF reuses a thread-local
         // engine), Singleton is appropriate.
         services.AddSingleton<IInvoicePdfService, InvoicePdfService>();
@@ -253,6 +265,17 @@ public static class ServiceCollectionExtensions
         // InvoiceService.IssueCreditNoteAsync.
         services.AddScoped<ICreditNoteSender, CreditNoteSender>();
 
+        return services;
+    }
+
+    public static IServiceCollection AddOllama(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Bound but tolerant: a missing "Ollama" section just leaves the
+        // defaults from the OllamaSettings POCO. The chatbot will still try
+        // localhost:11434 — if no Ollama is running, ChatService catches
+        // the HttpRequestException and returns a fallback message to the
+        // customer instead of 500-ing the request.
+        services.Configure<OllamaSettings>(configuration.GetSection("Ollama"));
         return services;
     }
 
