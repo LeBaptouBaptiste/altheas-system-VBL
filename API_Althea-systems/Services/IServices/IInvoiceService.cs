@@ -18,4 +18,14 @@ public interface IInvoiceService
     /// backfill that may hit the same order.
     /// </summary>
     Task<InvoiceDto> EnsureForOrderAsync(Guid orderId);
+
+    /// <summary>
+    /// Idempotent: if the order's invoice has not been emailed yet
+    /// (<see cref="Invoice.EmailedAt"/> is null), renders the PDF and sends
+    /// the "order confirmation" email with it attached, then marks EmailedAt.
+    /// Safe to call multiple times — Stripe webhook redelivery, admin
+    /// re-trigger, etc. No-op if the order has no Type=Invoice yet (caller
+    /// should call <see cref="EnsureForOrderAsync"/> first).
+    /// </summary>
+    Task EnsureEmailedAsync(Guid orderId, CancellationToken ct = default);
 }

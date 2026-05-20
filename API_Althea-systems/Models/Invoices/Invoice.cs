@@ -13,6 +13,14 @@ public class Invoice
     public Guid? RelatedInvoiceId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// UTC moment the order-confirmation email + PDF attachment was sent to
+    /// the customer. Null until then. Used by InvoiceService.EnsureEmailedAsync
+    /// as the idempotency key: Stripe webhook redelivery / startup retry /
+    /// admin re-trigger all skip if non-null. Phase 3 (email).
+    /// </summary>
+    public DateTime? EmailedAt { get; set; }
+
     // Navigation
     public Order.Order Order { get; set; } = null!;
     public Invoice? RelatedInvoice { get; set; }

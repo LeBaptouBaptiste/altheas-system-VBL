@@ -211,6 +211,11 @@ public static class ServiceCollectionExtensions
         services.Configure<EmailConfirmationOptions>(configuration.GetSection("EmailConfirmation"));
         services.AddScoped<IEmailConfirmationSender, EmailConfirmationSender>();
 
+        // Phase 3: order-confirmation sender. Wraps IInvoicePdfService +
+        // IEmailSender + IEmailTemplateRenderer; consumed by
+        // InvoiceService.EnsureEmailedAsync.
+        services.AddScoped<IOrderConfirmationSender, OrderConfirmationSender>();
+
         return services;
     }
 

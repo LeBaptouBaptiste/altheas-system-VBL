@@ -119,6 +119,45 @@ public class StripeWebhookProcessorTests
     }
 
     [Fact]
+    public async Task Succeeded_PendingOrder_TriggersOrderConfirmationEmail()
+    {
+        // Phase 3: after issuing the invoice, the webhook must call
+        // EnsureEmailedAsync so the customer gets the receipt + PDF.
+        // Idempotency is the SUT's responsibility (Invoice.EmailedAt) —
+        // here we just verify the call happens.
+        var orderId = Guid.NewGuid();
+        var intent = MakeIntent("pi_mail", orderId);
+        var order = MakeOrder(orderId, "pi_mail");
+        _orders.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+
+        await _sut.ProcessAsync(MakeEvent("payment_intent.succeeded", intent));
+
+        _invoices.Verify(s => s.EnsureEmailedAsync(orderId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Succeeded_EmailSendingFails_DoesNotThrow()
+    {
+        // Same defensive contract as the invoice-issuance path: a flaky SMTP
+        // must NOT cause Stripe to retry the payment validation. Webhook
+        // returns success; the email retry is the SUT's problem (EmailedAt
+        // stays null so a later trigger can attempt again).
+        var orderId = Guid.NewGuid();
+        var intent = MakeIntent("pi_mailfail", orderId);
+        var order = MakeOrder(orderId, "pi_mailfail");
+        _orders.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+        _invoices
+            .Setup(s => s.EnsureEmailedAsync(orderId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("smtp down"));
+
+        var act = () => _sut.ProcessAsync(MakeEvent("payment_intent.succeeded", intent));
+
+        await act.Should().NotThrowAsync();
+        order.PaymentStatus.Should().Be(PaymentStatus.Validated);
+    }
+
+    [Fact]
     public async Task Succeeded_InvoiceIssuanceFails_DoesNotThrow()
     {
         // The payment is valid even if invoice generation blows up — we log

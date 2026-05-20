@@ -109,6 +109,23 @@ public class StripeWebhookProcessor : IStripeWebhookProcessor
                 "Failed to auto-issue invoice for order {OrderId} after payment succeeded — startup backfill will retry.",
                 order.Id);
         }
+
+        // Phase 3 (email): send the "order confirmed + PDF" mail. Idempotent
+        // via Invoice.EmailedAt, so Stripe webhook redelivery doesn't double-
+        // send. Independent try/catch — a flaky SMTP must NOT roll back the
+        // payment-validation; the next webhook retry (or a manual admin
+        // re-trigger) can re-fire the mail.
+        try
+        {
+            await _invoices.EnsureEmailedAsync(order.Id, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send order-confirmation email for order {OrderId} after payment succeeded. " +
+                "EmailedAt is left null so the next retry can attempt again.",
+                order.Id);
+        }
     }
 
     private async Task HandlePaymentFailed(Event stripeEvent, CancellationToken ct)
