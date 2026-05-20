@@ -568,6 +568,7 @@ public class AuthService : IAuthService
         )),
         user.PaymentMethods.Select(p => new PaymentMethodDto(
             p.Id, p.Type, p.Label,
-            p.StripePaymentMethodId, p.Brand, p.Last4, p.ExpMonth, p.ExpYear))
+            p.StripePaymentMethodId, p.Brand, p.Last4, p.ExpMonth, p.ExpYear)),
+        user.CreditBalanceCents
     );
 }

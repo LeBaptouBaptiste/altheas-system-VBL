@@ -14,7 +14,7 @@ import { invoicesService, downloadInvoicePdf, downloadCreditNotePdf } from '@/li
 import { getErrorMessage } from '@/lib/api-errors';
 import type { InvoiceDto } from '@/lib/api-types';
 import { formatPrice, toIntlLocale } from '@/lib/money';
-import { InvoiceStatus, InvoiceType } from '@/lib/enums';
+import { InvoiceStatus, InvoiceType, CreditNoteMode } from '@/lib/enums';
 import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -85,10 +85,12 @@ export default function AdminInvoicesPage() {
     }
   };
 
-  // ── Credit-note modal (phase 6) ──────────────────
+  // ── Credit-note modal (phase 6 + 7) ──────────────
   const [creditNoteTarget, setCreditNoteTarget] = useState<InvoiceDto | null>(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditReason, setCreditReason] = useState('');
+  // Phase 7: default to Refund — most common case in B2B (real money back).
+  const [creditMode, setCreditMode] = useState<number>(CreditNoteMode.Refund);
   const [creditSubmitting, setCreditSubmitting] = useState(false);
 
   const openCreditNoteModal = (inv: InvoiceDto) => {
@@ -101,6 +103,7 @@ export default function AdminInvoicesPage() {
     const remainingHT = Math.max(0, inv.amountHT - alreadyCredited);
     setCreditAmount(remainingHT.toFixed(2));
     setCreditReason('');
+    setCreditMode(CreditNoteMode.Refund);
   };
 
   const submitCreditNote = async () => {
@@ -117,6 +120,7 @@ export default function AdminInvoicesPage() {
       const created = await invoicesService.issueCreditNote(
         creditNoteTarget.id,
         amount,
+        creditMode,
         creditReason.trim() || null,
       );
       // Refresh list to reflect totals and the new row.
@@ -124,7 +128,9 @@ export default function AdminInvoicesPage() {
       setInvoicesList(res.data);
       // Offer the PDF immediately — common UX for accounting flows.
       await downloadCreditNotePdf(created.id);
-      toast.success(locale === 'fr' ? 'Avoir émis' : 'Credit note issued');
+      toast.success(creditMode === CreditNoteMode.Refund
+        ? (locale === 'fr' ? 'Avoir émis · remboursement déclenché' : 'Credit note issued · refund triggered')
+        : (locale === 'fr' ? 'Avoir émis · crédit ajouté au compte' : 'Credit note issued · added to wallet'));
       setCreditNoteTarget(null);
     } catch (err) {
       toast.error(getErrorMessage(err, (k) => k));
@@ -342,6 +348,60 @@ export default function AdminInvoicesPage() {
                     value={creditReason}
                     onChange={(e) => setCreditReason(e.target.value)}
                   />
+                </div>
+
+                {/* Phase 7: mode picker. Refund hits Stripe directly,
+                    StoreCredit alimente le wallet du client. */}
+                <div>
+                  <Label>{locale === 'fr' ? 'Mode' : 'Mode'}</Label>
+                  <div className="grid grid-cols-1 gap-2 mt-1">
+                    <label className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer ${
+                      creditMode === CreditNoteMode.Refund
+                        ? 'border-brand-primary bg-brand-primary/5'
+                        : 'border-gray-200'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="creditMode"
+                        checked={creditMode === CreditNoteMode.Refund}
+                        onChange={() => setCreditMode(CreditNoteMode.Refund)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">
+                          {locale === 'fr' ? 'Rembourser sur la carte' : 'Refund to card'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {locale === 'fr'
+                            ? 'Stripe re-crédite la CB du client (3-5 jours ouvrés). Nécessite que la commande ait été payée via Stripe.'
+                            : 'Stripe refunds the card (3-5 business days). Requires a Stripe PaymentIntent on the order.'}
+                        </p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer ${
+                      creditMode === CreditNoteMode.StoreCredit
+                        ? 'border-brand-primary bg-brand-primary/5'
+                        : 'border-gray-200'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="creditMode"
+                        checked={creditMode === CreditNoteMode.StoreCredit}
+                        onChange={() => setCreditMode(CreditNoteMode.StoreCredit)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">
+                          {locale === 'fr' ? 'Créditer le compte client' : 'Add to customer wallet'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {locale === 'fr'
+                            ? "Le client utilisera l'avoir lors d'un prochain achat. Aucun mouvement bancaire."
+                            : 'Customer uses the credit on their next order. No bank movement.'}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-2">

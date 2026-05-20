@@ -209,6 +209,12 @@ public class InvoicePdfService : IInvoicePdfService
 
     private static void ComposeTotals(IContainer container, Invoice invoice, Order order)
     {
+        // Only show the payment-breakdown section on real invoices, not on
+        // credit notes (an avoir doesn't itself receive a payment — its
+        // own ventilation is in the original invoice).
+        var isInvoice = invoice.Type == InvoiceType.Invoice;
+        var creditAppliedEur = order.CreditAppliedCents / 100m;
+
         container.MaxWidth(260).Padding(0).Column(col =>
         {
             col.Spacing(4);
@@ -244,8 +250,48 @@ public class InvoicePdfService : IInvoicePdfService
                 r.RelativeItem().Text("Total TTC").Bold().FontSize(13).FontColor(BrandPrimary);
                 r.ConstantItem(110).AlignRight().Text(FormatEur(invoice.AmountTTC)).Bold().FontSize(13).FontColor(BrandPrimary);
             });
+
+            // Phase 7: payment-method breakdown when store credit was
+            // applied at checkout. Comptablement obligatoire — la facture
+            // doit montrer comment l'argent a réellement été reçu (avoir
+            // consommé vs Stripe). Skipped on credit notes (Type != Invoice)
+            // and on orders paid 100% by card.
+            if (isInvoice && creditAppliedEur > 0)
+            {
+                col.Item().PaddingTop(8).LineHorizontal(0.5f).LineColor(MutedText);
+                col.Item().PaddingTop(4).Text("Détail du règlement").FontSize(9).FontColor(MutedText);
+
+                // Avoir consommé (negative)
+                col.Item().Row(r =>
+                {
+                    r.RelativeItem().Text("Avoir appliqué").FontColor(MutedText);
+                    r.ConstantItem(110).AlignRight()
+                        .Text("− " + FormatEur(creditAppliedEur))
+                        .FontColor("#DC2626");
+                });
+
+                // Reste payé via Stripe / autre méthode
+                var stripePaidEur = invoice.AmountTTC - creditAppliedEur;
+                col.Item().Row(r =>
+                {
+                    r.RelativeItem().Text(PaymentMethodLabel(order.PaymentMethod)).FontColor(MutedText);
+                    r.ConstantItem(110).AlignRight().Text(FormatEur(stripePaidEur)).SemiBold();
+                });
+            }
         });
     }
+
+    /// <summary>
+    /// Human-readable payment-method label for the PDF. Falls back to the
+    /// enum name if we forget to map a new value — better than crashing.
+    /// </summary>
+    private static string PaymentMethodLabel(Common.Enums.PaymentMethod method) => method switch
+    {
+        Common.Enums.PaymentMethod.Card => "Réglé par carte bancaire",
+        Common.Enums.PaymentMethod.BankTransfer => "Réglé par virement bancaire",
+        Common.Enums.PaymentMethod.AdminMandate => "Réglé sur mandat administratif",
+        _ => $"Réglé ({method})",
+    };
 
     private static void ComposeStatus(IContainer container, Invoice invoice)
     {

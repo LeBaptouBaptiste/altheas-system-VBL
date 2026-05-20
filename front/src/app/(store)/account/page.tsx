@@ -77,6 +77,19 @@ export default function AccountPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+  // Phase 7: fetch fresh user data on mount. The auth-context caches the
+  // user (set at login) — after a checkout that consumed store credit, the
+  // balance shown here would otherwise stay stale until the next manual
+  // refresh. Cheap (single GET /auth/me) and always correct.
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshUser().catch(() => { /* non-fatal — the cached user keeps working */ });
+    }
+    // Intentionally fires only once on mount; subsequent in-page actions
+    // (e.g. address edits) trigger their own refreshUser calls.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (user) {
       setEditName(user.name);
@@ -108,7 +121,22 @@ export default function AccountPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl text-brand-dark mb-2">{t('account.title')}</h1>
-      <p className="text-muted-foreground mb-8">{user.email}</p>
+      <p className="text-muted-foreground mb-2">{user.email}</p>
+
+      {/* Phase 7: store credit balance — surfaces the available wallet
+          right under the email so the customer sees it before browsing. */}
+      {user.creditBalanceCents > 0 && (
+        <div className="mb-6 inline-flex items-center gap-2 rounded-md bg-success/10 border border-success/30 px-3 py-1.5">
+          <RotateCcw className="w-4 h-4 text-success" />
+          <span className="text-sm">
+            <span className="text-muted-foreground">
+              {locale === 'fr' ? 'Avoir disponible' : 'Available credit'}:
+            </span>{' '}
+            <strong className="text-success">{fmt(user.creditBalanceCents / 100)}</strong>
+          </span>
+        </div>
+      )}
+      {user.creditBalanceCents === 0 && <div className="mb-8" />}
 
       <Tabs defaultValue="settings">
         <TabsList className="mb-6 flex-wrap">

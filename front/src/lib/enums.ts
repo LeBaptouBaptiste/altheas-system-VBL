@@ -40,6 +40,11 @@ export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 export const InvoiceType = { Invoice: 0, CreditNote: 1 } as const;
 export type InvoiceType = (typeof InvoiceType)[keyof typeof InvoiceType];
 
+// Phase 7: how a credit note's money moves. Mirrors backend CreditNoteMode.
+// Only set when InvoiceType=CreditNote.
+export const CreditNoteMode = { Refund: 0, StoreCredit: 1 } as const;
+export type CreditNoteMode = (typeof CreditNoteMode)[keyof typeof CreditNoteMode];
+
 // Phase 4b: 2FA method picker. Indices MUST match
 // API_Althea-systems/Common/Enums/TwoFactorMethod.cs. Even though the backend
 // serialises this as a string (JsonStringEnumConverter), the numeric values

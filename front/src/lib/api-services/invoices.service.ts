@@ -18,10 +18,21 @@ export const invoicesService = {
    * remaining) and surfaces failure as 400 with `reason` ∈
    * { not_an_invoice, not_paid, invalid_amount, exceeds_remaining }.
    */
-  issueCreditNote: (originalInvoiceId: string, amountHT: number, reason: string | null, stepUpToken?: string) =>
+  /**
+   * `mode` is the CreditNoteMode (0=Refund via Stripe, 1=StoreCredit on the
+   * customer's account). The server validates accordingly — Refund requires
+   * the original order to have a Stripe PaymentIntent.
+   */
+  issueCreditNote: (
+    originalInvoiceId: string,
+    amountHT: number,
+    mode: number,
+    reason: string | null,
+    stepUpToken?: string,
+  ) =>
     api.post<InvoiceDto>(
       `/invoices/${originalInvoiceId}/credit-note`,
-      { amountHT, reason },
+      { amountHT, mode, reason },
       stepUpToken ? { stepUpToken } : undefined,
     ),
 

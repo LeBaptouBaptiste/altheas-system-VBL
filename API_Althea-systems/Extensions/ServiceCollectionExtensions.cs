@@ -195,6 +195,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
         services.AddScoped<IStripeService, StripeService>();
         services.AddScoped<IStripeWebhookProcessor, StripeWebhookProcessor>();
+        // Phase 7: refund-side of the Stripe API, separated so InvoiceService
+        // can mock it in isolation. Stateless wrapper — Scoped is fine.
+        services.AddScoped<IStripeRefundService, StripeRefundService>();
         // PDF rendering is stateless and fast (QuestPDF reuses a thread-local
         // engine), Singleton is appropriate.
         services.AddSingleton<IInvoicePdfService, InvoicePdfService>();

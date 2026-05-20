@@ -90,6 +90,29 @@ public class StripeWebhookProcessor : IStripeWebhookProcessor
 
         await _orders.UpdateAsync(order);
 
+        // Phase 7: NOW debit the store credit, after Stripe confirms the
+        // remaining charge cleared. Doing it here (not at order creation)
+        // means abandoned / failed checkouts don't burn the customer's
+        // wallet. Idempotent: if the order was already Validated when this
+        // event arrived, we'd have early-returned above.
+        if (order.CreditAppliedCents > 0)
+        {
+            var customer = await _users.GetByIdAsync(order.UserId);
+            if (customer is not null)
+            {
+                // Defensive clamp at 0 — should never trip because OrderService
+                // already validated balance ≥ applied at create time, but a
+                // concurrent refund could in theory reduce the wallet between
+                // create and webhook delivery.
+                customer.CreditBalanceCents = Math.Max(
+                    0, customer.CreditBalanceCents - order.CreditAppliedCents);
+                await _users.UpdateAsync(customer);
+                _logger.LogInformation(
+                    "Debited {Cents} cents of store credit from user {UserId} for order {OrderId}.",
+                    order.CreditAppliedCents, customer.Id, order.Id);
+            }
+        }
+
         _logger.LogInformation(
             "Order {OrderId} marked as Validated via PaymentIntent {IntentId}.",
             order.Id, intent.Id);

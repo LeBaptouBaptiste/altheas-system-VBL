@@ -1,3 +1,4 @@
+using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Common.Exceptions;
 using API_Althea_systems.Models.Invoices;
 using API_Althea_systems.Models.Shared;
@@ -11,21 +12,27 @@ public class InvoiceService : IInvoiceService
 {
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IOrderRepository _orderRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IOrderConfirmationSender _orderConfirmationSender;
     private readonly ICreditNoteSender _creditNoteSender;
+    private readonly IStripeRefundService _refunds;
     private readonly ILogger<InvoiceService> _logger;
 
     public InvoiceService(
         IInvoiceRepository invoiceRepository,
         IOrderRepository orderRepository,
+        IUserRepository userRepository,
         IOrderConfirmationSender orderConfirmationSender,
         ICreditNoteSender creditNoteSender,
+        IStripeRefundService refunds,
         ILogger<InvoiceService> logger)
     {
         _invoiceRepository = invoiceRepository;
         _orderRepository = orderRepository;
+        _userRepository = userRepository;
         _orderConfirmationSender = orderConfirmationSender;
         _creditNoteSender = creditNoteSender;
+        _refunds = refunds;
         _logger = logger;
     }
 
@@ -237,6 +244,7 @@ public class InvoiceService : IInvoiceService
             : 0m;
         var vatAmount = Math.Round(request.AmountHT * effectiveVatRate, 2, MidpointRounding.ToEven);
 
+        var amountTTC = request.AmountHT + vatAmount;
         var creditNote = new Invoice
         {
             // Leave Id at default — see Address / OrderStatusChange: EF
@@ -245,7 +253,7 @@ public class InvoiceService : IInvoiceService
             Date = DateTime.UtcNow,
             AmountHT = request.AmountHT,
             VatAmount = vatAmount,
-            AmountTTC = request.AmountHT + vatAmount,
+            AmountTTC = amountTTC,
             Type = InvoiceType.CreditNote,
             RelatedInvoiceId = original.Id,
             // A credit note is "paid back" the moment it's issued from the
@@ -253,14 +261,72 @@ public class InvoiceService : IInvoiceService
             // (manual SEPA / Stripe refund). Marking Paid keeps the
             // accounting view consistent.
             Status = InvoiceStatus.Paid,
+            Mode = request.Mode,
         };
+
+        // ── Phase 7: money actually moves ─────────────────
+        // Refund mode: hit Stripe SYNCHRONOUSLY before persisting the credit
+        // note. If Stripe rejects (insufficient funds on the PI, already
+        // refunded, network error), we surface the error and the credit note
+        // is NOT created — admin must retry. This keeps a "credit note in DB
+        // without a refund attached" from being possible in Refund mode.
+        if (request.Mode == CreditNoteMode.Refund)
+        {
+            var order = await _orderRepository.GetByIdAsync(original.OrderId);
+            if (order is null || string.IsNullOrWhiteSpace(order.StripePaymentIntentId))
+            {
+                throw new BadRequestException(
+                    "Cannot refund: original order has no Stripe PaymentIntent. " +
+                    "Use Mode=StoreCredit for orders paid outside Stripe.",
+                    reason: "no_payment_intent");
+            }
+
+            var amountCents = (long)Math.Round(amountTTC * 100m);
+            try
+            {
+                var (refundId, refundStatus) = await _refunds.RefundAsync(
+                    order.StripePaymentIntentId,
+                    amountCents,
+                    reason: "requested_by_customer",
+                    ct);
+                creditNote.StripeRefundId = refundId;
+                creditNote.RefundStatus = refundStatus;
+            }
+            catch (Stripe.StripeException ex)
+            {
+                _logger.LogError(ex,
+                    "Stripe rejected refund on PI {IntentId} for {Amount} cents.",
+                    order.StripePaymentIntentId, amountCents);
+                throw new BadRequestException(
+                    $"Stripe refund failed: {ex.Message}",
+                    reason: "stripe_refund_failed");
+            }
+        }
+        else if (request.Mode == CreditNoteMode.StoreCredit)
+        {
+            // Credit the customer's wallet. Two saves (user then credit note)
+            // instead of one transaction — accept the small race window where
+            // a crash between them could leave the wallet bumped without a
+            // credit note row (which the admin would notice on the next
+            // reconciliation pass). The reverse — credit note created without
+            // wallet bump — is what we MUST avoid; doing the user save first
+            // ensures the wallet is right even if the invoice insert fails.
+            var order = await _orderRepository.GetByIdAsync(original.OrderId)
+                ?? throw new InvalidOperationException(
+                    $"Cannot credit store balance: order {original.OrderId} not found.");
+            var user = order.User ?? await _userRepository.GetByIdAsync(order.UserId)
+                ?? throw new InvalidOperationException(
+                    $"Cannot credit store balance: user {order.UserId} not found.");
+            user.CreditBalanceCents += (long)Math.Round(amountTTC * 100m);
+            await _userRepository.UpdateAsync(user);
+        }
 
         await _invoiceRepository.CreateAsync(creditNote);
 
         _logger.LogInformation(
             "Credit note {CreditNoteId} issued against invoice {OriginalInvoiceId} " +
-            "for {Amount:N2} € HT (reason: {Reason}).",
-            creditNote.Id, original.Id, creditNote.AmountHT,
+            "for {Amount:N2} € HT (mode={Mode}, reason: {Reason}).",
+            creditNote.Id, original.Id, creditNote.AmountHT, creditNote.Mode,
             string.IsNullOrWhiteSpace(request.Reason) ? "(none)" : request.Reason);
 
         // ── Email customer (best-effort) ──────────────────
@@ -299,5 +365,7 @@ public class InvoiceService : IInvoiceService
     };
 
     private static InvoiceDto MapToDto(Invoice i) => new(
-        i.Id, i.OrderId, i.Date, i.AmountHT, i.VatAmount, i.AmountTTC, i.Status, i.Type, i.RelatedInvoiceId);
+        i.Id, i.OrderId, i.Date, i.AmountHT, i.VatAmount, i.AmountTTC,
+        i.Status, i.Type, i.RelatedInvoiceId,
+        i.Mode, i.StripeRefundId, i.RefundStatus);
 }

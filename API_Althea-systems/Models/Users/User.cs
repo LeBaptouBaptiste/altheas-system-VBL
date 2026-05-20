@@ -33,6 +33,16 @@ public class User
     /// </summary>
     public string? StripeCustomerId { get; set; }
 
+    /// <summary>
+    /// Phase 7 (store credit): available credit balance in cents (EUR).
+    /// Increments on a credit note issued with Mode=StoreCredit; decrements
+    /// when the customer applies credit at checkout (after the
+    /// PaymentIntent succeeds — abandoned carts don't burn balance).
+    /// Stored as a long (no rounding ambiguity) instead of decimal —
+    /// money math is cleanest in the smallest currency unit.
+    /// </summary>
+    public long CreditBalanceCents { get; set; }
+
     public DateTime? LastLogin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

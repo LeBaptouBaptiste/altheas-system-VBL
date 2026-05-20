@@ -33,6 +33,15 @@ public class Order
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Phase 7 (store credit): amount of store credit (in cents EUR) the
+    /// customer applied to this order at checkout. Reduces the Stripe
+    /// PaymentIntent amount accordingly. Set at order creation, decremented
+    /// from <see cref="Users.User.CreditBalanceCents"/> only when the
+    /// payment actually clears (Stripe webhook).
+    /// </summary>
+    public long CreditAppliedCents { get; set; }
+
     // Navigation
     public Users.User User { get; set; } = null!;
     public Users.Address BillingAddress { get; set; } = null!;

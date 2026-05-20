@@ -5,6 +5,7 @@ using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
 using API_Althea_systems.Services.Email;
+using API_Althea_systems.Services.IServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -21,8 +22,10 @@ public class InvoiceServiceTests
 {
     private readonly Mock<IInvoiceRepository> _invoiceRepo = new();
     private readonly Mock<IOrderRepository> _orderRepo = new();
+    private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<IOrderConfirmationSender> _sender = new();
     private readonly Mock<ICreditNoteSender> _creditNoteSender = new();
+    private readonly Mock<IStripeRefundService> _refunds = new();
     private readonly InvoiceService _sut;
 
     public InvoiceServiceTests()
@@ -31,12 +34,19 @@ public class InvoiceServiceTests
         // override to exercise the cumulative-cap branch.
         _invoiceRepo.Setup(r => r.GetCreditNotesForInvoiceAsync(It.IsAny<Guid>()))
                     .ReturnsAsync(Enumerable.Empty<Invoice>());
+        // Default Stripe refund: synchronous success with a fake refund id.
+        // Individual tests override to exercise the error / pending paths.
+        _refunds.Setup(r => r.RefundAsync(It.IsAny<string>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(("re_test123", "succeeded"));
 
         _sut = new InvoiceService(
             _invoiceRepo.Object,
             _orderRepo.Object,
+            _userRepo.Object,
             _sender.Object,
             _creditNoteSender.Object,
+            _refunds.Object,
             NullLogger<InvoiceService>.Instance);
     }
 
@@ -221,7 +231,7 @@ public class InvoiceServiceTests
         _orderRepo.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
 
         var result = await _sut.IssueCreditNoteAsync(original.Id,
-            new IssueCreditNoteRequest(AmountHT: 50m, Reason: "Produit défectueux"));
+            new IssueCreditNoteRequest(AmountHT: 50m, Mode: CreditNoteMode.StoreCredit, Reason: "Produit défectueux"));
 
         result.Type.Should().Be(InvoiceType.CreditNote);
         result.AmountHT.Should().Be(50m);
@@ -249,7 +259,7 @@ public class InvoiceServiceTests
         _invoiceRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((Invoice?)null);
 
         var act = () => _sut.IssueCreditNoteAsync(Guid.NewGuid(),
-            new IssueCreditNoteRequest(10m, null));
+            new IssueCreditNoteRequest(10m, CreditNoteMode.StoreCredit, null));
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -264,7 +274,7 @@ public class InvoiceServiceTests
         _invoiceRepo.Setup(r => r.GetByIdAsync(alreadyCredit.Id)).ReturnsAsync(alreadyCredit);
 
         var act = () => _sut.IssueCreditNoteAsync(alreadyCredit.Id,
-            new IssueCreditNoteRequest(10m, null));
+            new IssueCreditNoteRequest(10m, CreditNoteMode.StoreCredit, null));
 
         var ex = await act.Should().ThrowAsync<BadRequestException>();
         ex.Which.Reason.Should().Be("not_an_invoice");
@@ -279,7 +289,7 @@ public class InvoiceServiceTests
         _invoiceRepo.Setup(r => r.GetByIdAsync(unpaid.Id)).ReturnsAsync(unpaid);
 
         var act = () => _sut.IssueCreditNoteAsync(unpaid.Id,
-            new IssueCreditNoteRequest(10m, null));
+            new IssueCreditNoteRequest(10m, CreditNoteMode.StoreCredit, null));
 
         var ex = await act.Should().ThrowAsync<BadRequestException>();
         ex.Which.Reason.Should().Be("not_paid");
@@ -293,7 +303,7 @@ public class InvoiceServiceTests
         _invoiceRepo.Setup(r => r.GetByIdAsync(original.Id)).ReturnsAsync(original);
 
         var act = () => _sut.IssueCreditNoteAsync(original.Id,
-            new IssueCreditNoteRequest(0m, null));
+            new IssueCreditNoteRequest(0m, CreditNoteMode.StoreCredit, null));
 
         var ex = await act.Should().ThrowAsync<BadRequestException>();
         ex.Which.Reason.Should().Be("invalid_amount");
@@ -308,7 +318,7 @@ public class InvoiceServiceTests
         _invoiceRepo.Setup(r => r.GetByIdAsync(original.Id)).ReturnsAsync(original);
 
         var act = () => _sut.IssueCreditNoteAsync(original.Id,
-            new IssueCreditNoteRequest(AmountHT: 150m, Reason: null));
+            new IssueCreditNoteRequest(AmountHT: 150m, Mode: CreditNoteMode.StoreCredit, Reason: null));
 
         var ex = await act.Should().ThrowAsync<BadRequestException>();
         ex.Which.Reason.Should().Be("exceeds_remaining");
@@ -334,7 +344,7 @@ public class InvoiceServiceTests
                     .ReturnsAsync(new[] { priorCn });
 
         var act = () => _sut.IssueCreditNoteAsync(original.Id,
-            new IssueCreditNoteRequest(AmountHT: 50m, Reason: null));
+            new IssueCreditNoteRequest(AmountHT: 50m, Mode: CreditNoteMode.StoreCredit, Reason: null));
 
         var ex = await act.Should().ThrowAsync<BadRequestException>();
         ex.Which.Reason.Should().Be("exceeds_remaining");
@@ -358,7 +368,7 @@ public class InvoiceServiceTests
         _orderRepo.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(MakeOrder(orderId));
 
         var result = await _sut.IssueCreditNoteAsync(original.Id,
-            new IssueCreditNoteRequest(AmountHT: 40m, Reason: "Solde"));
+            new IssueCreditNoteRequest(AmountHT: 40m, Mode: CreditNoteMode.StoreCredit, Reason: "Solde"));
 
         result.AmountHT.Should().Be(40m);
         _invoiceRepo.Verify(r => r.CreateAsync(It.IsAny<Invoice>()), Times.Once);
@@ -380,10 +390,105 @@ public class InvoiceServiceTests
             .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception()));
 
         var result = await _sut.IssueCreditNoteAsync(original.Id,
-            new IssueCreditNoteRequest(10m, "Refund"));
+            new IssueCreditNoteRequest(10m, CreditNoteMode.StoreCredit, "Refund"));
 
         result.Should().NotBeNull();
         result.Type.Should().Be(InvoiceType.CreditNote);
         _invoiceRepo.Verify(r => r.CreateAsync(It.IsAny<Invoice>()), Times.Once);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  Phase 7 — Mode-based money movement
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task IssueCreditNoteAsync_StoreCredit_BumpsUserBalance()
+    {
+        var orderId = Guid.NewGuid();
+        var original = MakePaidInvoice(orderId, amountHT: 100m, vatAmount: 20m); // TTC 120
+        var user = new User { Id = Guid.NewGuid(), Email = "c@x.com", Name = "c", PasswordHash = "" };
+        var order = MakeOrder(orderId, user: user);
+        _invoiceRepo.Setup(r => r.GetByIdAsync(original.Id)).ReturnsAsync(original);
+        _orderRepo.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+
+        await _sut.IssueCreditNoteAsync(original.Id,
+            new IssueCreditNoteRequest(AmountHT: 50m, Mode: CreditNoteMode.StoreCredit, Reason: null));
+
+        // 50 € HT + 10 € VAT (20% prorata) = 60 € TTC = 6000 cents added to wallet.
+        user.CreditBalanceCents.Should().Be(6000);
+        _userRepo.Verify(r => r.UpdateAsync(user), Times.Once);
+        // No Stripe refund call on StoreCredit mode.
+        _refunds.Verify(r => r.RefundAsync(It.IsAny<string>(), It.IsAny<long>(),
+            It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task IssueCreditNoteAsync_Refund_CallsStripeAndStashesRefundId()
+    {
+        var orderId = Guid.NewGuid();
+        var original = MakePaidInvoice(orderId, amountHT: 100m, vatAmount: 20m);
+        var order = MakeOrder(orderId);
+        order.StripePaymentIntentId = "pi_original123";
+        _invoiceRepo.Setup(r => r.GetByIdAsync(original.Id)).ReturnsAsync(original);
+        _orderRepo.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+
+        var result = await _sut.IssueCreditNoteAsync(original.Id,
+            new IssueCreditNoteRequest(AmountHT: 50m, Mode: CreditNoteMode.Refund, Reason: "Defective"));
+
+        // Stripe called with the PI id and the TTC amount in cents (50 HT + 10 VAT = 60 TTC = 6000c).
+        _refunds.Verify(r => r.RefundAsync("pi_original123", 6000,
+            "requested_by_customer", It.IsAny<CancellationToken>()), Times.Once);
+        // Refund id + status persisted on the credit note.
+        _invoiceRepo.Verify(r => r.CreateAsync(It.Is<Invoice>(i =>
+            i.Mode == CreditNoteMode.Refund
+            && i.StripeRefundId == "re_test123"
+            && i.RefundStatus == "succeeded")), Times.Once);
+        result.StripeRefundId.Should().Be("re_test123");
+        // StoreCredit branch NOT taken: user balance untouched.
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task IssueCreditNoteAsync_Refund_NoPaymentIntent_ThrowsNoPaymentIntent()
+    {
+        // An order paid outside Stripe (e.g. bank transfer) doesn't have a
+        // PaymentIntent to refund. Surface a clear reason rather than a
+        // confusing Stripe error.
+        var orderId = Guid.NewGuid();
+        var original = MakePaidInvoice(orderId);
+        var order = MakeOrder(orderId);
+        order.StripePaymentIntentId = null;
+        _invoiceRepo.Setup(r => r.GetByIdAsync(original.Id)).ReturnsAsync(original);
+        _orderRepo.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+
+        var act = () => _sut.IssueCreditNoteAsync(original.Id,
+            new IssueCreditNoteRequest(10m, CreditNoteMode.Refund, null));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("no_payment_intent");
+        _invoiceRepo.Verify(r => r.CreateAsync(It.IsAny<Invoice>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task IssueCreditNoteAsync_Refund_StripeRejects_ThrowsAndDoesNotPersist()
+    {
+        // If Stripe rejects the refund (already refunded / network / etc),
+        // we MUST NOT persist a credit-note row. The admin retries.
+        var orderId = Guid.NewGuid();
+        var original = MakePaidInvoice(orderId);
+        var order = MakeOrder(orderId);
+        order.StripePaymentIntentId = "pi_fail";
+        _invoiceRepo.Setup(r => r.GetByIdAsync(original.Id)).ReturnsAsync(original);
+        _orderRepo.Setup(r => r.GetByIdAsync(orderId)).ReturnsAsync(order);
+        _refunds.Setup(r => r.RefundAsync(It.IsAny<string>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Stripe.StripeException("charge_already_refunded"));
+
+        var act = () => _sut.IssueCreditNoteAsync(original.Id,
+            new IssueCreditNoteRequest(10m, CreditNoteMode.Refund, null));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("stripe_refund_failed");
+        _invoiceRepo.Verify(r => r.CreateAsync(It.IsAny<Invoice>()), Times.Never);
     }
 }

@@ -73,10 +73,31 @@ public class PaymentIntentController : ControllerBase
         var user = await _users.GetByIdAsync(currentUserId)
             ?? throw new NotFoundException("User", currentUserId);
 
+        // Phase 7: validate + persist store credit application BEFORE
+        // creating the PaymentIntent. This lets the front toggle the
+        // "use my credit" checkbox AFTER reaching the payment step and
+        // simply re-call this endpoint — the order's CreditAppliedCents
+        // stays in sync and StripeService recomputes the reduced amount.
+        if (request.CreditAppliedCents < 0)
+        {
+            throw new AppValidationException("Credit applied cannot be negative.");
+        }
+        if (request.CreditAppliedCents > user.CreditBalanceCents)
+        {
+            throw new AppValidationException(
+                $"Credit applied ({request.CreditAppliedCents} cents) exceeds " +
+                $"available balance ({user.CreditBalanceCents} cents).");
+        }
+        order.CreditAppliedCents = request.CreditAppliedCents;
+
         // Create (or replace) the PaymentIntent. If a previous intent exists
         // for this order (failed retry, abandoned session), we don't cancel
         // it explicitly — Stripe will auto-expire it after 24h. Persisting
         // the new ID overwrites the old one so the webhook can still match.
+        // StripeService deducts order.CreditAppliedCents from the Stripe
+        // amount and throws if the remainder is below Stripe's 0.50 € EUR
+        // minimum — we let that surface as a 500 since validation here
+        // would duplicate the TTC math.
         var intent = await _stripe.CreatePaymentIntentAsync(order, user, request.SaveCard, ct);
 
         order.StripePaymentIntentId = intent.Id;

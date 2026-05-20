@@ -49,7 +49,7 @@ const emptyAddress: AddressForm = { firstName: '', lastName: '', company: '', st
 
 export default function CheckoutPage() {
   const { t, localized, locale } = useI18n();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshUser } = useAuth();
   const { items, subtotalHT, totalVAT, totalTTC, clearCart } = useCart();
   const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
 
@@ -72,6 +72,11 @@ export default function CheckoutPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [saveCard, setSaveCard] = useState(false);
+  // Phase 7: store credit to apply at checkout (cents EUR). Bound to the
+  // checkbox + amount input rendered on the payment step. Validated
+  // server-side: must be ≤ user.creditBalanceCents AND leave ≥ 0.50 € for
+  // Stripe to charge.
+  const [creditToApply, setCreditToApply] = useState<number>(0);
   // Saved cards picker state.
   // `selectedCardId` is the id of a saved UserPaymentMethod, or 'new' to
   // show the PaymentElement (default when the user has no saved cards).
@@ -138,13 +143,18 @@ export default function CheckoutPage() {
         shippingMethod: SHIPPING_MAP[shippingMethod] ?? ShippingMethod.Standard,
         paymentMethod: PAYMENT_MAP[paymentMethod] ?? PaymentMethod.Card,
         items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+        // Credit is applied at PaymentIntent creation time below, not here —
+        // lets the customer toggle "use my credit" AFTER reaching Step 3
+        // and refresh the PI without recreating the order.
       });
       setOrderId(order.id);
 
       // Create the PaymentIntent and fetch the user's saved cards in
       // parallel — the picker depends on both being ready.
       const [intent, cards] = await Promise.all([
-        paymentsService.createIntent(order.id, saveCard),
+        // Initial PI is always created with creditToApply (typically 0 at
+        // this point — the customer toggles the case AFTER reaching Step 3).
+        paymentsService.createIntent(order.id, saveCard, creditToApply),
         usersService.listPaymentMethods(user.id).catch(() => [] as PaymentMethodDto[]),
       ]);
       setClientSecret(intent.clientSecret);
@@ -180,7 +190,8 @@ export default function CheckoutPage() {
    * Trade-off: Stripe Elements remounts (forced by key={clientSecret} in
    * StripePaymentForm) and the user re-types their PAN/CVC. We lock the
    * checkbox while the refresh is in flight so a fast double-click doesn't
-   * race two intent creations.
+   * race two intent creations. Passes the current creditToApply so toggling
+   * saveCard doesn't accidentally zero out the credit application.
    */
   const handleSaveCardToggle = useCallback(async (next: boolean) => {
     setSaveCard(next);
@@ -188,7 +199,7 @@ export default function CheckoutPage() {
     setPreparingPayment(true);
     setPaymentError(null);
     try {
-      const intent = await paymentsService.createIntent(orderId, next);
+      const intent = await paymentsService.createIntent(orderId, next, creditToApply);
       setClientSecret(intent.clientSecret);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message
@@ -200,7 +211,36 @@ export default function CheckoutPage() {
     } finally {
       setPreparingPayment(false);
     }
-  }, [orderId, locale]);
+  }, [orderId, locale, creditToApply]);
+
+  /**
+   * Phase 7: "Use my credit" toggle. Same refresh-the-PI pattern as
+   * saveCard — the credit is persisted on Order.CreditAppliedCents at
+   * PI-creation time, so re-calling createIntent with a new amount
+   * updates the order in-place and gives us a fresh clientSecret with
+   * the reduced charge. Refresh user too so the local creditBalanceCents
+   * matches if the server ever rejects (e.g. another tab ate the credit).
+   */
+  const handleCreditToggle = useCallback(async (next: number) => {
+    if (!orderId) return;
+    const previous = creditToApply;
+    setCreditToApply(next);
+    setPreparingPayment(true);
+    setPaymentError(null);
+    try {
+      const intent = await paymentsService.createIntent(orderId, saveCard, next);
+      setClientSecret(intent.clientSecret);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message
+        : (locale === 'fr' ? 'Erreur lors de la mise à jour' : 'Failed to update payment');
+      setPaymentError(msg);
+      toast.error(msg);
+      // Roll back UI to whatever was actually persisted.
+      setCreditToApply(previous);
+    } finally {
+      setPreparingPayment(false);
+    }
+  }, [orderId, locale, saveCard, creditToApply]);
 
   /**
    * Handles the return from a Stripe redirect (3DS / wallet) or the inline
@@ -219,6 +259,10 @@ export default function CheckoutPage() {
       setOrderPlaced(true);
       setStep(4);
       clearCart();
+      // Phase 7: webhook just debited the store credit (if any was applied).
+      // Refresh the auth-context so /account shows the updated balance —
+      // otherwise the user sees the pre-purchase value until they reload.
+      refreshUser().catch(() => { /* non-fatal */ });
       toast.success(t('checkout.order_confirmed'));
     } else if (status === 'failed') {
       setPaymentError(locale === 'fr'
@@ -423,6 +467,9 @@ export default function CheckoutPage() {
                   setOrderPlaced(true);
                   setStep(4);
                   clearCart();
+                  // Phase 7: webhook just debited the store credit; refresh
+                  // the auth-context so /account reflects the new balance.
+                  refreshUser().catch(() => { /* non-fatal */ });
                   toast.success(t('checkout.order_confirmed'));
                 }}
               />
@@ -443,6 +490,9 @@ export default function CheckoutPage() {
                 setOrderPlaced(true);
                 setStep(4);
                 clearCart();
+                // Phase 7: webhook just debited the store credit; refresh
+                // the auth-context so /account reflects the new balance.
+                refreshUser().catch(() => { /* non-fatal */ });
                 toast.success(t('checkout.order_confirmed'));
               }}
             />
@@ -466,8 +516,62 @@ export default function CheckoutPage() {
             <div className="flex justify-between text-sm"><span>{t('cart.subtotal')}</span><span>{fmt(subtotalHT)}</span></div>
             <div className="flex justify-between text-sm"><span>{t('cart.vat')}</span><span>{fmt(totalVAT)}</span></div>
             <div className="flex justify-between text-sm"><span>{locale === 'fr' ? 'Livraison' : 'Shipping'}</span><span>{fmt(shippingCost)}</span></div>
+
+            {/* Phase 7: apply store credit. Visible only when the user has
+                a positive balance. Capping to grandTotal - 0.50 € (Stripe
+                minimum) is enforced server-side; we cap the input here as
+                well so the user can't pick an obviously-rejectable value. */}
+            {user && user.creditBalanceCents > 0 && (() => {
+              const balanceEur = user.creditBalanceCents / 100;
+              const maxApplyEur = Math.max(0, grandTotal - 0.5);
+              const cappedAvailable = Math.min(balanceEur, maxApplyEur);
+              return (
+                <div className="bg-success/5 border border-success/20 rounded-md p-3">
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      id="useCredit"
+                      checked={creditToApply > 0}
+                      disabled={preparingPayment}
+                      onChange={(e) => {
+                        // Apply the full available credit by default —
+                        // simpler UX than a slider for v1. Calls the async
+                        // handler that refreshes the PaymentIntent so the
+                        // Stripe amount matches the displayed total.
+                        handleCreditToggle(e.target.checked
+                          ? Math.round(cappedAvailable * 100)
+                          : 0);
+                      }}
+                      className="mt-1"
+                    />
+                    <label htmlFor="useCredit" className="cursor-pointer flex-1 text-sm">
+                      <p>
+                        {locale === 'fr' ? 'Utiliser mon avoir' : 'Apply my store credit'}{' '}
+                        (<strong className="text-success">{fmt(balanceEur)}</strong>{' '}
+                        {locale === 'fr' ? 'disponible' : 'available'})
+                      </p>
+                      {creditToApply > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {locale === 'fr' ? 'Appliqué' : 'Applied'}:{' '}
+                          <strong>−{fmt(creditToApply / 100)}</strong>
+                        </p>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              );
+            })()}
+
             <Separator />
-            <div className="flex justify-between font-bold text-lg"><span>{t('cart.total')}</span><span>{fmt(grandTotal)}</span></div>
+            <div className="flex justify-between font-bold text-lg">
+              <span>{t('cart.total')}</span>
+              <span>{fmt(Math.max(0, grandTotal - creditToApply / 100))}</span>
+            </div>
+            {creditToApply > 0 && (
+              <p className="text-xs text-muted-foreground text-end">
+                ({fmt(grandTotal)} − {fmt(creditToApply / 100)} {locale === 'fr' ? 'avoir' : 'credit'})
+              </p>
+            )}
           </div>
 
           <div className="flex gap-4 pt-4">

@@ -16,6 +16,7 @@ public class OrderServiceTests
 {
     private readonly Mock<IOrderRepository> _orderRepo = new();
     private readonly Mock<IProductRepository> _productRepo = new();
+    private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<IOrderStatusChangeSender> _statusSender = new();
     private readonly OrderService _sut;
 
@@ -24,6 +25,7 @@ public class OrderServiceTests
         _sut = new OrderService(
             _orderRepo.Object,
             _productRepo.Object,
+            _userRepo.Object,
             _statusSender.Object,
             NullLogger<OrderService>.Instance);
     }

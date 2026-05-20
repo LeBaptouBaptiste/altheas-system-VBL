@@ -141,6 +141,11 @@ export interface UserDto {
   createdAt: string;
   addresses: AddressDto[];
   paymentMethods: PaymentMethodDto[];
+  /**
+   * Phase 7: store credit balance in cents EUR. Increments on credit notes
+   * issued with Mode=StoreCredit; decrements on checkout when applied.
+   */
+  creditBalanceCents: number;
 }
 
 export interface AddressDto {
@@ -252,6 +257,11 @@ export interface OrderDto {
   // first). /account/orders renders one row per entry with type-aware
   // icon + individual download button.
   invoices: OrderInvoiceSummaryDto[];
+  /**
+   * Phase 7: store credit applied at checkout (cents EUR). 0 = none.
+   * Stripe charged TTC*100 − creditAppliedCents on this order.
+   */
+  creditAppliedCents: number;
 }
 
 export interface OrderInvoiceSummaryDto {
@@ -293,6 +303,15 @@ export interface InvoiceDto {
   status: number;
   type: number;
   relatedInvoiceId: string | null;
+  /**
+   * Phase 7: how the credit was settled. 0=Refund (Stripe), 1=StoreCredit.
+   * Null for regular invoices.
+   */
+  mode: number | null;
+  /** Phase 7: Stripe refund id (re_xxx) when mode=Refund. */
+  stripeRefundId: string | null;
+  /** Phase 7: Stripe refund status verbatim ("succeeded" / "pending" / …). */
+  refundStatus: string | null;
 }
 
 // ── Messaging ─────────────────────────────────────────

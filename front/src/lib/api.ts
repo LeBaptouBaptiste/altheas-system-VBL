@@ -203,13 +203,25 @@ async function apiFetch<T>(
 
 const ENUM_STRING_TO_NUMBER: Record<string, Record<string, number>> = {
   role: { Customer: 0, Admin: 1 },
-  status: { Active: 0, Inactive: 1, Draft: 2, Pending: 0, Confirmed: 1, Processing: 2, Shipped: 3, Delivered: 4, Cancelled: 5, Returned: 6, Open: 0, InProgress: 1, Resolved: 2, Closed: 3, Unread: 0, Read: 1, Replied: 2, Archived: 3 },
+  // The `status` field is shared across OrderDto, UserDto, MessageDto,
+  // TicketDto, ProductDto AND InvoiceDto — and several enums have
+  // colliding string values (OrderStatus.Pending=0 vs InvoiceStatus.Pending=1,
+  // OrderStatus.Cancelled=5 vs InvoiceStatus.Cancelled=3). Where collisions
+  // exist we keep the Order interpretation because the order flow is the
+  // hot path. InvoiceStatus.{Paid, Overdue} are added below because they
+  // DON'T collide with anything else and were previously falling through
+  // un-normalized (front saw `"Paid"` string, comparisons against the numeric
+  // enum failed silently). If Invoices ever start using Pending/Cancelled in
+  // anger, swap to a per-DTO `invoiceStatus` field instead.
+  status: { Active: 0, Inactive: 1, Draft: 2, Pending: 0, Confirmed: 1, Processing: 2, Shipped: 3, Delivered: 4, Cancelled: 5, Returned: 6, Open: 0, InProgress: 1, Resolved: 2, Closed: 3, Unread: 0, Read: 1, Replied: 2, Archived: 3, Paid: 0, Overdue: 2 },
   vatRate: { Standard: 0, Intermediate: 1, Reduced: 2, Zero: 3 },
   stockStatus: { InStock: 0, LowStock: 1, OutOfStock: 2 },
   paymentStatus: { Pending: 0, Paid: 1, Failed: 2, Refunded: 3 },
   paymentMethod: { Card: 0, BankTransfer: 1, PayPal: 2 },
   shippingMethod: { Standard: 0, Express: 1, Overnight: 2 },
   type: { Invoice: 0, CreditNote: 1 },
+  // Phase 7: credit-note mode on InvoiceDto.
+  mode: { Refund: 0, StoreCredit: 1 },
 };
 
 function normalizeEnums(data: unknown): unknown {

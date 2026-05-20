@@ -31,7 +31,11 @@ public record OrderDto(
     // first. The front lists them all under the order with type-aware icons
     // and individual download buttons. Empty when no invoice has been
     // issued yet.
-    IEnumerable<OrderInvoiceSummaryDto> Invoices
+    IEnumerable<OrderInvoiceSummaryDto> Invoices,
+    // Phase 7 (store credit): amount of store credit (cents EUR) applied
+    // at checkout. 0 when the customer didn't redeem credit on this order.
+    // Total paid to Stripe was TotalTTC*100 − CreditAppliedCents.
+    long CreditAppliedCents = 0
 );
 
 /// <summary>
@@ -70,7 +74,13 @@ public record OrderCreateRequest(
     Guid ShippingAddressId,
     ShippingMethod ShippingMethod,
     PaymentMethod PaymentMethod,
-    IEnumerable<OrderItemCreateRequest> Items
+    IEnumerable<OrderItemCreateRequest> Items,
+    // Phase 7: store credit (cents EUR) the customer wants applied to this
+    // order at checkout. Server validates user.CreditBalanceCents ≥ this
+    // value before accepting. Capped server-side at total − 50 cents
+    // (Stripe's minimum charge in EUR) — if the customer wants 100% credit,
+    // they need to remove items.
+    long CreditAppliedCents = 0
 );
 
 public record OrderItemCreateRequest(

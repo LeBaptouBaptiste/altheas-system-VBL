@@ -83,11 +83,20 @@ public class StripeService : IStripeService
             order.ShippingCost);
 
         // Stripe expects the smallest currency unit (cents for EUR).
-        var amountInCents = (long)Math.Round(totals.TotalTTC * 100m);
+        var grossAmountInCents = (long)Math.Round(totals.TotalTTC * 100m);
+
+        // Phase 7: deduct any store credit the customer applied at checkout
+        // (set on Order.CreditAppliedCents by OrderService.CreateAsync after
+        // validating the user's balance). The wallet is only DEBITED in the
+        // webhook on payment success — applying it here is purely an amount
+        // adjustment on the Stripe side.
+        var amountInCents = grossAmountInCents - order.CreditAppliedCents;
 
         if (amountInCents <= 0)
             throw new InvalidOperationException(
-                $"Order {order.Id} has a non-positive total ({totals.TotalTTC} EUR); refusing to create a PaymentIntent.");
+                $"Order {order.Id} has a non-positive Stripe amount " +
+                $"(gross {totals.TotalTTC} EUR − credit {order.CreditAppliedCents} cents); " +
+                "refusing to create a PaymentIntent.");
 
         var options = new PaymentIntentCreateOptions
         {

@@ -204,7 +204,8 @@ public class UserService : IUserService
         user.Anonymized, user.EmailConfirmed, user.TwoFactorEnabled,
         user.LastLogin, user.CreatedAt,
         user.Addresses.Select(a => new AddressDto(a.Id, a.Label, a.FirstName, a.LastName, a.Company, a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone)),
-        user.PaymentMethods.Select(MapPaymentMethod)
+        user.PaymentMethods.Select(MapPaymentMethod),
+        user.CreditBalanceCents
     );
 
     private static PaymentMethodDto MapPaymentMethod(UserPaymentMethod p) => new(

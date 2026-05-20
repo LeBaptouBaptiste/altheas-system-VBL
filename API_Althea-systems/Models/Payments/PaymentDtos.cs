@@ -13,7 +13,15 @@ public record CreatePaymentIntentRequest(
     /// setup_future_usage = "off_session", letting us charge the same
     /// card later without re-prompting the user.
     /// </summary>
-    bool SaveCard
+    bool SaveCard,
+    /// <summary>
+    /// Phase 7: store credit (cents EUR) the customer wants applied to
+    /// this payment. Persisted on the Order at PI-creation time so the
+    /// front can toggle the credit checkbox AFTER reaching the payment
+    /// step and trigger a PI refresh. Validated against the user's
+    /// balance and Stripe's 0.50 € minimum charge.
+    /// </summary>
+    long CreditAppliedCents = 0
 );
 
 /// <summary>

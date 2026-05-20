@@ -12,17 +12,20 @@ public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IOrderStatusChangeSender _statusChangeSender;
     private readonly ILogger<OrderService> _logger;
 
     public OrderService(
         IOrderRepository orderRepository,
         IProductRepository productRepository,
+        IUserRepository userRepository,
         IOrderStatusChangeSender statusChangeSender,
         ILogger<OrderService> logger)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
+        _userRepository = userRepository;
         _statusChangeSender = statusChangeSender;
         _logger = logger;
     }
@@ -62,6 +65,44 @@ public class OrderService : IOrderService
             });
         }
 
+        var shippingCost = GetShippingCost(request.ShippingMethod);
+
+        // ── Phase 7: validate store credit usage ─────────
+        // Authoritative total computation — never trust the client. Credit
+        // must be ≤ user.CreditBalanceCents AND must leave at least 50 cents
+        // (Stripe's minimum EUR charge) to clear via Stripe. Anything else
+        // → reject with a precise reason.
+        var creditApplied = request.CreditAppliedCents;
+        if (creditApplied < 0)
+        {
+            throw new BadRequestException("Credit applied cannot be negative.",
+                reason: "invalid_credit");
+        }
+        if (creditApplied > 0)
+        {
+            var user = await _userRepository.GetByIdAsync(userId)
+                ?? throw new NotFoundException("User", userId);
+            if (creditApplied > user.CreditBalanceCents)
+            {
+                throw new BadRequestException(
+                    $"Credit applied ({creditApplied} cents) exceeds available balance " +
+                    $"({user.CreditBalanceCents} cents).",
+                    reason: "insufficient_credit");
+            }
+            var totalHT = items.Sum(i => i.PriceHT * i.Quantity);
+            var totalVAT = items.Sum(i => i.PriceHT * i.Quantity * GetVatMultiplier(i.VatRate));
+            var totalTTCcents = (long)Math.Round((totalHT + totalVAT + shippingCost) * 100m);
+            if (creditApplied >= totalTTCcents - 50)
+            {
+                // 50 cents = Stripe's minimum charge in EUR. We refuse rather
+                // than auto-cap so the client knows exactly what landed.
+                throw new BadRequestException(
+                    $"Credit applied ({creditApplied} cents) would leave the Stripe charge below " +
+                    "the 0.50 € minimum. Remove items or apply less credit.",
+                    reason: "credit_too_large");
+            }
+        }
+
         var order = new Order
         {
             Id = Guid.NewGuid(),
@@ -71,8 +112,9 @@ public class OrderService : IOrderService
             ShippingAddressId = request.ShippingAddressId,
             ShippingMethod = request.ShippingMethod,
             PaymentMethod = request.PaymentMethod,
-            ShippingCost = GetShippingCost(request.ShippingMethod),
-            Items = items
+            ShippingCost = shippingCost,
+            Items = items,
+            CreditAppliedCents = creditApplied,
         };
 
         await _orderRepository.CreateAsync(order);
@@ -171,7 +213,8 @@ public class OrderService : IOrderService
             o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductNameFr, i.ProductNameEn, i.Quantity, i.PriceHT, i.VatRate)),
             o.StatusHistory.Select(s => new OrderStatusChangeDto(s.From, s.To, s.Date, s.UserId)),
             latestInvoiceId,
-            invoiceSummaries
+            invoiceSummaries,
+            o.CreditAppliedCents
         );
     }
 

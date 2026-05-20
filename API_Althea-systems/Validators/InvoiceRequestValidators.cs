@@ -26,6 +26,8 @@ public class IssueCreditNoteRequestValidator : AbstractValidator<IssueCreditNote
             .GreaterThan(0m).WithMessage("Amount must be greater than zero.")
             .LessThanOrEqualTo(1_000_000m).WithMessage("Amount is unreasonably large.");
 
+        RuleFor(x => x.Mode).IsInEnum().WithMessage("Mode must be Refund or StoreCredit.");
+
         RuleFor(x => x.Reason)
             .MaximumLength(500).WithMessage("Reason cannot exceed 500 characters.");
     }

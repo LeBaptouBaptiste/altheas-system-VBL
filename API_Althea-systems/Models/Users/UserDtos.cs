@@ -14,7 +14,11 @@ public record UserDto(
     DateTime? LastLogin,
     DateTime CreatedAt,
     IEnumerable<AddressDto> Addresses,
-    IEnumerable<PaymentMethodDto> PaymentMethods
+    IEnumerable<PaymentMethodDto> PaymentMethods,
+    // Phase 7 (store credit): current available balance in cents EUR.
+    // Used by /account to show the balance and by /checkout to cap the
+    // "apply credit" input.
+    long CreditBalanceCents = 0
 );
 
 public record UserUpdateRequest(

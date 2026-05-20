@@ -1,3 +1,5 @@
+using API_Althea_systems.Common.Enums;
+
 namespace API_Althea_systems.Models.Invoices;
 
 public class Invoice
@@ -12,6 +14,28 @@ public class Invoice
     public InvoiceType Type { get; set; } = InvoiceType.Invoice;
     public Guid? RelatedInvoiceId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // ── Phase 7 (credit-note money movement) ─────────────
+
+    /// <summary>
+    /// Set only when <see cref="Type"/> is CreditNote — how the refund
+    /// was actually settled. Null on regular invoices.
+    /// </summary>
+    public CreditNoteMode? Mode { get; set; }
+
+    /// <summary>
+    /// Stripe refund id (re_xxx) when <see cref="Mode"/> is Refund.
+    /// Persisted so we can correlate with the Stripe Dashboard and ignore
+    /// duplicate <c>charge.refunded</c> webhook deliveries.
+    /// </summary>
+    public string? StripeRefundId { get; set; }
+
+    /// <summary>
+    /// Raw Stripe refund status verbatim ("succeeded" / "pending" / "failed" /
+    /// "canceled"). Updated by the webhook handler. Null until a refund is
+    /// actually issued. For Mode=StoreCredit this stays null.
+    /// </summary>
+    public string? RefundStatus { get; set; }
 
     /// <summary>
     /// UTC moment the order-confirmation email + PDF attachment was sent to
