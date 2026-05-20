@@ -86,33 +86,26 @@ export default function CheckoutPage() {
   const [billing, setBilling] = useState<AddressForm>(emptyAddress);
   const [shipping, setShipping] = useState<AddressForm>(emptyAddress);
 
-  // Pre-fill the address form with the user's most recently used address
-  // on mount. Without this the form starts blank at every checkout, the
-  // user re-types their address, and the dedupe on the server side has to
-  // catch the duplicate every time. With this, the form is ready to go and
-  // the user just clicks "Next" if nothing changed. Tracked by a ref so we
-  // only auto-fill ONCE — subsequent renders (e.g. user.addresses gaining
-  // a new entry mid-checkout) don't clobber what the user typed.
+  // Amazon-style picker — id of the saved AddressDto currently selected,
+  // or 'new' to show the form. Initial 'new' so a brand-new user gets the
+  // form straight away. The mount effect below picks the user's default
+  // when one exists.
+  const [selectedBillingId, setSelectedBillingId] = useState<string>('new');
+  const [selectedShippingId, setSelectedShippingId] = useState<string>('new');
+
+  // Pick the user's default address on mount. Tracked by a ref so we only
+  // auto-select ONCE — if the user picks "new" then enters edits, subsequent
+  // refreshUser() calls (e.g. after the new address is created) won't
+  // clobber their choice.
   const prefilledRef = useRef(false);
   useEffect(() => {
     if (prefilledRef.current) return;
     if (!user?.addresses || user.addresses.length === 0) return;
-    // Pick the address most likely to be the user's "main" one: their
-    // billing-flavoured label first, otherwise the first one.
-    const main = user.addresses.find(a =>
-      a.label?.toLowerCase().includes('facturation')
-      || a.label?.toLowerCase().includes('billing')
-    ) ?? user.addresses[0];
-    setBilling({
-      firstName: main.firstName,
-      lastName: main.lastName,
-      company: main.company ?? '',
-      street: main.street,
-      city: main.city,
-      postalCode: main.postalCode,
-      country: main.country,
-      phone: main.phone ?? '',
-    });
+    // user.addresses is already sorted "default first, then most recent"
+    // by the server (see UserService.MapToDto).
+    const main = user.addresses[0];
+    setSelectedBillingId(main.id);
+    setSelectedShippingId(main.id);
     prefilledRef.current = true;
   }, [user]);
 
@@ -147,28 +140,44 @@ export default function CheckoutPage() {
     setPreparingPayment(true);
     setPaymentError(null);
     try {
-      const billingAddr = await usersService.addAddress(user.id, {
-        label: locale === 'fr' ? 'Facturation' : 'Billing',
-        ...billing,
-        company: billing.company || null,
-        phone: billing.phone || null,
-        street2: null,
-      });
-
-      let shippingAddrId = billingAddr.id;
-      if (!sameAddress) {
-        const shipAddr = await usersService.addAddress(user.id, {
-          label: locale === 'fr' ? 'Livraison' : 'Shipping',
-          ...shipping,
-          company: shipping.company || null,
-          phone: shipping.phone || null,
+      // Billing address: either an already-saved one (picked from the
+      // cards) or a freshly entered one (form). The server-side dedup
+      // in usersService.addAddress catches the case where the user types
+      // an address that already exists.
+      let billingAddrId: string;
+      if (selectedBillingId !== 'new') {
+        billingAddrId = selectedBillingId;
+      } else {
+        const billingAddr = await usersService.addAddress(user.id, {
+          label: locale === 'fr' ? 'Facturation' : 'Billing',
+          ...billing,
+          company: billing.company || null,
+          phone: billing.phone || null,
           street2: null,
+          isDefault: false,
         });
-        shippingAddrId = shipAddr.id;
+        billingAddrId = billingAddr.id;
+      }
+
+      let shippingAddrId = billingAddrId;
+      if (!sameAddress) {
+        if (selectedShippingId !== 'new') {
+          shippingAddrId = selectedShippingId;
+        } else {
+          const shipAddr = await usersService.addAddress(user.id, {
+            label: locale === 'fr' ? 'Livraison' : 'Shipping',
+            ...shipping,
+            company: shipping.company || null,
+            phone: shipping.phone || null,
+            street2: null,
+            isDefault: false,
+          });
+          shippingAddrId = shipAddr.id;
+        }
       }
 
       const order = await ordersService.create({
-        billingAddressId: billingAddr.id,
+        billingAddressId: billingAddrId,
         shippingAddressId: shippingAddrId,
         shippingMethod: SHIPPING_MAP[shippingMethod] ?? ShippingMethod.Standard,
         paymentMethod: PAYMENT_MAP[paymentMethod] ?? PaymentMethod.Card,
@@ -203,7 +212,17 @@ export default function CheckoutPage() {
     } finally {
       setPreparingPayment(false);
     }
-  }, [user, locale, billing, sameAddress, shipping, shippingMethod, paymentMethod, items, saveCard]);
+  }, [
+    user, locale,
+    billing, shipping, sameAddress,
+    // Picker selections: without these, the useCallback captures the
+    // initial 'new' values and ignores the address the user just radio-
+    // selected — the function would POST /addresses with the empty
+    // form fields and the server returns 400.
+    selectedBillingId, selectedShippingId,
+    shippingMethod, paymentMethod, items,
+    saveCard, creditToApply,
+  ]);
 
   /**
    * Step-2-Next handler: prepare payment first, only advance to Step 3 if
@@ -341,41 +360,154 @@ export default function CheckoutPage() {
         </CardContent></Card>
       )}
 
-      {/* Step 1: Address */}
+      {/* Step 1: Address — Amazon-style picker. Renders saved addresses as
+          radio-cards with a "Nouvelle adresse" option that reveals the form.
+          New users (no saved addresses) skip straight to the form. */}
       {step === 1 && (
         <Card><CardContent className="p-6 space-y-6">
-          <h2 className="text-xl font-semibold flex items-center gap-2"><MapPin className="w-5 h-5" />{t('checkout.billing_address')}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={billing.firstName} onChange={e => updateBilling('firstName', e.target.value)} required /></div>
-            <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={billing.lastName} onChange={e => updateBilling('lastName', e.target.value)} required /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input value={billing.company} onChange={e => updateBilling('company', e.target.value)} /></div>
-            <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={billing.street} onChange={e => updateBilling('street', e.target.value)} required /></div>
-            <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={billing.city} onChange={e => updateBilling('city', e.target.value)} required /></div>
-            <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={billing.postalCode} onChange={e => updateBilling('postalCode', e.target.value)} required /></div>
-            <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={billing.country} onChange={e => updateBilling('country', e.target.value)} required /></div>
-            <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input value={billing.phone} onChange={e => updateBilling('phone', e.target.value)} /></div>
-          </div>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <MapPin className="w-5 h-5" />{t('checkout.billing_address')}
+          </h2>
+
+          {user && user.addresses.length > 0 && (
+            <RadioGroup
+              value={selectedBillingId}
+              onValueChange={setSelectedBillingId}
+              className="space-y-2"
+            >
+              {user.addresses.map((a) => (
+                <label
+                  key={a.id}
+                  htmlFor={`billing-${a.id}`}
+                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                    selectedBillingId === a.id
+                      ? 'border-brand-primary bg-brand-primary/5'
+                      : 'border-gray-200 hover:border-brand-primary/50'
+                  }`}
+                >
+                  <RadioGroupItem value={a.id} id={`billing-${a.id}`} className="mt-1" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-medium text-sm">{a.label}</span>
+                      {a.isDefault && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-brand-primary text-white">
+                          {locale === 'fr' ? 'Par défaut' : 'Default'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {a.firstName} {a.lastName}
+                      {a.company ? ` · ${a.company}` : ''}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {a.street} · {a.postalCode} {a.city}, {a.country}
+                    </p>
+                  </div>
+                </label>
+              ))}
+              <label
+                htmlFor="billing-new"
+                className={`flex items-start gap-3 rounded-md border border-dashed p-3 cursor-pointer transition-colors ${
+                  selectedBillingId === 'new'
+                    ? 'border-brand-primary bg-brand-primary/5'
+                    : 'border-gray-300 hover:border-brand-primary/50'
+                }`}
+              >
+                <RadioGroupItem value="new" id="billing-new" className="mt-1" />
+                <span className="text-sm font-medium">
+                  {locale === 'fr' ? 'Saisir une nouvelle adresse' : 'Enter a new address'}
+                </span>
+              </label>
+            </RadioGroup>
+          )}
+
+          {/* Inline form — only when "Nouvelle adresse" is picked OR the
+              user has no saved address at all (brand-new account). */}
+          {(selectedBillingId === 'new' || !user || user.addresses.length === 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={billing.firstName} onChange={e => updateBilling('firstName', e.target.value)} required /></div>
+              <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={billing.lastName} onChange={e => updateBilling('lastName', e.target.value)} required /></div>
+              <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input value={billing.company} onChange={e => updateBilling('company', e.target.value)} /></div>
+              <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={billing.street} onChange={e => updateBilling('street', e.target.value)} required /></div>
+              <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={billing.city} onChange={e => updateBilling('city', e.target.value)} required /></div>
+              <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={billing.postalCode} onChange={e => updateBilling('postalCode', e.target.value)} required /></div>
+              <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={billing.country} onChange={e => updateBilling('country', e.target.value)} required /></div>
+              <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input value={billing.phone} onChange={e => updateBilling('phone', e.target.value)} /></div>
+            </div>
+          )}
+
           <Separator />
           <div className="flex items-center gap-2">
             <Checkbox id="sameAddr" checked={sameAddress} onCheckedChange={(v) => setSameAddress(!!v)} />
             <Label htmlFor="sameAddr">{t('checkout.same_address')}</Label>
           </div>
+
+          {/* Shipping picker — mirror of the billing one when sameAddress=false. */}
           {!sameAddress && (
-            <div>
-              <h3 className="font-semibold mb-3">{t('checkout.shipping_address')}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={shipping.firstName} onChange={e => updateShipping('firstName', e.target.value)} /></div>
-                <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={shipping.lastName} onChange={e => updateShipping('lastName', e.target.value)} /></div>
-                <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={shipping.street} onChange={e => updateShipping('street', e.target.value)} /></div>
-                <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={shipping.city} onChange={e => updateShipping('city', e.target.value)} /></div>
-                <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={shipping.postalCode} onChange={e => updateShipping('postalCode', e.target.value)} /></div>
-                <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={shipping.country} onChange={e => updateShipping('country', e.target.value)} /></div>
-              </div>
+            <div className="space-y-2">
+              <h3 className="font-semibold">{t('checkout.shipping_address')}</h3>
+              {user && user.addresses.length > 0 && (
+                <RadioGroup
+                  value={selectedShippingId}
+                  onValueChange={setSelectedShippingId}
+                  className="space-y-2"
+                >
+                  {user.addresses.map((a) => (
+                    <label
+                      key={a.id}
+                      htmlFor={`shipping-${a.id}`}
+                      className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                        selectedShippingId === a.id
+                          ? 'border-brand-primary bg-brand-primary/5'
+                          : 'border-gray-200 hover:border-brand-primary/50'
+                      }`}
+                    >
+                      <RadioGroupItem value={a.id} id={`shipping-${a.id}`} className="mt-1" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{a.label}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {a.firstName} {a.lastName} — {a.street}, {a.postalCode} {a.city}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                  <label
+                    htmlFor="shipping-new"
+                    className={`flex items-start gap-3 rounded-md border border-dashed p-3 cursor-pointer transition-colors ${
+                      selectedShippingId === 'new'
+                        ? 'border-brand-primary bg-brand-primary/5'
+                        : 'border-gray-300 hover:border-brand-primary/50'
+                    }`}
+                  >
+                    <RadioGroupItem value="new" id="shipping-new" className="mt-1" />
+                    <span className="text-sm font-medium">
+                      {locale === 'fr' ? 'Saisir une nouvelle adresse' : 'Enter a new address'}
+                    </span>
+                  </label>
+                </RadioGroup>
+              )}
+              {(selectedShippingId === 'new' || !user || user.addresses.length === 0) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={shipping.firstName} onChange={e => updateShipping('firstName', e.target.value)} /></div>
+                  <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={shipping.lastName} onChange={e => updateShipping('lastName', e.target.value)} /></div>
+                  <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={shipping.street} onChange={e => updateShipping('street', e.target.value)} /></div>
+                  <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={shipping.city} onChange={e => updateShipping('city', e.target.value)} /></div>
+                  <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={shipping.postalCode} onChange={e => updateShipping('postalCode', e.target.value)} /></div>
+                  <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={shipping.country} onChange={e => updateShipping('country', e.target.value)} /></div>
+                </div>
+              )}
             </div>
           )}
+
           <div className="flex gap-4 pt-4">
             <Button variant="outline" onClick={() => setStep(0)}><ArrowLeft className="w-4 h-4 me-2" />{t('checkout.previous')}</Button>
-            <Button className="bg-brand-primary hover:bg-brand-hover text-white" disabled={!isAddressValid(billing)} onClick={() => setStep(2)}>{t('checkout.next')}</Button>
+            <Button
+              className="bg-brand-primary hover:bg-brand-hover text-white"
+              disabled={selectedBillingId === 'new' && !isAddressValid(billing)}
+              onClick={() => setStep(2)}
+            >
+              {t('checkout.next')}
+            </Button>
           </div>
         </CardContent></Card>
       )}

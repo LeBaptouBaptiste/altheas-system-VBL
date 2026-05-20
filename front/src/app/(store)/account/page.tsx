@@ -305,26 +305,60 @@ export default function AccountPage() {
           )}
         </TabsContent>
 
-        {/* Addresses */}
+        {/* Addresses — Amazon-style cards with default badge + actions */}
         <TabsContent value="addresses">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {user.addresses.map(addr => (
-              <Card key={addr.id}><CardContent className="p-4">
-                <h3 className="font-medium mb-2">{addr.label}</h3>
-                <p className="text-sm text-muted-foreground">{addr.firstName} {addr.lastName}</p>
-                {addr.company && <p className="text-sm text-muted-foreground">{addr.company}</p>}
-                <p className="text-sm text-muted-foreground">{addr.street}</p>
-                <p className="text-sm text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
-                <div className="flex gap-2 mt-3">
-                  <Button variant="outline" size="sm" className="text-error" onClick={async () => {
-                    try {
-                      await usersService.deleteAddress(user.id, addr.id);
-                      await refreshUser();
-                      toast.success(locale === 'fr' ? 'Adresse supprimée' : 'Address deleted');
-                    } catch { toast.error(t('common.error')); }
-                  }}>{t('common.delete')}</Button>
-                </div>
-              </CardContent></Card>
+              <Card
+                key={addr.id}
+                className={addr.isDefault ? 'border-brand-primary border-2' : ''}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium">{addr.label}</h3>
+                    {addr.isDefault && (
+                      <Badge className="bg-brand-primary text-white text-xs">
+                        {locale === 'fr' ? 'Par défaut' : 'Default'}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{addr.firstName} {addr.lastName}</p>
+                  {addr.company && <p className="text-sm text-muted-foreground">{addr.company}</p>}
+                  <p className="text-sm text-muted-foreground">{addr.street}</p>
+                  <p className="text-sm text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {!addr.isDefault && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await usersService.setDefaultAddress(user.id, addr.id);
+                            await refreshUser();
+                            toast.success(locale === 'fr' ? 'Adresse par défaut mise à jour' : 'Default address updated');
+                          } catch { toast.error(t('common.error')); }
+                        }}
+                      >
+                        {locale === 'fr' ? 'Définir par défaut' : 'Set as default'}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-error"
+                      onClick={async () => {
+                        try {
+                          await usersService.deleteAddress(user.id, addr.id);
+                          await refreshUser();
+                          toast.success(locale === 'fr' ? 'Adresse supprimée' : 'Address deleted');
+                        } catch { toast.error(t('common.error')); }
+                      }}
+                    >
+                      {t('common.delete')}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
           {user.addresses.length === 0 && <p className="text-muted-foreground text-sm py-4">{t('common.no_data')}</p>}

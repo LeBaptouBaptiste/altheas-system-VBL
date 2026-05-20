@@ -160,6 +160,11 @@ export interface AddressDto {
   postalCode: string;
   country: string;
   phone: string | null;
+  /**
+   * Default address — pre-selected at checkout, badged in /account/addresses.
+   * Exactly one non-archived address per user holds this flag.
+   */
+  isDefault: boolean;
 }
 
 export interface PaymentMethodDto {

@@ -31,6 +31,13 @@ export const usersService = {
   deleteAddress: (userId: string, addressId: string) =>
     api.delete(`/users/${userId}/addresses/${addressId}`),
 
+  /**
+   * Marks the address as the user's default. Unsets the flag on others
+   * atomically. Returns the updated AddressDto with IsDefault=true.
+   */
+  setDefaultAddress: (userId: string, addressId: string) =>
+    api.put<AddressDto>(`/users/${userId}/addresses/${addressId}/default`, {}),
+
   // Payment methods
   listPaymentMethods: (userId: string) =>
     api.get<PaymentMethodDto[]>(`/users/${userId}/payment-methods`),

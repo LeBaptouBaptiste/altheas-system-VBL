@@ -88,16 +88,14 @@ public class UserService : IUserService
         var user = await _userRepository.GetByIdAsync(userId)
             ?? throw new NotFoundException("User", userId);
 
-        // Dedup: if the user already has an address with the same postal
-        // fingerprint (firstname + lastname + street + postalCode + city +
-        // country), return THAT one instead of inserting a duplicate. Fixes
-        // the case where checkout always POST /addresses with the same
-        // billing info → /account/addresses ends up with a row per checkout.
-        // Label is intentionally NOT part of the fingerprint — "Billing" vs
-        // "Livraison" pointing at the same place is still a single address
-        // from a logistics POV.
+        // Dedup: if the user already has a NON-ARCHIVED address with the
+        // same postal fingerprint, return THAT one instead of inserting.
+        // (Archived rows are ignored — if the user explicitly deleted it,
+        // re-adding the same address should be a real new entry, otherwise
+        // they couldn't recover a deleted address by re-entering it.)
         var existing = user.Addresses.FirstOrDefault(a =>
-            string.Equals(a.FirstName, request.FirstName, StringComparison.OrdinalIgnoreCase)
+            !a.Archived
+            && string.Equals(a.FirstName, request.FirstName, StringComparison.OrdinalIgnoreCase)
             && string.Equals(a.LastName, request.LastName, StringComparison.OrdinalIgnoreCase)
             && string.Equals(NormalizeStreet(a.Street), NormalizeStreet(request.Street), StringComparison.OrdinalIgnoreCase)
             && string.Equals(a.PostalCode, request.PostalCode, StringComparison.OrdinalIgnoreCase)
@@ -105,13 +103,16 @@ public class UserService : IUserService
             && string.Equals(a.Country, request.Country, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
-            return new AddressDto(existing.Id, existing.Label, existing.FirstName, existing.LastName,
-                existing.Company, existing.Street, existing.Street2, existing.City, existing.PostalCode,
-                existing.Country, existing.Phone);
+            return MapAddress(existing);
         }
+
+        // First non-archived address for this user → mark as default
+        // automatically (so the picker always has a pre-selected option).
+        var isFirstAddress = !user.Addresses.Any(a => !a.Archived);
 
         var address = new Address
         {
+            IsDefault = isFirstAddress,
             // Don't pre-set Id with Guid.NewGuid(): when adding a child through
             // a tracked parent's navigation collection (user.Addresses.Add),
             // EF Core's heuristic treats non-default PKs as "existing entity"
@@ -135,9 +136,7 @@ public class UserService : IUserService
         user.Addresses.Add(address);
         await _userRepository.UpdateAsync(user);
 
-        return new AddressDto(address.Id, address.Label, address.FirstName, address.LastName,
-            address.Company, address.Street, address.Street2, address.City, address.PostalCode,
-            address.Country, address.Phone);
+        return MapAddress(address);
     }
 
     /// <summary>
@@ -154,7 +153,7 @@ public class UserService : IUserService
         var user = await _userRepository.GetByIdAsync(userId)
             ?? throw new NotFoundException("User", userId);
 
-        var address = user.Addresses.FirstOrDefault(a => a.Id == addressId)
+        var address = user.Addresses.FirstOrDefault(a => a.Id == addressId && !a.Archived)
             ?? throw new NotFoundException("Address", addressId);
 
         address.Label = request.Label;
@@ -170,9 +169,7 @@ public class UserService : IUserService
 
         await _userRepository.UpdateAsync(user);
 
-        return new AddressDto(address.Id, address.Label, address.FirstName, address.LastName,
-            address.Company, address.Street, address.Street2, address.City, address.PostalCode,
-            address.Country, address.Phone);
+        return MapAddress(address);
     }
 
     public async Task DeleteAddressAsync(Guid userId, Guid addressId)
@@ -180,12 +177,62 @@ public class UserService : IUserService
         var user = await _userRepository.GetByIdAsync(userId)
             ?? throw new NotFoundException("User", userId);
 
-        var address = user.Addresses.FirstOrDefault(a => a.Id == addressId)
+        var address = user.Addresses.FirstOrDefault(a => a.Id == addressId && !a.Archived)
             ?? throw new NotFoundException("Address", addressId);
 
-        user.Addresses.Remove(address);
+        // Soft-delete — historic orders still reference this row via FK
+        // (Restrict). Hiding from UI is enough.
+        address.Archived = true;
+        var wasDefault = address.IsDefault;
+        address.IsDefault = false;
+
+        // If the deleted address was the user's default, promote the most
+        // recently created remaining one. Keeps "always one default" so
+        // the checkout picker never has nothing pre-selected.
+        if (wasDefault)
+        {
+            var fallback = user.Addresses
+                .Where(a => !a.Archived && a.Id != addressId)
+                .OrderByDescending(a => a.CreatedAt)
+                .FirstOrDefault();
+            if (fallback is not null)
+            {
+                fallback.IsDefault = true;
+            }
+        }
+
         await _userRepository.UpdateAsync(user);
     }
+
+    public async Task<AddressDto> SetDefaultAddressAsync(Guid userId, Guid addressId)
+    {
+        var user = await _userRepository.GetByIdAsync(userId)
+            ?? throw new NotFoundException("User", userId);
+
+        var target = user.Addresses.FirstOrDefault(a => a.Id == addressId && !a.Archived)
+            ?? throw new NotFoundException("Address", addressId);
+
+        if (target.IsDefault)
+        {
+            // Already default — no DB roundtrip needed.
+            return MapAddress(target);
+        }
+
+        // Atomic-ish: flip all to false then flip the target on. EF tracks
+        // the changes and SaveChanges serialises a single UPDATE per row.
+        foreach (var a in user.Addresses)
+        {
+            a.IsDefault = false;
+        }
+        target.IsDefault = true;
+
+        await _userRepository.UpdateAsync(user);
+        return MapAddress(target);
+    }
+
+    private static AddressDto MapAddress(Address a) => new(
+        a.Id, a.Label, a.FirstName, a.LastName, a.Company,
+        a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone, a.IsDefault);
 
     // ── Payment Methods ──────────────────────────────────
 
@@ -234,7 +281,14 @@ public class UserService : IUserService
         user.Id, user.Name, user.Email, user.Role, user.Status,
         user.Anonymized, user.EmailConfirmed, user.TwoFactorEnabled,
         user.LastLogin, user.CreatedAt,
-        user.Addresses.Select(a => new AddressDto(a.Id, a.Label, a.FirstName, a.LastName, a.Company, a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone)),
+        // Filter archived addresses out — historic-order rows that the user
+        // soft-deleted from /account. Default first so the UI / checkout
+        // picker can rely on order.
+        user.Addresses
+            .Where(a => !a.Archived)
+            .OrderByDescending(a => a.IsDefault)
+            .ThenByDescending(a => a.CreatedAt)
+            .Select(MapAddress),
         user.PaymentMethods.Select(MapPaymentMethod),
         user.CreditBalanceCents
     );

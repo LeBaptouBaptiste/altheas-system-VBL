@@ -38,7 +38,11 @@ public record AddressDto(
     string City,
     string PostalCode,
     string Country,
-    string? Phone
+    string? Phone,
+    // Default flag: pre-selected at checkout, badged in /account/addresses.
+    // Default value so existing callers (controllers, anonymization) keep
+    // compiling without explicit changes.
+    bool IsDefault = false
 );
 
 public record AddressCreateRequest(

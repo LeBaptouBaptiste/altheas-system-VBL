@@ -562,10 +562,17 @@ public class AuthService : IAuthService
         user.TwoFactorEnabled,
         user.LastLogin,
         user.CreatedAt,
-        user.Addresses.Select(a => new AddressDto(
-            a.Id, a.Label, a.FirstName, a.LastName, a.Company,
-            a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone
-        )),
+        // Filter archived addresses + default first so /auth/me consumers
+        // (auth-context on the front) see the same shape as /users/{id}.
+        user.Addresses
+            .Where(a => !a.Archived)
+            .OrderByDescending(a => a.IsDefault)
+            .ThenByDescending(a => a.CreatedAt)
+            .Select(a => new AddressDto(
+                a.Id, a.Label, a.FirstName, a.LastName, a.Company,
+                a.Street, a.Street2, a.City, a.PostalCode, a.Country, a.Phone,
+                a.IsDefault
+            )),
         user.PaymentMethods.Select(p => new PaymentMethodDto(
             p.Id, p.Type, p.Label,
             p.StripePaymentMethodId, p.Brand, p.Last4, p.ExpMonth, p.ExpYear)),
