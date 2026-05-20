@@ -12,6 +12,7 @@ using API_Althea_systems.Data;
 using API_Althea_systems.Repositories;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Extensions;
@@ -181,6 +182,29 @@ public static class ServiceCollectionExtensions
         // PDF rendering is stateless and fast (QuestPDF reuses a thread-local
         // engine), Singleton is appropriate.
         services.AddSingleton<IInvoicePdfService, InvoicePdfService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddEmail(this IServiceCollection services, IConfiguration configuration)
+    {
+        // SMTP settings are bound from "Smtp" — blank Host means "no SMTP
+        // configured" and SmtpEmailSender logs+skips at send time (see its
+        // null-host branch). That keeps local dev usable without credentials.
+        services.Configure<SmtpSettings>(configuration.GetSection("Smtp"));
+
+        // Templates load once at construction (Singleton). The options POCO
+        // is eagerly built so we can pass it via constructor injection rather
+        // than IOptions<>, which keeps the boot-time file scan visible in
+        // EmailTemplateRenderer's stack frame on failure.
+        var templateOptions = configuration.GetSection("EmailTemplates").Get<EmailTemplateOptions>()
+            ?? new EmailTemplateOptions();
+        services.AddSingleton(templateOptions);
+        services.AddSingleton<IEmailTemplateRenderer, EmailTemplateRenderer>();
+
+        // The SMTP sender is stateless (creates a fresh SmtpClient per send),
+        // Singleton is fine and avoids per-request allocation.
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
         return services;
     }

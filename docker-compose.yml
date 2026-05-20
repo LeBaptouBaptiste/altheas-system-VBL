@@ -32,6 +32,13 @@ services:
       Encryption__Key: ${ENCRYPTION_KEY}
       Stripe__SecretKey: ${STRIPE_SECRET_KEY}
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      Smtp__Host: ${SMTP_HOST}
+      Smtp__Port: ${SMTP_PORT}
+      Smtp__Username: ${SMTP_USERNAME}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__From: ${SMTP_FROM}
+      Smtp__FromName: ${SMTP_FROM_NAME}
+      Smtp__UseStartTls: ${SMTP_USE_STARTTLS}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
     depends_on:
       postgres:
