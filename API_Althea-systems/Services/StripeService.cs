@@ -101,14 +101,15 @@ public class StripeService : IStripeService
             {
                 Enabled = true,
             },
-            // Intentionally NOT setting SetupFutureUsage here. The front-end
-            // decides whether to save the card at confirmPayment time via
-            // confirmParams.setup_future_usage. This way the same clientSecret
-            // survives a "save card" toggle change in the UI — otherwise we'd
-            // need to recreate the PaymentIntent on every toggle, which forces
-            // Stripe Elements to remount and the user loses their PAN/CVC input.
-            // The `saveCard` parameter is still accepted for backwards compat
-            // but ignored — see CreatePaymentIntentAsync signature.
+            // Stripe contract: setup_future_usage MUST be set at PI creation
+            // (passing it at confirmPayment() time is rejected as of the
+            // current Stripe API). Null/omitted = one-shot payment.
+            // "off_session" = attach the resulting PaymentMethod to the
+            // Customer so we can re-charge it later without the user present.
+            // Side-effect on the UX: toggling the "save card" checkbox after
+            // PI creation requires recreating the PI (the front does this
+            // and remounts Stripe Elements; user re-types their PAN).
+            SetupFutureUsage = saveCard ? "off_session" : null,
             Metadata = new Dictionary<string, string>
             {
                 ["orderId"] = order.Id.ToString(),

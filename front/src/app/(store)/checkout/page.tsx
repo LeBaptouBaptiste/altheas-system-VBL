@@ -175,15 +175,32 @@ export default function CheckoutPage() {
   };
 
   /**
-   * The "save card" checkbox is now pure UI state — setup_future_usage is
-   * passed at confirmPayment time (see StripePaymentForm), not at PaymentIntent
-   * creation. Toggling no longer needs to recreate the intent, which means
-   * the clientSecret stays stable and Stripe Elements doesn't remount —
-   * the user keeps their PAN/CVC input.
+   * "Save card" toggle must recreate the PaymentIntent — setup_future_usage
+   * is baked into the PI at creation, Stripe rejects it at confirm time.
+   * Trade-off: Stripe Elements remounts (forced by key={clientSecret} in
+   * StripePaymentForm) and the user re-types their PAN/CVC. We lock the
+   * checkbox while the refresh is in flight so a fast double-click doesn't
+   * race two intent creations.
    */
-  const handleSaveCardToggle = useCallback((next: boolean) => {
+  const handleSaveCardToggle = useCallback(async (next: boolean) => {
     setSaveCard(next);
-  }, []);
+    if (!orderId) return;          // shouldn't happen — checkbox is only shown in Step 3
+    setPreparingPayment(true);
+    setPaymentError(null);
+    try {
+      const intent = await paymentsService.createIntent(orderId, next);
+      setClientSecret(intent.clientSecret);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message
+        : (locale === 'fr' ? 'Erreur lors de la mise à jour' : 'Failed to update payment');
+      setPaymentError(msg);
+      toast.error(msg);
+      // Roll back the checkbox so the UI stays consistent with the server.
+      setSaveCard(!next);
+    } finally {
+      setPreparingPayment(false);
+    }
+  }, [orderId, locale]);
 
   /**
    * Handles the return from a Stripe redirect (3DS / wallet) or the inline

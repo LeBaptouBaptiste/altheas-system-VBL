@@ -55,12 +55,14 @@ export function StripePaymentForm(props: StripePaymentFormProps) {
     },
   };
 
-  // clientSecret is now stable across the lifetime of Step 3 — we no longer
-  // recreate the PaymentIntent on "save card" toggle (setup_future_usage is
-  // passed at confirmPayment instead). So no `key={clientSecret}` is needed
-  // and Stripe Elements stays mounted, preserving the user's PAN/CVC input.
+  // Stripe Elements treats clientSecret as IMMUTABLE — once mounted, changing
+  // it via prop is rejected with "options.clientSecret is not a mutable
+  // property". When the parent toggles "save card" it re-creates the PI
+  // server-side (setup_future_usage now lives there) and ships a new
+  // clientSecret; we force a remount via `key={clientSecret}` so the new
+  // value is honored. Trade-off: the user re-types their PAN on toggle.
   return (
-    <Elements stripe={stripePromise} options={options}>
+    <Elements key={props.clientSecret} stripe={stripePromise} options={options}>
       <Inner {...props} />
     </Elements>
   );
@@ -92,11 +94,10 @@ function Inner({ returnUrl, saveCard, onSaveCardChange, saveCardLocked, onSucces
       elements,
       confirmParams: {
         return_url: returnUrl,
-        // Pass setup_future_usage at confirm time (not at PaymentIntent
-        // creation). The user can toggle "Save my card" AFTER typing their
-        // PAN without losing input, because the clientSecret stays stable
-        // and Stripe Elements doesn't remount. `null` = don't save (default).
-        setup_future_usage: saveCard ? 'off_session' : null,
+        // NOTE: setup_future_usage is NOT passed here anymore. Stripe's
+        // current API rejects it at confirm time — it must be set on the
+        // PaymentIntent at creation. The parent re-creates the PI when the
+        // user toggles "Save my card" so the right value is baked in.
       },
       // 'if_required' = handle 3DS / wallet redirects only when Stripe deems
       // them necessary. For non-3DS cards the promise resolves here with
