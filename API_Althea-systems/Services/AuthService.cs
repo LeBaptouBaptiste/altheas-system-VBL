@@ -1,9 +1,13 @@
+using System.Security.Cryptography;
+using System.Text;
 using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Common.Exceptions;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
+using Microsoft.Extensions.Options;
 
 namespace API_Althea_systems.Services;
 
@@ -16,27 +20,44 @@ public class AuthService : IAuthService
     private static readonly TimeSpan FailureWindow = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(15);
 
+    // Resend cooldown: keeps the same user from spamming the confirmation
+    // mailbox (and our SMTP quota). 5 minutes is short enough to feel
+    // responsive after a typo'd email, long enough to deter abuse.
+    private static readonly TimeSpan ResendCooldown = TimeSpan.FromMinutes(5);
+
     private readonly IUserRepository _userRepository;
+    private readonly IEmailConfirmationTokenRepository _confirmationTokens;
     private readonly ITokenService _tokenService;
     private readonly ITwoFactorService _twoFactor;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILoginAttemptStore _loginAttempts;
+    private readonly IEmailConfirmationSender _confirmationSender;
+    private readonly EmailConfirmationOptions _confirmationOptions;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository userRepository,
+        IEmailConfirmationTokenRepository confirmationTokens,
         ITokenService tokenService,
         ITwoFactorService twoFactor,
         IPasswordHasher passwordHasher,
-        ILoginAttemptStore loginAttempts)
+        ILoginAttemptStore loginAttempts,
+        IEmailConfirmationSender confirmationSender,
+        IOptions<EmailConfirmationOptions> confirmationOptions,
+        ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
+        _confirmationTokens = confirmationTokens;
         _tokenService = tokenService;
         _twoFactor = twoFactor;
         _passwordHasher = passwordHasher;
         _loginAttempts = loginAttempts;
+        _confirmationSender = confirmationSender;
+        _confirmationOptions = confirmationOptions.Value;
+        _logger = logger;
     }
 
-    public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
+    public async Task<RegisterResponse> RegisterAsync(RegisterRequest request)
     {
         if (await _userRepository.EmailExistsAsync(request.Email))
             throw new ConflictException("User", "email", request.Email);
@@ -52,11 +73,22 @@ public class AuthService : IAuthService
 
         await _userRepository.CreateAsync(user);
 
-        // New users never have 2FA at register time, so amr=pwd is correct.
-        var accessToken = _tokenService.GenerateAccessToken(user, mfaVerified: false);
-        var refreshToken = _tokenService.GenerateRefreshToken();
+        // Issue + send confirmation. SMTP failures don't roll back the
+        // registration — the user can use POST /auth/resend-confirmation
+        // to retry without re-registering.
+        var (rawToken, _) = await IssueConfirmationTokenAsync(user);
+        try
+        {
+            await _confirmationSender.SendAsync(user, rawToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Confirmation email failed to send for user {UserId} ({Email}). User can resend.",
+                user.Id, user.Email);
+        }
 
-        return new AuthResponse(accessToken, refreshToken, MapToDto(user));
+        return new RegisterResponse(MapToDto(user));
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
@@ -84,6 +116,16 @@ public class AuthService : IAuthService
         // Successful password check — clear any partial failure trail before
         // dispatching to the 2FA / setup / regular branch.
         await _loginAttempts.ResetAsync(normalizedEmail);
+
+        // Branch 0 (new in phase 2): email not yet confirmed → block any
+        // token issuance, tell the front to show the "check inbox" screen.
+        // This MUST come before 2FA branches because an unconfirmed user
+        // can't have set up 2FA anyway (the user-flow forces confirmation
+        // first).
+        if (!user.EmailConfirmed)
+        {
+            return new LoginResponse(LoginOutcome.EmailConfirmationRequired);
+        }
 
         // Branch 1: 2FA enabled -> issue a challenge, do NOT update LastLogin yet
         // (that happens once the code is verified).
@@ -209,21 +251,107 @@ public class AuthService : IAuthService
         return MapToDto(user);
     }
 
-    /// <summary>
-    /// DISABLED — the previous implementation treated the user's email as
-    /// the confirmation token, which allowed a trivial account take-over
-    /// (any caller who knew an email could mark it as verified).
-    /// Re-enable only after a signed, single-use token table is added
-    /// (EmailConfirmationTokens, 30 min TTL). The controller short-circuits
-    /// to 501 so this method is currently unreachable from HTTP.
-    /// TODO: implement signed single-use token table (EmailConfirmationTokens)
-    ///       with 30 min TTL.
-    /// </summary>
-    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
-    public Task ConfirmEmailAsync(ConfirmEmailRequest request)
+    public async Task ConfirmEmailAsync(ConfirmEmailRequest request)
     {
-        throw new NotSupportedException(
-            "ConfirmEmail is disabled until a signed single-use token table is implemented.");
+        if (string.IsNullOrWhiteSpace(request.Token))
+        {
+            throw new BadRequestException("Confirmation token is missing.", reason: "invalid_token");
+        }
+
+        var hash = HashToken(request.Token);
+
+        // Two-step lookup so we can distinguish "unknown" from
+        // "expired" / "already used" — the front needs to render
+        // different copy for each.
+        var token = await _confirmationTokens.GetAnyByHashAsync(hash);
+        if (token is null)
+        {
+            throw new BadRequestException("Invalid confirmation token.", reason: "invalid_token");
+        }
+
+        if (token.ConsumedAt is not null)
+        {
+            // Idempotent-ish: if the user clicks the same link twice, the
+            // second click should NOT 500. But we still want to signal
+            // "this link was already used" so the front can offer "go to
+            // login" rather than "resend".
+            throw new BadRequestException("This confirmation link has already been used.", reason: "token_consumed");
+        }
+
+        if (token.ExpiresAt <= DateTime.UtcNow)
+        {
+            throw new BadRequestException("This confirmation link has expired. Request a new one.", reason: "token_expired");
+        }
+
+        // Mark consumed BEFORE flipping EmailConfirmed so a race between two
+        // concurrent clicks can't double-flip (the second click finds
+        // ConsumedAt set and throws).
+        token.ConsumedAt = DateTime.UtcNow;
+        await _confirmationTokens.UpdateAsync(token);
+
+        var user = token.User
+            ?? throw new InvalidOperationException(
+                $"Confirmation token {token.Id} has no associated User — DB integrity issue.");
+
+        if (!user.EmailConfirmed)
+        {
+            user.EmailConfirmed = true;
+            await _userRepository.UpdateAsync(user);
+        }
+
+        _logger.LogInformation(
+            "Email confirmed for user {UserId} ({Email}) via token {TokenId}.",
+            user.Id, user.Email, token.Id);
+    }
+
+    public async Task ResendConfirmationAsync(ResendConfirmationRequest request)
+    {
+        var normalizedEmail = request.Email.ToLowerInvariant();
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail);
+
+        // Anti-enumeration: always look like a success to the caller. Unknown
+        // emails, confirmed accounts, throttled users all hit the same code
+        // path that just returns. We log at info so ops can see the breakdown
+        // without exposing it to clients.
+        if (user is null)
+        {
+            _logger.LogInformation(
+                "Resend-confirmation requested for unknown email {Email} — silent no-op.",
+                normalizedEmail);
+            return;
+        }
+
+        if (user.EmailConfirmed)
+        {
+            _logger.LogInformation(
+                "Resend-confirmation requested for already-confirmed user {UserId} — silent no-op.",
+                user.Id);
+            return;
+        }
+
+        var lastIssuedAt = await _confirmationTokens.GetMostRecentCreatedAtAsync(user.Id);
+        if (lastIssuedAt is { } last && DateTime.UtcNow - last < ResendCooldown)
+        {
+            _logger.LogInformation(
+                "Resend-confirmation throttled for user {UserId} — last issued {Seconds}s ago.",
+                user.Id, (int)(DateTime.UtcNow - last).TotalSeconds);
+            return;
+        }
+
+        var (rawToken, _) = await IssueConfirmationTokenAsync(user);
+        try
+        {
+            await _confirmationSender.SendAsync(user, rawToken);
+        }
+        catch (Exception ex)
+        {
+            // Don't surface SMTP errors to the caller — that would be a
+            // confirmation channel ("this email exists, our SMTP just broke").
+            // Log and move on; the user will hit the resend button again.
+            _logger.LogError(ex,
+                "Resend-confirmation failed to send for user {UserId} ({Email}).",
+                user.Id, user.Email);
+        }
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
@@ -252,6 +380,40 @@ public class AuthService : IAuthService
         throw new NotSupportedException(
             "ResetPassword is disabled until a signed single-use token table is implemented.");
     }
+
+    /// <summary>
+    /// Generates a fresh single-use token, persists the SHA-256 hash, and
+    /// returns the raw token (to mail) and the hash (for tests / logs).
+    /// 32 random bytes → URL-safe base64 → 43-ish chars. Hash is hex (64 chars).
+    /// </summary>
+    private async Task<(string Raw, string Hash)> IssueConfirmationTokenAsync(User user)
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        var raw = Convert.ToBase64String(bytes)
+            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        var hash = HashToken(raw);
+
+        var entity = new EmailConfirmationToken
+        {
+            // Leave Id at default(Guid) — see Address / OrderStatusChange:
+            // EF's heuristic marks default-PK navigation entries as Added.
+            // Here we're adding via the repo (not via parent.Add) so it
+            // doesn't strictly matter, but stay consistent with the pattern.
+            UserId = user.Id,
+            TokenHash = hash,
+            ExpiresAt = DateTime.UtcNow.Add(_confirmationOptions.TokenLifetime),
+            CreatedAt = DateTime.UtcNow,
+        };
+        await _confirmationTokens.CreateAsync(entity);
+
+        return (raw, hash);
+    }
+
+    /// <summary>
+    /// SHA-256 of the raw token's UTF-8 bytes, hex-encoded uppercase.
+    /// </summary>
+    private static string HashToken(string raw) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
 
     private static UserDto MapToDto(User user) => new(
         user.Id,

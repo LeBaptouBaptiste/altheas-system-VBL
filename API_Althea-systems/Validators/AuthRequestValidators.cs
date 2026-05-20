@@ -44,3 +44,16 @@ public class ConfirmEmailRequestValidator : AbstractValidator<ConfirmEmailReques
             .MaximumLength(512);
     }
 }
+
+public class ResendConfirmationRequestValidator : AbstractValidator<ResendConfirmationRequest>
+{
+    public ResendConfirmationRequestValidator()
+    {
+        // Anti-enumeration: the service always returns success. The validator
+        // only protects against junk input (empty, oversized, malformed).
+        RuleFor(x => x.Email)
+            .NotEmpty().WithMessage("Email is required.")
+            .EmailAddress().WithMessage("Invalid email format.")
+            .MaximumLength(320);
+    }
+}

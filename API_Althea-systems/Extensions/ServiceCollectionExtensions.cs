@@ -142,6 +142,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IEmailConfirmationTokenRepository, EmailConfirmationTokenRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
         services.AddScoped<IRecoveryCodeRepository, RecoveryCodeRepository>();
@@ -205,6 +206,10 @@ public static class ServiceCollectionExtensions
         // The SMTP sender is stateless (creates a fresh SmtpClient per send),
         // Singleton is fine and avoids per-request allocation.
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
+        // Phase 2: registration-confirmation specific options + sender.
+        services.Configure<EmailConfirmationOptions>(configuration.GetSection("EmailConfirmation"));
+        services.AddScoped<IEmailConfirmationSender, EmailConfirmationSender>();
 
         return services;
     }

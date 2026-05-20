@@ -20,8 +20,10 @@ public class AuthController : ControllerBase, IAuthController
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
+    public async Task<ActionResult<RegisterResponse>> Register([FromBody] RegisterRequest request)
     {
+        // 201 with the user dto — NO tokens. The user must confirm their
+        // email (link mailed to them) before they can log in.
         var result = await _authService.RegisterAsync(request);
         return Created("", result);
     }
@@ -71,22 +73,30 @@ public class AuthController : ControllerBase, IAuthController
     }
 
     /// <summary>
-    /// CRITICAL SECURITY ISSUE: the original implementation accepted the
-    /// user's email address as the "confirmation token", allowing an
-    /// attacker to confirm any account by guessing the email. The endpoint
-    /// is preserved (the frontend still calls it) but neutralized until a
-    /// proper signed single-use token table is implemented.
-    /// TODO: implement signed single-use token table (EmailConfirmationTokens)
-    ///       with 30 min TTL.
+    /// Consumes the confirmation token mailed at registration and flips
+    /// EmailConfirmed=true on the user. Failure modes (token_expired,
+    /// token_consumed, invalid_token) surface as 400 with a machine-readable
+    /// `reason` the front uses to pick the right user copy.
     /// </summary>
     [HttpPost("confirm-email")]
-    public Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
+    public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest request)
     {
-        IActionResult result = StatusCode(StatusCodes.Status501NotImplemented, new
-        {
-            message = "This endpoint is not implemented yet. Contact support."
-        });
-        return Task.FromResult(result);
+        await _authService.ConfirmEmailAsync(request);
+        return Ok(new { message = "Email confirmed." });
+    }
+
+    /// <summary>
+    /// Re-issues a confirmation link for an unconfirmed user. Always returns
+    /// 200 — unknown / already-confirmed / throttled emails all look the
+    /// same to the caller (anti-enumeration). Throttled at 1 mail / 5 min
+    /// per user inside <see cref="AuthService.ResendConfirmationAsync"/>;
+    /// the IP-level "auth" rate-limit policy still applies on top.
+    /// </summary>
+    [HttpPost("resend-confirmation")]
+    public async Task<IActionResult> ResendConfirmation([FromBody] ResendConfirmationRequest request)
+    {
+        await _authService.ResendConfirmationAsync(request);
+        return Ok(new { message = "If this email matches an unconfirmed account, a new confirmation link has been sent." });
     }
 
     [HttpPost("forgot-password")]

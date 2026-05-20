@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,11 +19,15 @@ const SETUP_TOKEN_KEY = 'althea-setup-token';
 
 type Stage =
   | { kind: 'credentials' }
-  | { kind: 'twoFactor'; challengeToken: string };
+  | { kind: 'twoFactor'; challengeToken: string }
+  // Phase 2: password OK but email isn't confirmed yet. Show a "check your
+  // inbox" screen with a resend CTA. The email travels with the stage so the
+  // resend call doesn't need to re-read the form state.
+  | { kind: 'emailConfirmationRequired'; email: string };
 
 export default function LoginPage() {
-  const { t } = useI18n();
-  const { login, completeTwoFactorChallenge } = useAuth();
+  const { t, locale } = useI18n();
+  const { login, completeTwoFactorChallenge, resendConfirmation } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -55,6 +60,9 @@ export default function LoginPage() {
           sessionStorage.setItem(SETUP_TOKEN_KEY, result.setupToken);
           router.push('/admin-setup');
           break;
+        case 'emailConfirmationRequired':
+          setStage({ kind: 'emailConfirmationRequired', email: result.email });
+          break;
         case 'error':
           setError(getErrorMessage(result.error, t));
           break;
@@ -86,6 +94,47 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   };
+
+  // ── Stage: email confirmation pending ─────────────
+  if (stage.kind === 'emailConfirmationRequired') {
+    return (
+      <div className="container mx-auto px-4 py-16 max-w-md">
+        <Card><CardContent className="p-6 text-center space-y-4">
+          <Mail className="w-12 h-12 mx-auto text-brand-primary" />
+          <h1 className="text-2xl text-brand-dark">
+            {locale === 'fr' ? 'Confirmez votre email' : 'Confirm your email'}
+          </h1>
+          <p className="text-muted-foreground">
+            {locale === 'fr'
+              ? `Votre compte ${stage.email} n'est pas encore activé. Cliquez sur le lien envoyé par mail pour finaliser l'inscription.`
+              : `Your account ${stage.email} is not yet activated. Click the link we mailed you to finish signing up.`}
+          </p>
+          <Button
+            onClick={async () => {
+              setSubmitting(true);
+              await resendConfirmation(stage.email);
+              setSubmitting(false);
+              toast.success(locale === 'fr' ? 'Email renvoyé' : 'Email resent');
+            }}
+            disabled={submitting}
+            variant="outline"
+            className="w-full"
+          >
+            {submitting
+              ? (locale === 'fr' ? 'Envoi…' : 'Sending…')
+              : (locale === 'fr' ? 'Renvoyer l’email de confirmation' : 'Resend confirmation email')}
+          </Button>
+          <button
+            type="button"
+            onClick={() => { setStage({ kind: 'credentials' }); setError(''); }}
+            className="w-full text-sm text-muted-foreground hover:underline"
+          >
+            {locale === 'fr' ? 'Revenir à la connexion' : 'Back to login'}
+          </button>
+        </CardContent></Card>
+      </div>
+    );
+  }
 
   // ── Stage: 2FA challenge ───────────────────────────
   if (stage.kind === 'twoFactor') {

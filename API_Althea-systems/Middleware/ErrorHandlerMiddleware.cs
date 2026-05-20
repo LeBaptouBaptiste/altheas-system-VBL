@@ -33,6 +33,7 @@ public class ErrorHandlerMiddleware
         {
             NotFoundException ex => new ErrorMapping(HttpStatusCode.NotFound, ex.Message),
             AppValidationException ex => new ErrorMapping(HttpStatusCode.BadRequest, ex.Message, Errors: ex.Errors),
+            BadRequestException ex => new ErrorMapping(HttpStatusCode.BadRequest, ex.Message, Reason: ex.Reason),
             UnauthorizedException ex => new ErrorMapping(HttpStatusCode.Unauthorized, ex.Message, Reason: ex.Reason),
             ForbiddenException ex => new ErrorMapping(HttpStatusCode.Forbidden, ex.Message),
             ConflictException ex => new ErrorMapping(HttpStatusCode.Conflict, ex.Message),

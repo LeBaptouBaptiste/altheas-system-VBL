@@ -4,12 +4,17 @@ namespace API_Althea_systems.Services.IServices;
 
 public interface IAuthService
 {
-    Task<AuthResponse> RegisterAsync(RegisterRequest request);
+    /// <summary>
+    /// Creates a Customer user with <c>EmailConfirmed = false</c> and emails a
+    /// single-use confirmation link. NO access / refresh tokens are issued —
+    /// the user must confirm before they can log in.
+    /// </summary>
+    Task<RegisterResponse> RegisterAsync(RegisterRequest request);
 
     /// <summary>
-    /// Verifies password and returns one of three outcomes
-    /// (see <see cref="LoginOutcome"/>): authenticated, 2FA required, or
-    /// admin must set up 2FA.
+    /// Verifies password and returns one of four outcomes
+    /// (see <see cref="LoginOutcome"/>): authenticated, 2FA required,
+    /// admin must set up 2FA, or email confirmation pending.
     /// </summary>
     Task<LoginResponse> LoginAsync(LoginRequest request);
 
@@ -38,11 +43,22 @@ public interface IAuthService
     Task<UserDto> GetCurrentUserAsync(Guid userId);
 
     /// <summary>
-    /// DISABLED until a signed single-use token table is added.
-    /// See <see cref="AuthService.ConfirmEmailAsync"/> for context.
+    /// Consumes a confirmation token (sent by email at registration) and
+    /// flips <c>User.EmailConfirmed = true</c>. Throws
+    /// <see cref="Common.Exceptions.BadRequestException"/> when the token
+    /// is unknown, expired, or already used — the front renders each case
+    /// distinctly via the response's <c>reason</c>.
     /// </summary>
-    [Obsolete("Disabled: insecure (email-as-token). Awaiting signed token implementation.", error: false)]
     Task ConfirmEmailAsync(ConfirmEmailRequest request);
+
+    /// <summary>
+    /// Re-issues a fresh confirmation email for an unconfirmed user.
+    /// Returns successfully whether or not the email matches a user
+    /// (anti-enumeration), but only actually mails when the address maps
+    /// to an unconfirmed account and the user hasn't requested one in
+    /// the last 5 minutes (anti-spam).
+    /// </summary>
+    Task ResendConfirmationAsync(ResendConfirmationRequest request);
 
     Task ForgotPasswordAsync(ForgotPasswordRequest request);
 

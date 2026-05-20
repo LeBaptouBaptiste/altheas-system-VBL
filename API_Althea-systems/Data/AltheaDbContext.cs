@@ -21,6 +21,7 @@ public class AltheaDbContext : DbContext
     public DbSet<Address> Addresses => Set<Address>();
     public DbSet<UserPaymentMethod> UserPaymentMethods => Set<UserPaymentMethod>();
     public DbSet<UserRecoveryCode> UserRecoveryCodes => Set<UserRecoveryCode>();
+    public DbSet<EmailConfirmationToken> EmailConfirmationTokens => Set<EmailConfirmationToken>();
 
     // Products
     public DbSet<Product> Products => Set<Product>();

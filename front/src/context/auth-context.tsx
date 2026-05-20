@@ -19,6 +19,12 @@ export type LoginResult =
   | { kind: 'success' }
   | { kind: 'twoFactorRequired'; challengeToken: string }
   | { kind: 'mustSetupTwoFactor'; setupToken: string }
+  /**
+   * Phase 2: the user authenticated but hasn't clicked the confirmation
+   * link mailed at registration. Front shows a "check your inbox" screen
+   * with a "Resend" CTA. We echo the email so the resend call can target it.
+   */
+  | { kind: 'emailConfirmationRequired'; email: string }
   /** `error` is the raw caught value — pass it to `getErrorMessage()` for a localized string. */
   | { kind: 'error'; error: unknown };
 
@@ -33,7 +39,14 @@ interface AuthContextType {
   /** Used by /2fa/enable callers (admin forced setup or voluntary opt-in) to
    *  finalize the session once the API returns a fresh AuthResponse. */
   applyAuth: (auth: AuthResponse) => void;
+  /**
+   * Phase 2: registration no longer auto-logs in. Returns success when the
+   * account is created (the user must check their inbox), or an error if
+   * the email is taken / validation failed.
+   */
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  /** Re-issue the confirmation link. Always succeeds from the caller's POV. */
+  resendConfirmation: (email: string) => Promise<void>;
   logout: () => void;
   confirmEmail: (token: string) => Promise<void>;
   updateUser: (updates: { name?: string; email?: string }) => Promise<void>;
@@ -99,6 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return { kind: 'error', error: 'Malformed login response.' };
           }
           return { kind: 'mustSetupTwoFactor', setupToken: response.setupToken };
+
+        case 'EmailConfirmationRequired':
+          // The email the user typed IS the one to resend to — no need to
+          // bounce through the API. Caller will show the "Check your inbox"
+          // screen with a resend CTA.
+          return { kind: 'emailConfirmationRequired', email };
       }
     } catch (err: unknown) {
       return { kind: 'error', error: err };
@@ -121,14 +140,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     try {
-      const response = await authService.register(name, email, password, password);
-      applyAuth(response);
+      // Phase 2: register no longer returns tokens — the user must confirm
+      // via email link first. Just await the call to surface validation
+      // errors and let the caller advance to the "check your inbox" step.
+      await authService.register(name, email, password, password);
       return { success: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'common.error';
       return { success: false, error: message };
     }
-  }, [applyAuth]);
+  }, []);
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    // 200 regardless of whether the email matches an account (anti-enum) so
+    // we don't surface errors from the API.
+    try { await authService.resendConfirmation(email); } catch { /* swallow */ }
+  }, []);
 
   const logout = useCallback(() => {
     clearToken();
@@ -180,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: !!user && user.emailConfirmed,
       isAdmin: user?.role === 1,
       login, completeTwoFactorChallenge, applyAuth,
-      register, logout, confirmEmail,
+      register, resendConfirmation, logout, confirmEmail,
       updateUser, anonymizeAccount, refreshUser,
     }}>
       {children}

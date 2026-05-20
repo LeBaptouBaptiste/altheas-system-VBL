@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   LoginResponse,
   RegenerateRecoveryCodesResponse,
+  RegisterResponse,
   StepUpPurpose,
   StepUpResponse,
   TwoFactorEnableResponse,
@@ -23,14 +24,33 @@ export const authService = {
   login: (email: string, password: string) =>
     api.post<LoginResponse>('/auth/login', { email, password }),
 
+  /**
+   * Phase 2: returns the created user but NO tokens. The user must confirm
+   * their email (link mailed to them) before they can log in.
+   */
   register: (name: string, email: string, password: string, confirmPassword: string) =>
-    api.post<AuthResponse>('/auth/register', { name, email, password, confirmPassword }),
+    api.post<RegisterResponse>('/auth/register', { name, email, password, confirmPassword }),
 
   getMe: () =>
     api.get<UserDto>('/auth/me'),
 
+  /**
+   * Consumes the token from the confirmation link. Returns 200 on success;
+   * on failure the API echoes a `reason` field:
+   *   - "invalid_token"   → token doesn't match any row
+   *   - "token_consumed"  → link already clicked — direct the user to /login
+   *   - "token_expired"   → > 24 h since registration — offer /resend
+   */
   confirmEmail: (token: string) =>
     api.post<void>('/auth/confirm-email', { token }),
+
+  /**
+   * Re-issues a fresh confirmation link. Always 200, regardless of whether
+   * the email exists (anti-enumeration). Throttled at 1 mail / 5 min per
+   * user server-side.
+   */
+  resendConfirmation: (email: string) =>
+    api.post<void>('/auth/resend-confirmation', { email }),
 
   forgotPassword: (email: string) =>
     api.post<void>('/auth/forgot-password', { email }),

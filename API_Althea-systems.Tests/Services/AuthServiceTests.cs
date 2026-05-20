@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Common.Enums;
@@ -6,6 +8,7 @@ using API_Althea_systems.Common.Exceptions;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Tests.Services;
@@ -13,10 +16,12 @@ namespace API_Althea_systems.Tests.Services;
 public class AuthServiceTests
 {
     private readonly Mock<IUserRepository> _userRepo = new();
+    private readonly Mock<IEmailConfirmationTokenRepository> _confirmationTokens = new();
     private readonly Mock<ITokenService> _tokenService = new();
     private readonly Mock<ITwoFactorService> _twoFactor = new();
     private readonly Mock<IPasswordHasher> _hasher = new();
     private readonly Mock<ILoginAttemptStore> _loginAttempts = new();
+    private readonly Mock<IEmailConfirmationSender> _confirmationSender = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -41,21 +46,82 @@ public class AuthServiceTests
         _hasher.Setup(h => h.Verify(It.IsAny<string>(), It.IsAny<string>())).Returns(true);
         _hasher.Setup(h => h.Hash(It.IsAny<string>())).Returns<string>(p => $"hashed:{p}");
 
+        // Email-confirmation defaults: no prior token (resend not throttled),
+        // confirmation send is a no-op so the happy path doesn't blow up.
+        _confirmationTokens.Setup(r => r.GetMostRecentCreatedAtAsync(It.IsAny<Guid>()))
+                           .ReturnsAsync((DateTime?)null);
+
+        var confirmationOptions = Options.Create(new EmailConfirmationOptions
+        {
+            FrontendBaseUrl = "http://localhost:3000",
+            TokenLifetime = TimeSpan.FromHours(24),
+        });
+
         _sut = new AuthService(
-            _userRepo.Object, _tokenService.Object, _twoFactor.Object, _hasher.Object, _loginAttempts.Object);
+            _userRepo.Object,
+            _confirmationTokens.Object,
+            _tokenService.Object,
+            _twoFactor.Object,
+            _hasher.Object,
+            _loginAttempts.Object,
+            _confirmationSender.Object,
+            confirmationOptions,
+            NullLogger<AuthService>.Instance);
     }
 
     [Fact]
-    public async Task RegisterAsync_NewEmail_ReturnsAuthResponse()
+    public async Task RegisterAsync_NewEmail_ReturnsRegisterResponse_WithoutTokens()
     {
+        // Phase 2: register no longer logs the user in. The user must
+        // confirm their email first → no AccessToken in the response.
         _userRepo.Setup(r => r.EmailExistsAsync(It.IsAny<string>())).ReturnsAsync(false);
         _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync((User u) => u);
 
         var result = await _sut.RegisterAsync(new RegisterRequest("Test", "test@test.com", "Pass1234", "Pass1234"));
 
-        result.AccessToken.Should().Be("test-access-token");
         result.User.Email.Should().Be("test@test.com");
         result.User.EmailConfirmed.Should().BeFalse();
+        _userRepo.Verify(r => r.CreateAsync(It.IsAny<User>()), Times.Once);
+        // No access token issuance — guarantee the user can't bypass confirmation.
+        _tokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_PersistsConfirmationToken_AndSendsEmail()
+    {
+        // The token entity must end up in the repo; the email must be sent.
+        // Two independent assertions because a bug in one shouldn't mask
+        // a bug in the other.
+        _userRepo.Setup(r => r.EmailExistsAsync(It.IsAny<string>())).ReturnsAsync(false);
+        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync((User u) => u);
+
+        await _sut.RegisterAsync(new RegisterRequest("Test", "test@test.com", "Pass1234", "Pass1234"));
+
+        _confirmationTokens.Verify(r => r.CreateAsync(It.Is<EmailConfirmationToken>(t =>
+            t.TokenHash.Length == 64 // hex SHA-256
+            && t.ConsumedAt == null
+            && t.ExpiresAt > DateTime.UtcNow)), Times.Once);
+        _confirmationSender.Verify(s => s.SendAsync(
+            It.Is<User>(u => u.Email == "test@test.com"),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_EmailSendFails_StillCreatesUser()
+    {
+        // A flaky SMTP MUST NOT roll back the registration — the user can
+        // resend the confirmation email from the front. Otherwise a paying
+        // customer whose mailbox is full would be unable to register.
+        _userRepo.Setup(r => r.EmailExistsAsync(It.IsAny<string>())).ReturnsAsync(false);
+        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync((User u) => u);
+        _confirmationSender
+            .Setup(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception("boom")));
+
+        var act = () => _sut.RegisterAsync(new RegisterRequest("Test", "x@x.com", "Pass1234", "Pass1234"));
+
+        await act.Should().NotThrowAsync();
         _userRepo.Verify(r => r.CreateAsync(It.IsAny<User>()), Times.Once);
     }
 
@@ -541,6 +607,241 @@ public class AuthServiceTests
         await act.Should().ThrowAsync<ForbiddenException>();
     }
 
+    // ─────────────────────────────────────────────────────────
+    //  Login — email confirmation gate (phase 2)
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task LoginAsync_UnconfirmedEmail_ReturnsEmailConfirmationRequired_NoTokens()
+    {
+        // Password is correct but EmailConfirmed=false → block token issuance.
+        // The front shows a "check your inbox" screen.
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+
+        var result = await _sut.LoginAsync(new LoginRequest("test@test.com", "Password1234"));
+
+        result.Outcome.Should().Be(LoginOutcome.EmailConfirmationRequired);
+        result.Auth.Should().BeNull();
+        result.ChallengeToken.Should().BeNull();
+        result.SetupToken.Should().BeNull();
+        // No access token must be issued for an unconfirmed user.
+        _tokenService.Verify(t => t.GenerateAccessToken(It.IsAny<User>(), It.IsAny<bool>()), Times.Never);
+        // LastLogin must NOT be touched (the login isn't complete).
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_UnconfirmedEmail_TakesPriorityOverTwoFactor()
+    {
+        // Defensive: even if the user somehow has TwoFactorEnabled=true
+        // without confirming (shouldn't be reachable through the UI, but
+        // a DB-direct edit could), the confirmation gate fires first.
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        user.TwoFactorEnabled = true;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+
+        var result = await _sut.LoginAsync(new LoginRequest("test@test.com", "Password1234"));
+
+        result.Outcome.Should().Be(LoginOutcome.EmailConfirmationRequired);
+        // No challenge token issued — the 2FA branch is unreachable.
+        _tokenService.Verify(t => t.GenerateChallengeToken(It.IsAny<User>()), Times.Never);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  ConfirmEmailAsync
+    // ─────────────────────────────────────────────────────────
+
+    private static string Sha256Hex(string raw) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(raw)));
+
+    [Fact]
+    public async Task ConfirmEmailAsync_ValidToken_FlipsEmailConfirmed_AndMarksConsumed()
+    {
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        var raw = "fresh-token";
+        var hash = Sha256Hex(raw);
+        var token = new EmailConfirmationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            TokenHash = hash,
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+        _confirmationTokens.Setup(r => r.GetAnyByHashAsync(hash)).ReturnsAsync(token);
+
+        await _sut.ConfirmEmailAsync(new ConfirmEmailRequest(raw));
+
+        token.ConsumedAt.Should().NotBeNull();
+        user.EmailConfirmed.Should().BeTrue();
+        _confirmationTokens.Verify(r => r.UpdateAsync(token), Times.Once);
+        _userRepo.Verify(r => r.UpdateAsync(user), Times.Once);
+    }
+
+    [Fact]
+    public async Task ConfirmEmailAsync_UnknownToken_ThrowsInvalidToken()
+    {
+        _confirmationTokens.Setup(r => r.GetAnyByHashAsync(It.IsAny<string>()))
+                           .ReturnsAsync((EmailConfirmationToken?)null);
+
+        var act = () => _sut.ConfirmEmailAsync(new ConfirmEmailRequest("bogus"));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("invalid_token");
+    }
+
+    [Fact]
+    public async Task ConfirmEmailAsync_ConsumedToken_ThrowsTokenConsumed()
+    {
+        // Double-click on the link → second click sees a populated ConsumedAt.
+        // We surface a distinct reason so the front can offer "Go to login"
+        // rather than "Request a new link".
+        var user = CreateTestUser();
+        user.EmailConfirmed = true;
+        var raw = "already-used";
+        var token = new EmailConfirmationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            TokenHash = Sha256Hex(raw),
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ConsumedAt = DateTime.UtcNow.AddMinutes(-1),
+            CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+        _confirmationTokens.Setup(r => r.GetAnyByHashAsync(token.TokenHash)).ReturnsAsync(token);
+
+        var act = () => _sut.ConfirmEmailAsync(new ConfirmEmailRequest(raw));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("token_consumed");
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmEmailAsync_ExpiredToken_ThrowsTokenExpired()
+    {
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        var raw = "stale";
+        var token = new EmailConfirmationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            TokenHash = Sha256Hex(raw),
+            ExpiresAt = DateTime.UtcNow.AddHours(-1),
+            CreatedAt = DateTime.UtcNow.AddDays(-2),
+        };
+        _confirmationTokens.Setup(r => r.GetAnyByHashAsync(token.TokenHash)).ReturnsAsync(token);
+
+        var act = () => _sut.ConfirmEmailAsync(new ConfirmEmailRequest(raw));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("token_expired");
+        user.EmailConfirmed.Should().BeFalse("expired tokens must NOT confirm the email");
+    }
+
+    [Fact]
+    public async Task ConfirmEmailAsync_BlankToken_ThrowsInvalidToken()
+    {
+        // Defensive: validator should catch this, but the service must also
+        // guard so we don't issue an Sha256 of "" and look up a non-empty hash.
+        var act = () => _sut.ConfirmEmailAsync(new ConfirmEmailRequest("   "));
+
+        var ex = await act.Should().ThrowAsync<BadRequestException>();
+        ex.Which.Reason.Should().Be("invalid_token");
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  ResendConfirmationAsync
+    // ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ResendConfirmationAsync_UnknownEmail_IsSilentNoOp()
+    {
+        // Anti-enumeration: unknown emails must look indistinguishable from
+        // known unconfirmed ones from the caller's perspective. We assert
+        // the SMTP path is NOT touched, so an attacker can't even use
+        // timing differences.
+        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
+
+        await _sut.ResendConfirmationAsync(new ResendConfirmationRequest("nobody@x.com"));
+
+        _confirmationSender.Verify(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _confirmationTokens.Verify(r => r.CreateAsync(It.IsAny<EmailConfirmationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResendConfirmationAsync_AlreadyConfirmedUser_IsSilentNoOp()
+    {
+        var user = CreateTestUser();
+        user.EmailConfirmed = true;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+
+        await _sut.ResendConfirmationAsync(new ResendConfirmationRequest("test@test.com"));
+
+        _confirmationSender.Verify(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResendConfirmationAsync_WithinCooldown_IsSilentNoOp()
+    {
+        // Last token was issued 1 min ago → cooldown is 5 min → skip.
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _confirmationTokens.Setup(r => r.GetMostRecentCreatedAtAsync(user.Id))
+                           .ReturnsAsync(DateTime.UtcNow.AddMinutes(-1));
+
+        await _sut.ResendConfirmationAsync(new ResendConfirmationRequest("test@test.com"));
+
+        _confirmationSender.Verify(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        _confirmationTokens.Verify(r => r.CreateAsync(It.IsAny<EmailConfirmationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResendConfirmationAsync_UnconfirmedUser_OutsideCooldown_IssuesNewToken()
+    {
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _confirmationTokens.Setup(r => r.GetMostRecentCreatedAtAsync(user.Id))
+                           .ReturnsAsync(DateTime.UtcNow.AddHours(-1)); // outside the 5 min cooldown
+
+        await _sut.ResendConfirmationAsync(new ResendConfirmationRequest("test@test.com"));
+
+        _confirmationTokens.Verify(r => r.CreateAsync(It.IsAny<EmailConfirmationToken>()), Times.Once);
+        _confirmationSender.Verify(s => s.SendAsync(user, It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendConfirmationAsync_EmailSendFails_StillSucceedsSilently()
+    {
+        // SMTP failure must not surface to the caller — that would be an
+        // enumeration oracle ("emails that fail to send exist").
+        var user = CreateTestUser();
+        user.EmailConfirmed = false;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _confirmationSender
+            .Setup(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception()));
+
+        var act = () => _sut.ResendConfirmationAsync(new ResendConfirmationRequest("test@test.com"));
+
+        await act.Should().NotThrowAsync();
+    }
+
     private static User CreateTestUser() => new()
     {
         Id = Guid.NewGuid(),
@@ -549,6 +850,10 @@ public class AuthServiceTests
         PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password1234"),
         Role = UserRole.Customer,
         Status = UserStatus.Active,
+        // Most tests pre-phase-2 assumed EmailConfirmed was a no-op — keep
+        // that by defaulting to true here. The dedicated unconfirmed-login
+        // test sets it back to false explicitly.
+        EmailConfirmed = true,
         Addresses = [],
         PaymentMethods = []
     };

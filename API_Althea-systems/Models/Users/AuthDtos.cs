@@ -22,6 +22,15 @@ public record ResetPasswordRequest(
 
 public record ConfirmEmailRequest(string Token);
 
+public record ResendConfirmationRequest(string Email);
+
+/// <summary>
+/// Returned by POST /auth/register. Unlike before phase 2, registration
+/// does NOT issue access / refresh tokens — the user must confirm their
+/// email first via the link mailed to them.
+/// </summary>
+public record RegisterResponse(UserDto User);
+
 public record AuthResponse(
     string AccessToken,
     string RefreshToken,
@@ -44,6 +53,14 @@ public enum LoginOutcome
 
     /// <summary>Admin without 2FA — caller must complete /auth/2fa/setup + /enable using <c>SetupToken</c> before getting access.</summary>
     TwoFactorSetupRequired,
+
+    /// <summary>
+    /// Password was correct but the user has not yet confirmed their email
+    /// via the link mailed at registration. The front should show a "Check
+    /// your inbox" screen with a "Resend confirmation" CTA pointing at
+    /// POST /auth/resend-confirmation. No tokens are issued.
+    /// </summary>
+    EmailConfirmationRequired,
 }
 
 public record LoginResponse(

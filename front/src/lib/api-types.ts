@@ -31,13 +31,25 @@ export interface AuthResponse {
   user: UserDto;
 }
 
+/**
+ * Returned by POST /auth/register since phase 2. Unlike before, registration
+ * does NOT issue access / refresh tokens — the user must confirm their email
+ * via the link mailed to them and then log in.
+ */
+export interface RegisterResponse {
+  user: UserDto;
+}
+
 // LoginOutcome is serialized as a string by the API (JsonStringEnumConverter).
 // We keep it as a string union here — `outcome` is NOT in the api.ts
 // normalizeEnums mapping, so the value passes through untouched.
 export type LoginOutcome =
   | 'Authenticated'
   | 'TwoFactorRequired'
-  | 'TwoFactorSetupRequired';
+  | 'TwoFactorSetupRequired'
+  // Phase 2: password OK but the user hasn't clicked the confirmation link
+  // yet. No tokens are issued — the front shows a "check your inbox" screen.
+  | 'EmailConfirmationRequired';
 
 /**
  * Discriminated union returned by POST /auth/login. Use `outcome` to branch:
