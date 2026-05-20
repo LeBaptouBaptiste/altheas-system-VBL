@@ -71,6 +71,24 @@ public class InvoiceController : ControllerBase
     }
 
     /// <summary>
+    /// Phase 6: issues a credit note (avoir) against an existing paid invoice.
+    /// Admin only + step-up gated — refunding money is the most sensitive
+    /// invoicing op we have. Service enforces business invariants (Paid,
+    /// Type=Invoice, amount ≤ remaining); the response carries the freshly
+    /// created credit-note DTO so the front can immediately offer a download.
+    /// </summary>
+    [HttpPost("{id:guid}/credit-note")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
+    public async Task<ActionResult<InvoiceDto>> IssueCreditNote(
+        Guid id,
+        [FromBody] IssueCreditNoteRequest request,
+        CancellationToken ct)
+    {
+        var creditNote = await _invoiceService.IssueCreditNoteAsync(id, request, ct);
+        return CreatedAtAction(nameof(GetById), new { id = creditNote.Id }, creditNote);
+    }
+
+    /// <summary>
     /// Downloads the invoice as a real PDF rendered server-side by QuestPDF.
     /// Same AuthZ semantics as GetById : admin OR owner of the underlying order.
     ///

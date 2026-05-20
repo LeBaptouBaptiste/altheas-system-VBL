@@ -12,17 +12,20 @@ public class InvoiceService : IInvoiceService
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IOrderRepository _orderRepository;
     private readonly IOrderConfirmationSender _orderConfirmationSender;
+    private readonly ICreditNoteSender _creditNoteSender;
     private readonly ILogger<InvoiceService> _logger;
 
     public InvoiceService(
         IInvoiceRepository invoiceRepository,
         IOrderRepository orderRepository,
         IOrderConfirmationSender orderConfirmationSender,
+        ICreditNoteSender creditNoteSender,
         ILogger<InvoiceService> logger)
     {
         _invoiceRepository = invoiceRepository;
         _orderRepository = orderRepository;
         _orderConfirmationSender = orderConfirmationSender;
+        _creditNoteSender = creditNoteSender;
         _logger = logger;
     }
 
@@ -173,6 +176,118 @@ public class InvoiceService : IInvoiceService
         _logger.LogInformation(
             "Order-confirmation email sent for invoice {InvoiceId} (order {OrderId}) to {Email}.",
             invoice.Id, orderId, order.User.Email);
+    }
+
+    public async Task<InvoiceDto> IssueCreditNoteAsync(
+        Guid originalInvoiceId,
+        IssueCreditNoteRequest request,
+        CancellationToken ct = default)
+    {
+        // ── Validate original invoice ─────────────────────
+        var original = await _invoiceRepository.GetByIdAsync(originalInvoiceId)
+            ?? throw new NotFoundException("Invoice", originalInvoiceId);
+
+        if (original.Type != InvoiceType.Invoice)
+        {
+            // A credit-note-against-a-credit-note doesn't model anything useful;
+            // accounting would refuse to reconcile it.
+            throw new BadRequestException(
+                "Credit notes can only be issued against an Invoice (not against another credit note).",
+                reason: "not_an_invoice");
+        }
+
+        if (original.Status != InvoiceStatus.Paid)
+        {
+            // Refunding an unpaid invoice doesn't make sense — just cancel it.
+            throw new BadRequestException(
+                "Credit notes can only be issued against a Paid invoice.",
+                reason: "not_paid");
+        }
+
+        // ── Validate request amount ───────────────────────
+        if (request.AmountHT <= 0)
+        {
+            throw new BadRequestException(
+                "Credit note amount must be greater than zero.",
+                reason: "invalid_amount");
+        }
+
+        // Sum prior credit notes against this invoice to enforce
+        // cumulative cap. Partial / multiple credits are supported as long
+        // as the total stays ≤ original.AmountHT.
+        var priorCreditNotes = await _invoiceRepository.GetCreditNotesForInvoiceAsync(originalInvoiceId);
+        var alreadyCreditedHT = priorCreditNotes.Sum(cn => cn.AmountHT);
+        var remainingHT = original.AmountHT - alreadyCreditedHT;
+
+        if (request.AmountHT > remainingHT)
+        {
+            throw new BadRequestException(
+                $"Credit note amount ({request.AmountHT:N2} €) exceeds the remaining creditable amount " +
+                $"({remainingHT:N2} € — {alreadyCreditedHT:N2} € already credited against this invoice).",
+                reason: "exceeds_remaining");
+        }
+
+        // ── Build credit note ─────────────────────────────
+        // Prorata VAT at the original invoice's effective rate so the
+        // HT/TTC ratio matches what was originally charged. Banker's
+        // rounding via Math.Round(MidpointRounding.ToEven) — same as the
+        // OrderConfirmation totals.
+        var effectiveVatRate = original.AmountHT > 0
+            ? original.VatAmount / original.AmountHT
+            : 0m;
+        var vatAmount = Math.Round(request.AmountHT * effectiveVatRate, 2, MidpointRounding.ToEven);
+
+        var creditNote = new Invoice
+        {
+            // Leave Id at default — see Address / OrderStatusChange: EF
+            // marks default-PK additions as Added → INSERT.
+            OrderId = original.OrderId,
+            Date = DateTime.UtcNow,
+            AmountHT = request.AmountHT,
+            VatAmount = vatAmount,
+            AmountTTC = request.AmountHT + vatAmount,
+            Type = InvoiceType.CreditNote,
+            RelatedInvoiceId = original.Id,
+            // A credit note is "paid back" the moment it's issued from the
+            // customer's POV; the refund execution is a separate workflow
+            // (manual SEPA / Stripe refund). Marking Paid keeps the
+            // accounting view consistent.
+            Status = InvoiceStatus.Paid,
+        };
+
+        await _invoiceRepository.CreateAsync(creditNote);
+
+        _logger.LogInformation(
+            "Credit note {CreditNoteId} issued against invoice {OriginalInvoiceId} " +
+            "for {Amount:N2} € HT (reason: {Reason}).",
+            creditNote.Id, original.Id, creditNote.AmountHT,
+            string.IsNullOrWhiteSpace(request.Reason) ? "(none)" : request.Reason);
+
+        // ── Email customer (best-effort) ──────────────────
+        try
+        {
+            var order = await _orderRepository.GetByIdAsync(original.OrderId);
+            if (order?.User is not null)
+            {
+                await _creditNoteSender.SendAsync(creditNote, original, order, order.User, request.Reason, ct);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Cannot email credit note {CreditNoteId}: order {OrderId} or User missing.",
+                    creditNote.Id, original.OrderId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Credit note is committed — a flaky SMTP must not be an excuse
+            // to refuse a refund. Admin can re-mail manually if needed.
+            _logger.LogError(ex,
+                "Credit note {CreditNoteId} created but email failed to send.",
+                creditNote.Id);
+        }
+
+        return MapToDto(creditNote);
     }
 
     private static decimal GetVatMultiplier(Common.Enums.VatRate rate) => rate switch

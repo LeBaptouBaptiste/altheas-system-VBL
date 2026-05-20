@@ -148,6 +148,20 @@ public class OrderService : IOrderService
             .Select(inv => (Guid?)inv.Id)
             .FirstOrDefault();
 
+        // Phase 6: full list of invoices + credit notes attached to the order
+        // so the client UI can offer one download per row. Same Include
+        // dependency on OrderRepository as latestInvoiceId.
+        var invoiceSummaries = o.Invoices
+            .OrderBy(inv => inv.Date)
+            .Select(inv => new OrderInvoiceSummaryDto(
+                inv.Id,
+                inv.Type,
+                inv.Date,
+                inv.AmountTTC,
+                inv.Status,
+                inv.RelatedInvoiceId))
+            .ToList();
+
         return new OrderDto(
             o.Id, o.UserId, o.User?.Name ?? "", o.Date, o.Status, o.PaymentStatus,
             o.PaymentMethod,
@@ -156,7 +170,8 @@ public class OrderService : IOrderService
             o.CreatedAt, o.UpdatedAt,
             o.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductNameFr, i.ProductNameEn, i.Quantity, i.PriceHT, i.VatRate)),
             o.StatusHistory.Select(s => new OrderStatusChangeDto(s.From, s.To, s.Date, s.UserId)),
-            latestInvoiceId
+            latestInvoiceId,
+            invoiceSummaries
         );
     }
 

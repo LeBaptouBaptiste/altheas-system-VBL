@@ -1,4 +1,5 @@
 using API_Althea_systems.Common.Enums;
+using API_Althea_systems.Models.Invoices;
 using API_Althea_systems.Models.Users;
 
 namespace API_Althea_systems.Models.Order;
@@ -25,7 +26,27 @@ public record OrderDto(
     // ID of the most recent Invoice (Type=Invoice, not CreditNote) attached to
     // this order, or null if no invoice has been issued yet. /account/orders
     // uses it to decide whether to enable the "download" button.
-    Guid? LatestInvoiceId
+    Guid? LatestInvoiceId,
+    // Phase 6: every invoice + credit note attached to the order, oldest
+    // first. The front lists them all under the order with type-aware icons
+    // and individual download buttons. Empty when no invoice has been
+    // issued yet.
+    IEnumerable<OrderInvoiceSummaryDto> Invoices
+);
+
+/// <summary>
+/// Compact view of an invoice attached to an order — just enough for the
+/// account-orders UI to list and offer downloads without pulling the full
+/// InvoiceDto graph.
+/// </summary>
+public record OrderInvoiceSummaryDto(
+    Guid Id,
+    InvoiceType Type,
+    DateTime Date,
+    decimal AmountTTC,
+    InvoiceStatus Status,
+    // Set on credit notes — lets the UI show "Avoir sur facture #ABC".
+    Guid? RelatedInvoiceId
 );
 
 public record OrderItemDto(

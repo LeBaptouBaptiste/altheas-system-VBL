@@ -17,4 +17,12 @@ public interface IInvoiceRepository
     /// for that one field and Status (admin-driven flows).
     /// </summary>
     Task UpdateAsync(Invoice invoice);
+
+    /// <summary>
+    /// Phase 6: returns all credit notes (<see cref="InvoiceType.CreditNote"/>)
+    /// linked to the given original invoice via RelatedInvoiceId. Used by
+    /// InvoiceService.IssueCreditNoteAsync to compute the remaining creditable
+    /// amount (original total minus sum of existing credit notes).
+    /// </summary>
+    Task<IEnumerable<Invoice>> GetCreditNotesForInvoiceAsync(Guid originalInvoiceId);
 }

@@ -41,7 +41,12 @@ public class OrderControllerTests
             ShippingMethod.Standard, 15m,
             100m, 20m, 135m,
             DateTime.UtcNow, DateTime.UtcNow,
-            [], []);
+            Items: [],
+            StatusHistory: [],
+            // LatestInvoiceId (phase 3) + Invoices (phase 6) — both empty
+            // for a freshly-created Pending order.
+            LatestInvoiceId: null,
+            Invoices: []);
     }
 
     [Fact]

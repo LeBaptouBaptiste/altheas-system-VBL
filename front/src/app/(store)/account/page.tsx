@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Package, MapPin, CreditCard, Download, AlertTriangle, Shield, Loader2 } from 'lucide-react';
+import { Settings, Package, MapPin, CreditCard, Download, AlertTriangle, Shield, Loader2, RotateCcw, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
-import { ordersService, usersService, authService, downloadInvoicePdf } from '@/lib/api-services';
+import { ordersService, usersService, authService, downloadInvoicePdf, downloadCreditNotePdf } from '@/lib/api-services';
 import { TwoFactorSection } from '@/components/account/two-factor-section';
 import { useStepUp } from '@/components/two-factor/step-up-provider';
 import { getErrorMessage } from '@/lib/api-errors';
@@ -45,21 +45,29 @@ export default function AccountPage() {
   const [editEmail, setEditEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
-  // Per-row download state — only the clicked row shows a spinner so a slow
-  // PDF render doesn't freeze the whole orders list.
-  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
+  // Per-invoice download state. Keyed by the invoice/credit-note id (not the
+  // order id) so a customer with both a facture and an avoir on the same
+  // order can download them independently — only the clicked row spins.
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
-  const handleDownloadInvoice = async (order: OrderDto) => {
-    if (!order.latestInvoiceId || downloadingOrderId) return;
-    setDownloadingOrderId(order.id);
+  const handleDownloadInvoice = async (invoiceId: string, type: number) => {
+    if (downloadingInvoiceId) return;
+    setDownloadingInvoiceId(invoiceId);
     try {
-      await downloadInvoicePdf(order.latestInvoiceId);
-      toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+      // 1 = CreditNote, 0 = Invoice (see lib/enums.ts InvoiceType).
+      const isCreditNote = type === 1;
+      if (isCreditNote) {
+        await downloadCreditNotePdf(invoiceId);
+        toast.success(locale === 'fr' ? 'Avoir téléchargé' : 'Credit note downloaded');
+      } else {
+        await downloadInvoicePdf(invoiceId);
+        toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+      }
     } catch (err) {
       console.error('Invoice download failed', err);
       toast.error(locale === 'fr' ? 'Échec du téléchargement' : 'Download failed');
     } finally {
-      setDownloadingOrderId(null);
+      setDownloadingInvoiceId(null);
     }
   };
 
@@ -202,22 +210,6 @@ export default function AccountPage() {
                           <div className="flex items-center gap-3">
                             <Badge className={statusColors[order.status] || 'bg-gray-200'}>{enumLabel('OrderStatus', order.status, locale)}</Badge>
                             <span className="font-bold">{fmt(order.totalTTC)}</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!order.latestInvoiceId || downloadingOrderId === order.id}
-                              onClick={() => handleDownloadInvoice(order)}
-                              title={
-                                !order.latestInvoiceId
-                                  ? (locale === 'fr' ? 'Facture pas encore émise' : 'Invoice not issued yet')
-                                  : (locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)')
-                              }
-                            >
-                              {downloadingOrderId === order.id
-                                ? <Loader2 className="w-3 h-3 me-1 animate-spin" />
-                                : <Download className="w-3 h-3 me-1" />}
-                              {t('account.download_invoice')}
-                            </Button>
                           </div>
                         </div>
                         <div className="mt-2 text-sm text-muted-foreground">
@@ -228,6 +220,53 @@ export default function AccountPage() {
                             </span>
                           ))}
                         </div>
+
+                        {/* Phase 6: list ALL invoices + credit notes attached
+                            to this order. Each row gets its own download
+                            button so the customer can grab the facture AND
+                            any avoirs émis. */}
+                        {order.invoices && order.invoices.length > 0 && (
+                          <div className="mt-3 pt-3 border-t space-y-1.5">
+                            {order.invoices.map((inv) => {
+                              const isCreditNote = inv.type === 1; // InvoiceType.CreditNote
+                              return (
+                                <div key={inv.id} className="flex items-center justify-between gap-2 text-sm">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {isCreditNote
+                                      ? <RotateCcw className="w-3.5 h-3.5 text-error shrink-0" />
+                                      : <FileText className="w-3.5 h-3.5 text-brand-primary shrink-0" />}
+                                    <span className={isCreditNote ? 'text-error' : 'text-brand-dark'}>
+                                      {isCreditNote
+                                        ? (locale === 'fr' ? 'Avoir' : 'Credit note')
+                                        : (locale === 'fr' ? 'Facture' : 'Invoice')}
+                                      {' '}
+                                      <span className="font-mono text-xs text-muted-foreground">
+                                        #{inv.id.slice(0, 8).toUpperCase()}
+                                      </span>
+                                    </span>
+                                    <span className={`text-xs ${isCreditNote ? 'text-error' : 'text-muted-foreground'}`}>
+                                      {isCreditNote ? '−' : ''}{fmt(inv.amountTTC)}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7"
+                                    disabled={downloadingInvoiceId === inv.id}
+                                    onClick={() => handleDownloadInvoice(inv.id, inv.type)}
+                                    title={isCreditNote
+                                      ? (locale === 'fr' ? "Télécharger l'avoir (PDF)" : 'Download credit note (PDF)')
+                                      : (locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)')}
+                                  >
+                                    {downloadingInvoiceId === inv.id
+                                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                                      : <Download className="w-3 h-3" />}
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </CardContent></Card>
                     ))}
                   </div>

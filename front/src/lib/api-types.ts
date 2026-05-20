@@ -248,6 +248,21 @@ export interface OrderDto {
   // attached to this order, or null if none has been issued yet. Used to
   // enable/disable the "Télécharger la facture" button on /account/orders.
   latestInvoiceId: string | null;
+  // Phase 6: every invoice + credit note attached to this order (oldest
+  // first). /account/orders renders one row per entry with type-aware
+  // icon + individual download button.
+  invoices: OrderInvoiceSummaryDto[];
+}
+
+export interface OrderInvoiceSummaryDto {
+  id: string;
+  /** 0 = Invoice, 1 = CreditNote — matches lib/enums.ts InvoiceType. */
+  type: number;
+  date: string;
+  amountTTC: number;
+  status: number;
+  /** Set on credit notes — points at the original invoice id. */
+  relatedInvoiceId: string | null;
 }
 
 export interface OrderItemDto {

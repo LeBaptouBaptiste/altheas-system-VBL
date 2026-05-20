@@ -55,4 +55,12 @@ public class InvoiceRepository : IInvoiceRepository
         _context.Invoices.Update(invoice);
         await _context.SaveChangesAsync();
     }
+
+    public async Task<IEnumerable<Invoice>> GetCreditNotesForInvoiceAsync(Guid originalInvoiceId)
+    {
+        return await _context.Invoices
+            .Where(i => i.RelatedInvoiceId == originalInvoiceId
+                     && i.Type == InvoiceType.CreditNote)
+            .ToListAsync();
+    }
 }

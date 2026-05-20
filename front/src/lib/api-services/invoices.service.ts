@@ -12,6 +12,20 @@ export const invoicesService = {
     api.post<InvoiceDto>('/invoices', data),
 
   /**
+   * Phase 6: issues a credit note (avoir) against the given paid invoice.
+   * Admin-only + step-up gated. Returns the new InvoiceDto with type=1.
+   * Server enforces business invariants (Paid, Type=Invoice, amount ≤
+   * remaining) and surfaces failure as 400 with `reason` ∈
+   * { not_an_invoice, not_paid, invalid_amount, exceeds_remaining }.
+   */
+  issueCreditNote: (originalInvoiceId: string, amountHT: number, reason: string | null, stepUpToken?: string) =>
+    api.post<InvoiceDto>(
+      `/invoices/${originalInvoiceId}/credit-note`,
+      { amountHT, reason },
+      stepUpToken ? { stepUpToken } : undefined,
+    ),
+
+  /**
    * Downloads the real PDF rendered server-side by QuestPDF. Returns the
    * raw Blob — caller is responsible for triggering the browser download
    * (see `downloadInvoicePdf` helper below).
@@ -26,11 +40,24 @@ export const invoicesService = {
  * reused from the admin and customer order pages without duplication.
  */
 export async function downloadInvoicePdf(invoiceId: string): Promise<void> {
-  const blob = await invoicesService.downloadPdf(invoiceId);
+  return downloadPdfWithPrefix(invoiceId, 'facture');
+}
+
+/**
+ * Phase 6: same endpoint, different filename prefix. Lets the UI hand the
+ * user a sensibly-named file (avoir-XXX.pdf instead of facture-XXX.pdf)
+ * when downloading a credit note from /account/orders or /admin/invoices.
+ */
+export async function downloadCreditNotePdf(creditNoteId: string): Promise<void> {
+  return downloadPdfWithPrefix(creditNoteId, 'avoir');
+}
+
+async function downloadPdfWithPrefix(id: string, prefix: 'facture' | 'avoir'): Promise<void> {
+  const blob = await invoicesService.downloadPdf(id);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `facture-${invoiceId.slice(0, 8).toUpperCase()}.pdf`;
+  a.download = `${prefix}-${id.slice(0, 8).toUpperCase()}.pdf`;
   document.body.appendChild(a);  // Firefox requires the anchor be in the DOM
   a.click();
   document.body.removeChild(a);

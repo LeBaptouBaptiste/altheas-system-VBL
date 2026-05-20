@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Download, FileText, RotateCcw, Loader2 } from 'lucide-react';
+import { Search, Download, FileText, RotateCcw, Loader2, FilePlus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useI18n } from '@/context/i18n-context';
-import { invoicesService, downloadInvoicePdf } from '@/lib/api-services';
+import { invoicesService, downloadInvoicePdf, downloadCreditNotePdf } from '@/lib/api-services';
+import { getErrorMessage } from '@/lib/api-errors';
 import type { InvoiceDto } from '@/lib/api-types';
 import { formatPrice, toIntlLocale } from '@/lib/money';
 import { InvoiceStatus, InvoiceType } from '@/lib/enums';
@@ -65,13 +68,68 @@ export default function AdminInvoicesPage() {
     if (downloadingId) return;  // ignore double-clicks
     setDownloadingId(inv.id);
     try {
-      await downloadInvoicePdf(inv.id);
-      toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+      // Use the credit-note helper for credit notes so the saved filename
+      // is "avoir-XXX.pdf" instead of "facture-XXX.pdf".
+      if (inv.type === InvoiceType.CreditNote) {
+        await downloadCreditNotePdf(inv.id);
+        toast.success(locale === 'fr' ? 'Avoir téléchargé' : 'Credit note downloaded');
+      } else {
+        await downloadInvoicePdf(inv.id);
+        toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+      }
     } catch (err) {
-      console.error('Invoice download failed', err);
+      console.error('PDF download failed', err);
       toast.error(locale === 'fr' ? 'Échec du téléchargement' : 'Download failed');
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  // ── Credit-note modal (phase 6) ──────────────────
+  const [creditNoteTarget, setCreditNoteTarget] = useState<InvoiceDto | null>(null);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
+  const [creditSubmitting, setCreditSubmitting] = useState(false);
+
+  const openCreditNoteModal = (inv: InvoiceDto) => {
+    setCreditNoteTarget(inv);
+    // Pre-fill with the remaining creditable amount as a sensible default.
+    // The server is authoritative — we just give the admin a head start.
+    const alreadyCredited = invoicesList
+      .filter(i => i.type === InvoiceType.CreditNote && i.relatedInvoiceId === inv.id)
+      .reduce((sum, cn) => sum + cn.amountHT, 0);
+    const remainingHT = Math.max(0, inv.amountHT - alreadyCredited);
+    setCreditAmount(remainingHT.toFixed(2));
+    setCreditReason('');
+  };
+
+  const submitCreditNote = async () => {
+    if (!creditNoteTarget) return;
+    const amount = Number(creditAmount.replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error(locale === 'fr' ? 'Montant invalide' : 'Invalid amount');
+      return;
+    }
+    setCreditSubmitting(true);
+    try {
+      // Admin layout sets the ambient step-up token, so this endpoint
+      // (RequireStepUp(Admin)) is auto-authenticated.
+      const created = await invoicesService.issueCreditNote(
+        creditNoteTarget.id,
+        amount,
+        creditReason.trim() || null,
+      );
+      // Refresh list to reflect totals and the new row.
+      const res = await invoicesService.getAll(1, 200);
+      setInvoicesList(res.data);
+      // Offer the PDF immediately — common UX for accounting flows.
+      await downloadCreditNotePdf(created.id);
+      toast.success(locale === 'fr' ? 'Avoir émis' : 'Credit note issued');
+      setCreditNoteTarget(null);
+    } catch (err) {
+      toast.error(getErrorMessage(err, (k) => k));
+    } finally {
+      setCreditSubmitting(false);
     }
   };
 
@@ -181,18 +239,36 @@ export default function AdminInvoicesPage() {
                       <Badge variant="outline" className={STATUS_COLORS[inv.status] || ''}>{enumLabel('InvoiceStatus', inv.status, locale)}</Badge>
                     </td>
                     <td className="p-3 text-end">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        onClick={() => handleDownload(inv)}
-                        disabled={downloadingId === inv.id}
-                        title={locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)'}
-                      >
-                        {downloadingId === inv.id
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <Download className="w-3.5 h-3.5" />}
-                      </Button>
+                      <div className="inline-flex gap-1">
+                        {/* Credit-note CTA: only for PAID invoices (and not
+                            on credit notes themselves — no CN-on-CN). */}
+                        {inv.type === InvoiceType.Invoice
+                          && inv.status === InvoiceStatus.Paid && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-error hover:bg-error/10"
+                            onClick={() => openCreditNoteModal(inv)}
+                            title={locale === 'fr' ? 'Émettre un avoir' : 'Issue credit note'}
+                          >
+                            <FilePlus className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => handleDownload(inv)}
+                          disabled={downloadingId === inv.id}
+                          title={inv.type === InvoiceType.CreditNote
+                            ? (locale === 'fr' ? "Télécharger l'avoir (PDF)" : 'Download credit note (PDF)')
+                            : (locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)')}
+                        >
+                          {downloadingId === inv.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Download className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -201,6 +277,94 @@ export default function AdminInvoicesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Credit-note modal (phase 6) */}
+      <Dialog open={!!creditNoteTarget} onOpenChange={(open) => !open && setCreditNoteTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {locale === 'fr' ? 'Émettre un avoir' : 'Issue credit note'}
+            </DialogTitle>
+          </DialogHeader>
+          {creditNoteTarget && (() => {
+            const alreadyCredited = invoicesList
+              .filter(i => i.type === InvoiceType.CreditNote && i.relatedInvoiceId === creditNoteTarget.id)
+              .reduce((sum, cn) => sum + cn.amountHT, 0);
+            const remainingHT = Math.max(0, creditNoteTarget.amountHT - alreadyCredited);
+            return (
+              <div className="space-y-4 text-sm">
+                <div className="bg-gray-50 rounded-md border p-3 space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    {locale === 'fr' ? 'Facture source' : 'Source invoice'}
+                  </p>
+                  <p className="font-medium">#{creditNoteTarget.id.slice(0, 8).toUpperCase()}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {locale === 'fr' ? 'Montant HT facture' : 'Invoice amount HT'}: <strong>{fmt(creditNoteTarget.amountHT)}</strong>
+                    {alreadyCredited > 0 && (
+                      <> · {locale === 'fr' ? 'Déjà crédité' : 'Already credited'}: <strong>{fmt(alreadyCredited)}</strong></>
+                    )}
+                    {' '}· {locale === 'fr' ? 'Restant' : 'Remaining'}: <strong className="text-error">{fmt(remainingHT)}</strong>
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="creditAmount">
+                    {locale === 'fr' ? 'Montant HT à créditer (€)' : 'Amount to credit HT (€)'}
+                  </Label>
+                  <Input
+                    id="creditAmount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={remainingHT}
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(e.target.value)}
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {locale === 'fr'
+                      ? 'La TVA est calculée automatiquement au taux effectif de la facture source.'
+                      : 'VAT is auto-prorated at the source invoice effective rate.'}
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="creditReason">
+                    {locale === 'fr' ? 'Motif (optionnel)' : 'Reason (optional)'}
+                  </Label>
+                  <Input
+                    id="creditReason"
+                    type="text"
+                    maxLength={500}
+                    placeholder={locale === 'fr'
+                      ? 'Ex : produit défectueux, retour client...'
+                      : 'e.g. defective product, customer return...'}
+                    value={creditReason}
+                    onChange={(e) => setCreditReason(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <DialogClose asChild>
+                    <Button variant="outline" className="flex-1" disabled={creditSubmitting}>
+                      {locale === 'fr' ? 'Annuler' : 'Cancel'}
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    onClick={submitCreditNote}
+                    disabled={creditSubmitting || remainingHT <= 0}
+                    className="flex-1 bg-error hover:bg-error/90 text-white"
+                  >
+                    {creditSubmitting
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : (locale === 'fr' ? 'Émettre l’avoir' : 'Issue credit note')}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -28,4 +28,25 @@ public interface IInvoiceService
     /// should call <see cref="EnsureForOrderAsync"/> first).
     /// </summary>
     Task EnsureEmailedAsync(Guid orderId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phase 6: issues a credit note (<see cref="Models.Invoices.InvoiceType.CreditNote"/>)
+    /// against an existing paid invoice. Enforced invariants:
+    /// <list type="bullet">
+    ///   <item>Original invoice must exist and be <see cref="Models.Invoices.InvoiceType.Invoice"/>
+    ///         (no credit-notes-of-credit-notes).</item>
+    ///   <item>Original must be <see cref="Models.Invoices.InvoiceStatus.Paid"/>
+    ///         (refunding an unpaid invoice makes no sense — just cancel it).</item>
+    ///   <item>Amount must be &gt; 0 and ≤ original.AmountHT − sum of prior
+    ///         credit notes against the same invoice. Supports partial /
+    ///         multiple credits as long as the cumulative total stays ≤
+    ///         the original.</item>
+    /// </list>
+    /// VAT is auto-prorated at the original invoice's effective rate.
+    /// Fires <c>ICreditNoteSender</c> (best-effort) to mail the PDF.
+    /// </summary>
+    Task<InvoiceDto> IssueCreditNoteAsync(
+        Guid originalInvoiceId,
+        IssueCreditNoteRequest request,
+        CancellationToken ct = default);
 }

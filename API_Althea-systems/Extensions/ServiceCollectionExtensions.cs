@@ -246,6 +246,10 @@ public static class ServiceCollectionExtensions
         // Phase 5: order-status notifications (Shipped / Delivered).
         services.AddScoped<IOrderStatusChangeSender, OrderStatusChangeSender>();
 
+        // Phase 6: credit-note (avoir) sender. Consumed by
+        // InvoiceService.IssueCreditNoteAsync.
+        services.AddScoped<ICreditNoteSender, CreditNoteSender>();
+
         return services;
     }
 
