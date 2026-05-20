@@ -159,7 +159,7 @@ export default function HomePage() {
             {topProducts.map((product) => {
               const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
               const priceTTC = product.priceHT * (1 + vatRate);
-              const name = localized(toLocalized(product.nameFr, product.nameEn));
+              const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
               return (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow group">
                   <Link href={`/product/${product.slug}`}>
@@ -178,7 +178,7 @@ export default function HomePage() {
                         {name}
                       </h3>
                     </Link>
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, toIntlLocale(locale))}</span>
                       <Button

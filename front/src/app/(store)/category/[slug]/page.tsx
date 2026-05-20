@@ -107,7 +107,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
             const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
             const priceTTC = product.priceHT * (1 + vatRate);
             const isOOS = product.stockStatus === StockStatus.OutOfStock;
-            const name = localized(toLocalized(product.nameFr, product.nameEn));
+            const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
             return (
               <Card key={product.id} className={`overflow-hidden hover:shadow-lg transition-shadow group ${isOOS ? 'opacity-60' : ''}`}>
                 <Link href={`/product/${product.slug}`}>
@@ -125,7 +125,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                   <Link href={`/product/${product.slug}`}>
                     <h3 className="font-semibold text-brand-dark text-sm mb-1 line-clamp-2 hover:text-brand-primary transition-colors">{name}</h3>
                   </Link>
-                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
+                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
                   <div className="flex items-center justify-between">
                     <span className={`text-lg font-bold ${isOOS ? 'text-muted-foreground line-through' : 'text-brand-dark'}`}>
                       {formatPrice(priceTTC, locale === 'fr' ? 'fr-FR' : 'en-US')}

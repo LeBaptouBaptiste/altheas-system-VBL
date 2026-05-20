@@ -6,8 +6,24 @@ export interface LocalizedString {
   en: string;
 }
 
-export function toLocalized(fr: string, en: string): LocalizedString {
-  return { fr, en };
+/**
+ * Build a LocalizedString from up to 4 locales. `fr` and `en` are required
+ * (every product/category has them); `ms` and `ar` are optional — when null
+ * or undefined, `localized()` falls back to French.
+ *
+ * Both null and undefined are treated as "no translation" so the seeder can
+ * pass null for unset translations and admin update payloads can omit them.
+ */
+export function toLocalized(
+  fr: string,
+  en: string,
+  ms?: string | null,
+  ar?: string | null,
+): LocalizedString {
+  const out: LocalizedString = { fr, en };
+  if (ms) out.ms = ms;
+  if (ar) out.ar = ar;
+  return out;
 }
 
 export interface PaginatedResponse<T> {
@@ -187,10 +203,16 @@ export interface ProductDto {
   slug: string;
   nameFr: string;
   nameEn: string;
+  nameMs: string | null;
+  nameAr: string | null;
   descriptionFr: string;
   descriptionEn: string;
+  descriptionMs: string | null;
+  descriptionAr: string | null;
   longDescriptionFr: string;
   longDescriptionEn: string;
+  longDescriptionMs: string | null;
+  longDescriptionAr: string | null;
   priceHT: number;
   vatRate: number;
   stockQty: number;
@@ -215,6 +237,12 @@ export interface CategorySummaryDto {
 export interface ProductSpecDto {
   label: string;
   value: string;
+  labelEn: string | null;
+  labelMs: string | null;
+  labelAr: string | null;
+  valueEn: string | null;
+  valueMs: string | null;
+  valueAr: string | null;
 }
 
 // ── Categories ────────────────────────────────────────

@@ -53,10 +53,16 @@ public class ProductService : IProductService
             Slug = request.Slug,
             NameFr = request.NameFr,
             NameEn = request.NameEn,
+            NameMs = request.NameMs,
+            NameAr = request.NameAr,
             DescriptionFr = request.DescriptionFr,
             DescriptionEn = request.DescriptionEn,
+            DescriptionMs = request.DescriptionMs,
+            DescriptionAr = request.DescriptionAr,
             LongDescriptionFr = request.LongDescriptionFr,
             LongDescriptionEn = request.LongDescriptionEn,
+            LongDescriptionMs = request.LongDescriptionMs,
+            LongDescriptionAr = request.LongDescriptionAr,
             PriceHT = request.PriceHT,
             VatRate = request.VatRate,
             StockQty = request.StockQty,
@@ -66,7 +72,18 @@ public class ProductService : IProductService
             Images = request.Images,
             Status = request.Status,
             ProductCategories = request.CategoryIds.Select(cId => new ProductCategory { CategoryId = cId }).ToList(),
-            Specs = request.Specs.Select(s => new ProductSpec { Id = Guid.NewGuid(), Label = s.Label, Value = s.Value }).ToList()
+            Specs = request.Specs.Select(s => new ProductSpec
+            {
+                Id = Guid.NewGuid(),
+                Label = s.Label,
+                Value = s.Value,
+                LabelEn = s.LabelEn,
+                LabelMs = s.LabelMs,
+                LabelAr = s.LabelAr,
+                ValueEn = s.ValueEn,
+                ValueMs = s.ValueMs,
+                ValueAr = s.ValueAr,
+            }).ToList()
         };
 
         await _productRepository.CreateAsync(product);
@@ -81,10 +98,16 @@ public class ProductService : IProductService
         if (request.Slug != null) product.Slug = request.Slug;
         if (request.NameFr != null) product.NameFr = request.NameFr;
         if (request.NameEn != null) product.NameEn = request.NameEn;
+        if (request.NameMs != null) product.NameMs = request.NameMs;
+        if (request.NameAr != null) product.NameAr = request.NameAr;
         if (request.DescriptionFr != null) product.DescriptionFr = request.DescriptionFr;
         if (request.DescriptionEn != null) product.DescriptionEn = request.DescriptionEn;
+        if (request.DescriptionMs != null) product.DescriptionMs = request.DescriptionMs;
+        if (request.DescriptionAr != null) product.DescriptionAr = request.DescriptionAr;
         if (request.LongDescriptionFr != null) product.LongDescriptionFr = request.LongDescriptionFr;
         if (request.LongDescriptionEn != null) product.LongDescriptionEn = request.LongDescriptionEn;
+        if (request.LongDescriptionMs != null) product.LongDescriptionMs = request.LongDescriptionMs;
+        if (request.LongDescriptionAr != null) product.LongDescriptionAr = request.LongDescriptionAr;
         if (request.PriceHT.HasValue) product.PriceHT = request.PriceHT.Value;
         if (request.VatRate.HasValue) product.VatRate = request.VatRate.Value;
         if (request.StockQty.HasValue) product.StockQty = request.StockQty.Value;
@@ -106,11 +129,17 @@ public class ProductService : IProductService
     }
 
     private static ProductDto MapToDto(Product p) => new(
-        p.Id, p.Slug, p.NameFr, p.NameEn, p.DescriptionFr, p.DescriptionEn,
-        p.LongDescriptionFr, p.LongDescriptionEn, p.PriceHT, p.VatRate,
+        p.Id, p.Slug,
+        p.NameFr, p.NameEn, p.NameMs, p.NameAr,
+        p.DescriptionFr, p.DescriptionEn, p.DescriptionMs, p.DescriptionAr,
+        p.LongDescriptionFr, p.LongDescriptionEn, p.LongDescriptionMs, p.LongDescriptionAr,
+        p.PriceHT, p.VatRate,
         p.StockQty, p.StockStatus, p.IsNew, p.PriorityRank, p.Images, p.Status,
         p.CreatedAt, p.UpdatedAt,
         p.ProductCategories.Select(pc => new CategorySummaryDto(pc.Category.Id, pc.Category.Slug, pc.Category.NameFr, pc.Category.NameEn)),
-        p.Specs.Select(s => new ProductSpecDto(s.Label, s.Value))
+        p.Specs.Select(s => new ProductSpecDto(
+            s.Label, s.Value,
+            s.LabelEn, s.LabelMs, s.LabelAr,
+            s.ValueEn, s.ValueMs, s.ValueAr))
     );
 }

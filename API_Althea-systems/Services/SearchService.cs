@@ -111,11 +111,17 @@ public class SearchService : ISearchService
     }
 
     private static ProductDto MapToDto(Product p) => new(
-        p.Id, p.Slug, p.NameFr, p.NameEn, p.DescriptionFr, p.DescriptionEn,
-        p.LongDescriptionFr, p.LongDescriptionEn, p.PriceHT, p.VatRate,
+        p.Id, p.Slug,
+        p.NameFr, p.NameEn, p.NameMs, p.NameAr,
+        p.DescriptionFr, p.DescriptionEn, p.DescriptionMs, p.DescriptionAr,
+        p.LongDescriptionFr, p.LongDescriptionEn, p.LongDescriptionMs, p.LongDescriptionAr,
+        p.PriceHT, p.VatRate,
         p.StockQty, p.StockStatus, p.IsNew, p.PriorityRank, p.Images, p.Status,
         p.CreatedAt, p.UpdatedAt,
         p.ProductCategories.Select(pc => new CategorySummaryDto(pc.Category.Id, pc.Category.Slug, pc.Category.NameFr, pc.Category.NameEn)),
-        p.Specs.Select(s => new ProductSpecDto(s.Label, s.Value))
+        p.Specs.Select(s => new ProductSpecDto(
+            s.Label, s.Value,
+            s.LabelEn, s.LabelMs, s.LabelAr,
+            s.ValueEn, s.ValueMs, s.ValueAr))
     );
 }
