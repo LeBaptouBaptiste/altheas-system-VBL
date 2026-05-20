@@ -77,7 +77,11 @@ public class OrderService : IOrderService
 
         var statusChange = new OrderStatusChange
         {
-            Id = Guid.NewGuid(),
+            // Leave Id at default(Guid). OrderRepository.UpdateAsync calls
+            // _context.Orders.Update(order) which cascades through navigation
+            // collections — entities with a non-default PK get marked Modified
+            // (UPDATE → 0 rows → DbUpdateConcurrencyException), default PKs get
+            // marked Added (INSERT). Same trap we hit on Address / PaymentMethod.
             OrderId = order.Id,
             From = order.Status,
             To = request.Status,
