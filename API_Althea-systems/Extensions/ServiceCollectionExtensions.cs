@@ -210,6 +210,11 @@ public static class ServiceCollectionExtensions
             client.BaseAddress = new Uri(settings.BaseUrl);
             client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
         });
+        // RAG-ish per-turn context assembler. Runs read-only DB queries
+        // on every chat message (customer profile + recent orders + catalog
+        // categories + product search on the question) so the LLM answers
+        // with real prices/statuses instead of hallucinating.
+        services.AddScoped<IChatContextBuilder, ChatContextBuilder>();
         // PDF rendering is stateless and fast (QuestPDF reuses a thread-local
         // engine), Singleton is appropriate.
         services.AddSingleton<IInvoicePdfService, InvoicePdfService>();

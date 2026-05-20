@@ -67,15 +67,18 @@ public class ChatService : IChatService
 {
     private readonly IMessageRepository _messageRepository;
     private readonly IOllamaService _ollama;
+    private readonly IChatContextBuilder _contextBuilder;
     private readonly ILogger<ChatService> _logger;
 
     public ChatService(
         IMessageRepository messageRepository,
         IOllamaService ollama,
+        IChatContextBuilder contextBuilder,
         ILogger<ChatService> logger)
     {
         _messageRepository = messageRepository;
         _ollama = ollama;
+        _contextBuilder = contextBuilder;
         _logger = logger;
     }
 
@@ -123,14 +126,24 @@ public class ChatService : IChatService
         };
         await _messageRepository.AddChatMessageAsync(userMsg);
 
-        // 2. Build the running history (oldest first) and call Ollama.
-        //    Past messages from the DB + the user message we just stored.
+        // 2. Build the running history + per-turn context block.
+        //    The context block (customer profile, recent orders, catalog,
+        //    product matches) is prepended as an extra "system" message
+        //    right before the user's latest question — so the model sees
+        //    fresh facts every turn, even on a long conversation.
+        var contextBlock = await _contextBuilder.BuildAsync(conv.UserId, request.Content);
+
         var history = conv.Messages
             .OrderBy(m => m.Timestamp)
             .Select(m => (
                 Role: m.Role == ChatRole.User ? "user" : "assistant",
                 Content: m.Content))
             .ToList();
+        // System message with the live context — Ollama accepts multiple
+        // system entries; OllamaService keeps the configured persona prompt
+        // at index 0 and we slot this one immediately before the user's
+        // current question.
+        history.Add(("system", contextBlock));
         history.Add(("user", request.Content));
 
         string reply;

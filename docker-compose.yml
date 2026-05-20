@@ -42,7 +42,7 @@ services:
       EmailConfirmation__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
       PasswordReset__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
       Ollama__BaseUrl: "http://ollama:11434"
-      Ollama__Model: ${OLLAMA_MODEL:-llama3.2:3b}
+      Ollama__Model: ${OLLAMA_MODEL:-qwen2.5:3b}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
     depends_on:
       postgres:
@@ -148,7 +148,7 @@ services:
       # Internal services reach it via the Docker network at ollama:11434.
       - "11434:11434"
     volumes:
-      # Model cache (~2 GB for llama3.2:3b). Persistent so a `docker compose
+      # Model cache (~2.6 GB for qwen3:4b). Persistent so a `docker compose
       # down` doesn't force a re-download on next boot.
       - ollama_data:/root/.ollama
     healthcheck:
@@ -179,7 +179,7 @@ services:
     entrypoint: ["sh", "-c"]
     command:
       - |
-        MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+        MODEL="${OLLAMA_MODEL:-qwen2.5:3b}"
         echo "[ollama-init] Pulling $$MODEL (this can take a few minutes on first run)…"
         ollama pull "$$MODEL"
         echo "[ollama-init] Model $$MODEL is ready."
