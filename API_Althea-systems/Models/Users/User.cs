@@ -17,6 +17,16 @@ public class User
     public DateTime? TwoFactorEnabledAt { get; set; }
 
     /// <summary>
+    /// Which 2FA method the user has configured.
+    /// Invariant maintained by TwoFactorService:
+    ///   <c>TwoFactorEnabled == false  ⇔  TwoFactorMethod == None</c>.
+    /// Both fields are kept (rather than collapsing to the enum alone) so
+    /// the existing UI bool check + the front's emailConfirmed/2FA gates
+    /// stay readable.
+    /// </summary>
+    public TwoFactorMethod TwoFactorMethod { get; set; } = TwoFactorMethod.None;
+
+    /// <summary>
     /// Stripe Customer ID (cus_xxx). Created on first payment, persisted so
     /// subsequent PaymentIntents reuse the same customer and saved payment
     /// methods stay attached.

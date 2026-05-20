@@ -17,7 +17,15 @@ import type { AuthResponse, UserDto } from '@/lib/api-types';
  */
 export type LoginResult =
   | { kind: 'success' }
-  | { kind: 'twoFactorRequired'; challengeToken: string }
+  | {
+      kind: 'twoFactorRequired';
+      challengeToken: string;
+      /**
+       * Phase 4b: 1 = Authenticator, 2 = Email, null = unknown (legacy
+       * server, treat as Authenticator). Drives the challenge-screen copy.
+       */
+      method: number | null;
+    }
   | { kind: 'mustSetupTwoFactor'; setupToken: string }
   /**
    * Phase 2: the user authenticated but hasn't clicked the confirmation
@@ -105,7 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!response.challengeToken) {
             return { kind: 'error', error: 'Malformed login response.' };
           }
-          return { kind: 'twoFactorRequired', challengeToken: response.challengeToken };
+          return {
+            kind: 'twoFactorRequired',
+            challengeToken: response.challengeToken,
+            method: response.twoFactorMethod,
+          };
 
         case 'TwoFactorSetupRequired':
           if (!response.setupToken) {

@@ -40,6 +40,13 @@ export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 export const InvoiceType = { Invoice: 0, CreditNote: 1 } as const;
 export type InvoiceType = (typeof InvoiceType)[keyof typeof InvoiceType];
 
+// Phase 4b: 2FA method picker. Indices MUST match
+// API_Althea-systems/Common/Enums/TwoFactorMethod.cs. Even though the backend
+// serialises this as a string (JsonStringEnumConverter), the numeric values
+// are used for client-side comparisons via the api.ts normaliseEnums layer.
+export const TwoFactorMethod = { None: 0, Authenticator: 1, Email: 2 } as const;
+export type TwoFactorMethod = (typeof TwoFactorMethod)[keyof typeof TwoFactorMethod];
+
 // ── Display labels (for UI rendering) ────────────────
 // Usage: enumLabel(ProductStatus, product.status) => "Active"
 

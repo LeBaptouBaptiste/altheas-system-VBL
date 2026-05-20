@@ -37,4 +37,22 @@ public interface ITwoFactorStateStore
     /// locked, or null if it isn't.
     /// </summary>
     Task<TimeSpan?> GetLockRemainingAsync(Guid userId);
+
+    // ─────────────────────────────────────────────────────────
+    //  Phase 4b — email-based 2FA
+    // ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Stores the SHA-256 hash of the freshly issued 6-digit email code.
+    /// Hash, not plaintext: a Redis snapshot must not allow reuse of past
+    /// codes. Overwrites any prior code for the user (issuing a new one
+    /// invalidates the old).
+    /// </summary>
+    Task SetEmailCodeHashAsync(Guid userId, string codeHash, TimeSpan ttl);
+
+    /// <summary>Returns the stored hash, or null if absent / expired.</summary>
+    Task<string?> GetEmailCodeHashAsync(Guid userId);
+
+    /// <summary>Deletes the code (single-use — wipe on successful verify).</summary>
+    Task DeleteEmailCodeAsync(Guid userId);
 }

@@ -166,6 +166,45 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task LoginAsync_TwoFactorEmail_FiresLoginCodeBeforeReturningChallenge()
+    {
+        // Phase 4b: for Method=Email users, AuthService must request a fresh
+        // 6-digit code from TwoFactorService before returning the challenge,
+        // so the code is in the user's inbox by the time the challenge UI
+        // shows up.
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        user.TwoFactorMethod = Common.Enums.TwoFactorMethod.Email;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+
+        var result = await _sut.LoginAsync(new LoginRequest("test@test.com", "Password1234"));
+
+        result.Outcome.Should().Be(LoginOutcome.TwoFactorRequired);
+        result.ChallengeToken.Should().Be("test-challenge-token");
+        _twoFactor.Verify(t => t.RequestLoginEmailCodeAsync(user), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_TwoFactorEmail_CodeSendFails_StillReturnsChallenge()
+    {
+        // SMTP failure must NOT block the challenge — the user can hit
+        // /auth/2fa/resend-code to retry. Otherwise a flaky inbox = unable
+        // to log in.
+        var user = CreateTestUser();
+        user.TwoFactorEnabled = true;
+        user.TwoFactorMethod = Common.Enums.TwoFactorMethod.Email;
+        _userRepo.Setup(r => r.GetByEmailAsync("test@test.com")).ReturnsAsync(user);
+        _twoFactor
+            .Setup(t => t.RequestLoginEmailCodeAsync(user))
+            .ThrowsAsync(new InvalidOperationException("smtp down"));
+
+        var result = await _sut.LoginAsync(new LoginRequest("test@test.com", "Password1234"));
+
+        result.Outcome.Should().Be(LoginOutcome.TwoFactorRequired);
+        result.ChallengeToken.Should().Be("test-challenge-token");
+    }
+
+    [Fact]
     public async Task LoginAsync_TwoFactorEnabled_ReturnsChallengeToken_AndDoesNotUpdateLastLogin()
     {
         var user = CreateTestUser();

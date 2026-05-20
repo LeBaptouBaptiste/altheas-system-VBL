@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using OtpNet;
+using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
@@ -20,6 +21,7 @@ public class TwoFactorServiceTests
     private readonly EncryptionService _encryption;
     private readonly TestPasswordHasher _hasher = new();
     private readonly Mock<ISecurityAlertSender> _alerts = new();
+    private readonly Mock<ITwoFactorCodeSender> _codeSender = new();
     private readonly TwoFactorService _sut;
 
     public TwoFactorServiceTests()
@@ -41,6 +43,7 @@ public class TwoFactorServiceTests
             _encryption,
             _hasher,
             _alerts.Object,
+            _codeSender.Object,
             NullLogger<TwoFactorService>.Instance);
     }
 
@@ -453,6 +456,221 @@ public class TwoFactorServiceTests
     }
 
     // ═════════════════════════════════════════════════════════
+    //  Phase 4b — email-based 2FA
+    // ═════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Captures the code emitted by StartEmailSetupAsync so the test can
+    /// type it back into EnableEmailAsync (the service generates random
+    /// digits — we don't fake the RNG, we just intercept the sender call).
+    /// </summary>
+    private void CaptureSentCode(Action<string> onSent)
+    {
+        _codeSender
+            .Setup(s => s.SendAsync(
+                It.IsAny<User>(),
+                It.IsAny<string>(),
+                It.IsAny<TwoFactorCodePurpose>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<User, string, TwoFactorCodePurpose, TimeSpan, CancellationToken>(
+                (_, code, _, _, _) => onSent(code))
+            .Returns(Task.CompletedTask);
+    }
+
+    [Fact]
+    public async Task StartEmailSetupAsync_StoresHashAndSendsSetupCode()
+    {
+        var user = NewUser();
+        string? sentCode = null;
+        CaptureSentCode(c => sentCode = c);
+
+        await _sut.StartEmailSetupAsync(user);
+
+        sentCode.Should().NotBeNullOrEmpty();
+        sentCode!.Length.Should().Be(6);
+        sentCode.Should().MatchRegex("^[0-9]{6}$");
+        // Hash stored — service exposes it via the fake state store.
+        _state.EmailCodeHashes.Should().ContainKey(user.Id);
+        _codeSender.Verify(s => s.SendAsync(
+            user, sentCode, TwoFactorCodePurpose.Setup, It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task EnableEmailAsync_ValidCode_ActivatesWithMethodEmail()
+    {
+        var user = NewUser();
+        string? sentCode = null;
+        CaptureSentCode(c => sentCode = c);
+        await _sut.StartEmailSetupAsync(user);
+
+        var result = await _sut.EnableEmailAsync(user, sentCode!);
+
+        user.TwoFactorEnabled.Should().BeTrue();
+        user.TwoFactorMethod.Should().Be(TwoFactorMethod.Email);
+        user.TwoFactorEnabledAt.Should().NotBeNull();
+        result.RecoveryCodes.Should().HaveCount(10);
+        // Pending code wiped after success.
+        _state.EmailCodeHashes.Should().NotContainKey(user.Id);
+        // Phase 4a alert still fires for Email enable.
+        _alerts.Verify(s => s.SendAsync(user, SecurityAlertType.TwoFactorEnabled,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task EnableEmailAsync_InvalidCode_Throws_AndDoesNotEnable()
+    {
+        var user = NewUser();
+        CaptureSentCode(_ => { });
+        await _sut.StartEmailSetupAsync(user);
+
+        var act = () => _sut.EnableEmailAsync(user, "000000");
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        user.TwoFactorEnabled.Should().BeFalse();
+        user.TwoFactorMethod.Should().Be(TwoFactorMethod.None);
+    }
+
+    [Fact]
+    public async Task EnableEmailAsync_NoPendingSetup_Throws()
+    {
+        var user = NewUser();
+
+        var act = () => _sut.EnableEmailAsync(user, "123456");
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task RequestLoginEmailCodeAsync_OnlyFiresForEmailMethod()
+    {
+        // Authenticator user → no-op. Defensive: prevents leaking a Redis
+        // key + sending a useless mail if some caller forgets to gate.
+        var authUser = NewUser();
+        var setup = await _sut.StartSetupAsync(authUser);
+        await _sut.EnableAsync(authUser, ComputeTotp(setup.Secret));
+        _codeSender.Invocations.Clear();
+
+        await _sut.RequestLoginEmailCodeAsync(authUser);
+
+        _codeSender.Verify(s => s.SendAsync(It.IsAny<User>(), It.IsAny<string>(),
+            It.IsAny<TwoFactorCodePurpose>(), It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RequestLoginEmailCodeAsync_EmailUser_SendsLoginCode()
+    {
+        var user = NewUser();
+        string? sentSetupCode = null;
+        CaptureSentCode(c => sentSetupCode = c);
+        await _sut.StartEmailSetupAsync(user);
+        await _sut.EnableEmailAsync(user, sentSetupCode!);
+        _codeSender.Invocations.Clear();
+
+        string? loginCode = null;
+        CaptureSentCode(c => loginCode = c);
+
+        await _sut.RequestLoginEmailCodeAsync(user);
+
+        loginCode.Should().NotBeNullOrEmpty();
+        _codeSender.Verify(s => s.SendAsync(user, loginCode!,
+            TwoFactorCodePurpose.Login, It.IsAny<TimeSpan>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_EmailMethod_ValidCode_Succeeds_AndIsSingleUse()
+    {
+        var user = NewUser();
+        string? setupCode = null;
+        CaptureSentCode(c => setupCode = c);
+        await _sut.StartEmailSetupAsync(user);
+        await _sut.EnableEmailAsync(user, setupCode!);
+
+        string? loginCode = null;
+        CaptureSentCode(c => loginCode = c);
+        await _sut.RequestLoginEmailCodeAsync(user);
+
+        var first = await _sut.VerifyAsync(user, loginCode!);
+        var second = await _sut.VerifyAsync(user, loginCode!);
+
+        first.Outcome.Should().Be(TwoFactorVerifyOutcome.Valid);
+        // Single-use — Redis entry deleted on first success.
+        second.Outcome.Should().Be(TwoFactorVerifyOutcome.Invalid);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_EmailMethod_WrongCode_CountsAsFailure()
+    {
+        var user = NewUser();
+        string? setupCode = null;
+        CaptureSentCode(c => setupCode = c);
+        await _sut.StartEmailSetupAsync(user);
+        await _sut.EnableEmailAsync(user, setupCode!);
+        CaptureSentCode(_ => { });
+        await _sut.RequestLoginEmailCodeAsync(user);
+
+        var result = await _sut.VerifyAsync(user, "000000");
+
+        result.Outcome.Should().Be(TwoFactorVerifyOutcome.Invalid);
+        // Failure counter incremented — same lock-out budget applies.
+        _state.FailureCounts.Should().ContainKey(user.Id);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_EmailMethod_RecoveryCodeStillWorks()
+    {
+        // Recovery codes are method-independent — they're the fallback
+        // when the user lost access to their primary channel.
+        var user = NewUser();
+        string? setupCode = null;
+        CaptureSentCode(c => setupCode = c);
+        await _sut.StartEmailSetupAsync(user);
+        var enable = await _sut.EnableEmailAsync(user, setupCode!);
+
+        var result = await _sut.VerifyAsync(user, enable.RecoveryCodes[0]);
+
+        result.Outcome.Should().Be(TwoFactorVerifyOutcome.ValidViaRecoveryCode);
+    }
+
+    [Fact]
+    public async Task DisableAsync_EmailMethod_ResetsMethodAndClearsCode()
+    {
+        var user = NewUser();
+        string? setupCode = null;
+        CaptureSentCode(c => setupCode = c);
+        await _sut.StartEmailSetupAsync(user);
+        await _sut.EnableEmailAsync(user, setupCode!);
+        CaptureSentCode(_ => { });
+        await _sut.RequestLoginEmailCodeAsync(user);
+
+        await _sut.DisableAsync(user);
+
+        user.TwoFactorEnabled.Should().BeFalse();
+        user.TwoFactorMethod.Should().Be(TwoFactorMethod.None);
+        _state.EmailCodeHashes.Should().NotContainKey(user.Id,
+            "a malicious actor with a stale Redis read must not retain a usable code post-disable");
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_IncludesMethodField()
+    {
+        var user = NewUser();
+        string? setupCode = null;
+        CaptureSentCode(c => setupCode = c);
+        await _sut.StartEmailSetupAsync(user);
+        await _sut.EnableEmailAsync(user, setupCode!);
+
+        var status = await _sut.GetStatusAsync(user);
+
+        status.Enabled.Should().BeTrue();
+        status.Method.Should().Be(TwoFactorMethod.Email);
+        status.RecoveryCodesRemaining.Should().Be(10);
+    }
+
+    // ═════════════════════════════════════════════════════════
     //  Test doubles
     // ═════════════════════════════════════════════════════════
 
@@ -519,6 +737,24 @@ public class TwoFactorServiceTests
             if (!Locks.TryGetValue(userId, out var until)) return Task.FromResult<TimeSpan?>(null);
             var remaining = until - DateTime.UtcNow;
             return Task.FromResult<TimeSpan?>(remaining > TimeSpan.Zero ? remaining : null);
+        }
+
+        // Phase 4b — email codes
+        public Dictionary<Guid, string> EmailCodeHashes { get; } = new();
+
+        public Task SetEmailCodeHashAsync(Guid userId, string codeHash, TimeSpan ttl)
+        {
+            EmailCodeHashes[userId] = codeHash;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetEmailCodeHashAsync(Guid userId)
+            => Task.FromResult(EmailCodeHashes.TryGetValue(userId, out var v) ? v : null);
+
+        public Task DeleteEmailCodeAsync(Guid userId)
+        {
+            EmailCodeHashes.Remove(userId);
+            return Task.CompletedTask;
         }
     }
 

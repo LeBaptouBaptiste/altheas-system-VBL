@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ShieldCheck, ShieldAlert, Copy, Check, Download, Loader2, KeyRound } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Copy, Check, Download, Loader2, KeyRound, Mail, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
@@ -19,6 +19,9 @@ type View =
   | { kind: 'status'; status: TwoFactorStatus }
   | { kind: 'setupSecret'; setup: TwoFactorSetupResult }
   | { kind: 'setupVerify'; setup: TwoFactorSetupResult }
+  // Phase 4b — email method setup. No secret to show (the code lives in
+  // Redis, not on the User row), only a verify step.
+  | { kind: 'emailSetupVerify' }
   | { kind: 'recoveryCodes'; codes: string[] };
 
 export function TwoFactorSection() {
@@ -53,6 +56,21 @@ export function TwoFactorSection() {
     }
   };
 
+  // Phase 4b: kick off the email-based setup. Server mails a 6-digit code,
+  // we transition to the verify view (no secret to display).
+  const startEmailSetup = async () => {
+    setSubmitting(true);
+    try {
+      await authService.setupTwoFactorEmail();
+      setView({ kind: 'emailSetupVerify' });
+      toast.success(locale === 'fr' ? 'Code envoyé par email' : 'Code sent by email');
+    } catch (err) {
+      toast.error(getErrorMessage(err, t));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const verifyAndEnable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (view.kind !== 'setupVerify') return;
@@ -61,6 +79,27 @@ export function TwoFactorSection() {
       const result = await authService.enableTwoFactor(code);
       // Persist the new amr=mfa token so subsequent requests use an
       // up-to-date JWT (and LastLogin gets refreshed server-side).
+      applyAuth(result.auth);
+      setCode('');
+      setSavedConfirmed(false);
+      setView({ kind: 'recoveryCodes', codes: result.recoveryCodes });
+      toast.success(t('2fa.section_enabled_toast'));
+    } catch (err) {
+      toast.error(getErrorMessage(err, t));
+      setCode('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Phase 4b — confirm the emailed code; same shape as the TOTP verify
+  // but hits a different endpoint and yields method=Email server-side.
+  const verifyAndEnableEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (view.kind !== 'emailSetupVerify') return;
+    setSubmitting(true);
+    try {
+      const result = await authService.enableTwoFactorEmail(code);
       applyAuth(result.auth);
       setCode('');
       setSavedConfirmed(false);
@@ -190,7 +229,7 @@ export function TwoFactorSection() {
           </>
         )}
 
-        {/* Status — disabled */}
+        {/* Status — disabled (Phase 4b: choice of method) */}
         {view.kind === 'status' && !view.status.enabled && (
           <>
             <div className="flex items-start gap-3 mb-4">
@@ -206,14 +245,78 @@ export function TwoFactorSection() {
                 </p>
               </div>
             </div>
-            <Button
-              onClick={startSetup}
-              disabled={submitting}
-              className="bg-brand-primary hover:bg-brand-hover text-white"
-            >
-              {submitting ? '…' : t('2fa.section_enable_button')}
-            </Button>
+            <p className="text-sm text-muted-foreground mb-3">
+              {locale === 'fr'
+                ? 'Choisissez votre méthode d’authentification à deux facteurs :'
+                : 'Pick your two-factor authentication method:'}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <Button
+                onClick={startSetup}
+                disabled={submitting}
+                className="bg-brand-primary hover:bg-brand-hover text-white justify-start"
+              >
+                <Smartphone className="w-4 h-4 me-2" />
+                {locale === 'fr' ? 'Application authentificatrice' : 'Authenticator app'}
+              </Button>
+              <Button
+                onClick={startEmailSetup}
+                disabled={submitting}
+                variant="outline"
+                className="justify-start"
+              >
+                <Mail className="w-4 h-4 me-2" />
+                {locale === 'fr' ? 'Email' : 'Email'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              {locale === 'fr'
+                ? 'L’application est plus rapide (codes locaux à 30 s). L’email est plus simple mais nécessite l’accès à votre boîte à chaque connexion.'
+                : 'The app is faster (local 30 s codes). Email is simpler but requires mailbox access at every login.'}
+            </p>
           </>
+        )}
+
+        {/* Phase 4b — Email setup verify */}
+        {view.kind === 'emailSetupVerify' && (
+          <form onSubmit={verifyAndEnableEmail}>
+            <h3 className="font-semibold text-brand-dark mb-3">
+              {locale === 'fr' ? 'Vérifiez votre email' : 'Verify your email'}
+            </h3>
+            <p className="text-sm text-gray-700 mb-4">
+              {locale === 'fr'
+                ? 'Saisissez le code à 6 chiffres que nous venons de vous envoyer par email pour activer la 2FA par email.'
+                : 'Enter the 6-digit code we just emailed you to activate email-based 2FA.'}
+            </p>
+            <div className="flex justify-center mb-4">
+              <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => authService.getTwoFactorStatus().then((s) => setView({ kind: 'status', status: s }))}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting || code.length !== 6}
+                className="flex-1 bg-brand-primary hover:bg-brand-hover text-white"
+              >
+                {submitting ? '…' : t('2fa.setup_verify_enable')}
+              </Button>
+            </div>
+          </form>
         )}
 
         {/* Setup step 1: show secret + QR */}

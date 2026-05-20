@@ -21,6 +21,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         // Length covers IV (12B) + ciphertext (~20B for a 160-bit base32 secret) + tag (16B), base64-encoded.
         builder.Property(u => u.TwoFactorSecret).HasMaxLength(256);
 
+        // Stored as a string ("None" / "Authenticator" / "Email") so new
+        // methods don't need an integer-shuffle migration.
+        builder.Property(u => u.TwoFactorMethod).HasConversion<string>().HasMaxLength(20);
+
         // Stripe Customer ID — format "cus_" + 14-24 chars; 255 leaves headroom.
         // Not unique-indexed because nullable and 1-1 with user (covered by PK).
         builder.Property(u => u.StripeCustomerId).HasMaxLength(255);

@@ -63,6 +63,12 @@ export interface LoginResponse {
   auth: AuthResponse | null;
   challengeToken: string | null;
   setupToken: string | null;
+  /**
+   * Phase 4b: populated only when outcome='TwoFactorRequired'.
+   * 0 = None (shouldn't happen with that outcome), 1 = Authenticator, 2 = Email.
+   * Drives the challenge-screen copy.
+   */
+  twoFactorMethod: number | null;
 }
 
 export interface VerifyTwoFactorChallengeRequest {
@@ -90,6 +96,12 @@ export interface TwoFactorStatus {
   enabled: boolean;
   enabledAt: string | null;
   recoveryCodesRemaining: number;
+  /**
+   * Phase 4b: which 2FA method the user has configured.
+   * 0 = None, 1 = Authenticator, 2 = Email.
+   * Drives the security-settings UI and the login challenge copy.
+   */
+  method: number;
 }
 
 export interface RegenerateRecoveryCodesResponse {

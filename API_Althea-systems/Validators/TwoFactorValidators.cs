@@ -28,6 +28,26 @@ public class EnableTwoFactorRequestValidator : AbstractValidator<EnableTwoFactor
     }
 }
 
+public class EnableTwoFactorEmailRequestValidator : AbstractValidator<EnableTwoFactorEmailRequest>
+{
+    public EnableTwoFactorEmailRequestValidator()
+    {
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("Code is required.")
+            .Must(s => s != null && s.Length == 6 && s.All(char.IsDigit))
+            .WithMessage("Enable/email expects the 6-digit code mailed to the user's address.");
+    }
+}
+
+public class ResendTwoFactorCodeRequestValidator : AbstractValidator<ResendTwoFactorCodeRequest>
+{
+    public ResendTwoFactorCodeRequestValidator()
+    {
+        RuleFor(x => x.ChallengeToken)
+            .NotEmpty().WithMessage("Challenge token is required.");
+    }
+}
+
 public class StepUpRequestValidator : AbstractValidator<StepUpRequest>
 {
     public StepUpRequestValidator()

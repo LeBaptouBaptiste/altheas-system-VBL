@@ -220,6 +220,10 @@ public static class ServiceCollectionExtensions
         // enable / disable / regenerate.
         services.AddScoped<ISecurityAlertSender, SecurityAlertSender>();
 
+        // Phase 4b: 2FA code sender (setup + login codes for the Email
+        // method). Consumed by TwoFactorService.
+        services.AddScoped<ITwoFactorCodeSender, TwoFactorCodeSender>();
+
         return services;
     }
 

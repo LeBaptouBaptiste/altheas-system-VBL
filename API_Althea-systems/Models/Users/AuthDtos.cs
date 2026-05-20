@@ -67,7 +67,11 @@ public record LoginResponse(
     LoginOutcome Outcome,
     AuthResponse? Auth = null,
     string? ChallengeToken = null,
-    string? SetupToken = null
+    string? SetupToken = null,
+    // Phase 4b: populated only when Outcome=TwoFactorRequired. Lets the
+    // front render the right copy on the challenge screen
+    // ("Code from your authenticator app" vs "Code emailed to you").
+    Common.Enums.TwoFactorMethod? TwoFactorMethod = null
 );
 
 public record VerifyTwoFactorChallengeRequest(string ChallengeToken, string Code);

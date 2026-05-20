@@ -76,6 +76,75 @@ public class TwoFactorController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────
+    //  Email-based setup (phase 4b)
+    // ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts email-based 2FA setup. Sends a one-time code to the user's
+    /// email. Caller must hold an access token (regular user opting in) or
+    /// an admin setup token (forced enrolment). Idempotent — calling twice
+    /// just reissues a fresh code, invalidating the prior one.
+    /// </summary>
+    [HttpPost("setup/email")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> SetupEmail()
+    {
+        var user = await ResolveUserFromAccessOrSetupTokenAsync();
+        await _twoFactor.StartEmailSetupAsync(user);
+        return Ok(new { message = "A code has been sent to your email." });
+    }
+
+    /// <summary>
+    /// Confirms email-based 2FA setup. Verifies the 6-digit code the user
+    /// typed back, flips method=Email + enabled=true, returns recovery codes
+    /// + a fresh AuthResponse (same shape as the Authenticator /enable).
+    /// </summary>
+    [HttpPost("enable/email")]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<TwoFactorEnableResponse>> EnableEmail(
+        [FromBody] EnableTwoFactorEmailRequest request)
+    {
+        var user = await ResolveUserFromAccessOrSetupTokenAsync();
+        var enableResult = await _twoFactor.EnableEmailAsync(user, request.Code);
+        var auth = await _authService.IssueTokensAsync(user, mfaVerified: true);
+        return Ok(new TwoFactorEnableResponse(enableResult.RecoveryCodes, auth));
+    }
+
+    /// <summary>
+    /// During the 2FA login challenge, lets an Email-method user request a
+    /// fresh 6-digit code (typo'd or expired). Validates the challengeToken
+    /// (so randoms can't farm us as an SMTP relay) and rate-limited by
+    /// the "auth" policy on top.
+    /// </summary>
+    [HttpPost("resend-code")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResendCode([FromBody] ResendTwoFactorCodeRequest request)
+    {
+        var userId = _tokenService.ValidateSpecialToken(request.ChallengeToken,
+            TokenPurpose.TwoFactorChallenge);
+        if (userId is null)
+        {
+            throw new UnauthorizedException("Invalid or expired challenge token.");
+        }
+
+        var user = await _userRepository.GetByIdAsync(userId.Value)
+            ?? throw new UnauthorizedException("Authentication required.");
+
+        // Same swallow-on-SMTP-failure pattern as the login flow — front
+        // shows the same "code sent" UX whether or not delivery succeeded.
+        try
+        {
+            await _twoFactor.RequestLoginEmailCodeAsync(user);
+        }
+        catch (Exception)
+        {
+            // Logged inside the sender chain; nothing to surface here.
+        }
+
+        return Ok(new { message = "A new code has been sent." });
+    }
+
+    // ─────────────────────────────────────────────────────────
     //  status: requires a normal access token
     // ─────────────────────────────────────────────────────────
 

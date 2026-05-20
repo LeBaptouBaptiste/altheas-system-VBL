@@ -131,8 +131,31 @@ public class AuthService : IAuthService
         // (that happens once the code is verified).
         if (user.TwoFactorEnabled)
         {
+            // Phase 4b: for email-based 2FA, fire the per-login code mail
+            // BEFORE returning the challenge so the user finds the code in
+            // their inbox by the time the front asks for it. Swallow SMTP
+            // failures — the challenge still goes out and the user can
+            // request a resend.
+            if (user.TwoFactorMethod == Common.Enums.TwoFactorMethod.Email)
+            {
+                try
+                {
+                    await _twoFactor.RequestLoginEmailCodeAsync(user);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Failed to send login 2FA email code for user {UserId} ({Email}). " +
+                        "Challenge token still issued; user can resend.",
+                        user.Id, user.Email);
+                }
+            }
+
             var challenge = _tokenService.GenerateChallengeToken(user);
-            return new LoginResponse(LoginOutcome.TwoFactorRequired, ChallengeToken: challenge);
+            return new LoginResponse(
+                LoginOutcome.TwoFactorRequired,
+                ChallengeToken: challenge,
+                TwoFactorMethod: user.TwoFactorMethod);
         }
 
         // Branch 2: admin without 2FA -> force enrollment before access.

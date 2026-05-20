@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
+using System.Text;
 using OtpNet;
+using API_Althea_systems.Common.Enums;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services.Email;
@@ -30,12 +32,21 @@ public class TwoFactorService : ITwoFactorService
     private const int RecoveryGroupLength = 4;
     private const string RecoveryAlphabet = "0123456789abcdef";
 
+    // Phase 4b: email-based 2FA codes are 6 digits (matches the UX of TOTP),
+    // hash-stored in Redis, single-use. Two distinct TTLs — setup gives
+    // the user time to switch tabs and copy from the mail; login is shorter
+    // because the user is actively at the screen.
+    private const int EmailCodeDigits = 6;
+    private static readonly TimeSpan EmailCodeSetupTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan EmailCodeLoginTtl = TimeSpan.FromMinutes(5);
+
     private readonly ITwoFactorStateStore _state;
     private readonly IUserRepository _users;
     private readonly IRecoveryCodeRepository _recoveryCodes;
     private readonly IEncryptionService _encryption;
     private readonly IPasswordHasher _hasher;
     private readonly ISecurityAlertSender _alerts;
+    private readonly ITwoFactorCodeSender _codeSender;
     private readonly ILogger<TwoFactorService> _logger;
 
     public TwoFactorService(
@@ -45,6 +56,7 @@ public class TwoFactorService : ITwoFactorService
         IEncryptionService encryption,
         IPasswordHasher hasher,
         ISecurityAlertSender alerts,
+        ITwoFactorCodeSender codeSender,
         ILogger<TwoFactorService> logger)
     {
         _state = state;
@@ -53,6 +65,7 @@ public class TwoFactorService : ITwoFactorService
         _encryption = encryption;
         _hasher = hasher;
         _alerts = alerts;
+        _codeSender = codeSender;
         _logger = logger;
     }
 
@@ -86,6 +99,7 @@ public class TwoFactorService : ITwoFactorService
         user.TwoFactorSecret = _encryption.Encrypt(pending);
         user.TwoFactorEnabled = true;
         user.TwoFactorEnabledAt = DateTime.UtcNow;
+        user.TwoFactorMethod = TwoFactorMethod.Authenticator;
         await _users.UpdateAsync(user);
 
         // Wipe pending and any stale recovery codes.
@@ -106,12 +120,99 @@ public class TwoFactorService : ITwoFactorService
     }
 
     // ─────────────────────────────────────────────────────────
+    //  Email-based setup + login codes (phase 4b)
+    // ─────────────────────────────────────────────────────────
+
+    public async Task StartEmailSetupAsync(User user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        var code = GenerateNumericCode(EmailCodeDigits);
+        await _state.SetEmailCodeHashAsync(user.Id, HashEmailCode(code), EmailCodeSetupTtl);
+
+        // We send the plaintext code — the user types it back into the
+        // EnableEmailAsync endpoint. If the mail fails, the Redis entry will
+        // expire on its own (10 min TTL); the user can simply re-call the
+        // setup endpoint to issue a new code.
+        await _codeSender.SendAsync(user, code, TwoFactorCodePurpose.Setup, EmailCodeSetupTtl);
+
+        _logger.LogInformation("2FA email setup code issued for user {UserId}", user.Id);
+    }
+
+    public async Task<TwoFactorEnableResult> EnableEmailAsync(User user, string code)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        var storedHash = await _state.GetEmailCodeHashAsync(user.Id)
+            ?? throw new InvalidOperationException(
+                "No pending 2FA email setup. Call StartEmailSetupAsync first (or it has expired).");
+
+        var trimmed = (code ?? string.Empty).Trim();
+        if (trimmed.Length != EmailCodeDigits
+            || !trimmed.All(char.IsDigit)
+            || !CryptographicOperations.FixedTimeEquals(
+                Encoding.ASCII.GetBytes(storedHash),
+                Encoding.ASCII.GetBytes(HashEmailCode(trimmed))))
+        {
+            _logger.LogWarning("2FA email enable failed for user {UserId}: invalid code", user.Id);
+            throw new InvalidOperationException("Invalid code.");
+        }
+
+        // Commit the method on the user. No secret persisted — the per-login
+        // code lives in Redis only. We do NOT touch user.TwoFactorSecret to
+        // preserve a previously enrolled Authenticator secret in case the
+        // user later switches back (out of scope for this phase but cheap
+        // to keep).
+        user.TwoFactorEnabled = true;
+        user.TwoFactorEnabledAt = DateTime.UtcNow;
+        user.TwoFactorMethod = TwoFactorMethod.Email;
+        await _users.UpdateAsync(user);
+
+        // Wipe the pending code + reset recovery codes (any old codes for
+        // a prior method are stale).
+        await _state.DeleteEmailCodeAsync(user.Id);
+        await _recoveryCodes.DeleteAllForUserAsync(user.Id);
+
+        var (plaintextCodes, hashedEntities) = GenerateRecoveryCodes(user.Id);
+        await _recoveryCodes.AddRangeAsync(hashedEntities);
+
+        _logger.LogInformation("2FA enabled (method=Email) for user {UserId}", user.Id);
+
+        // Phase 4a alert — same as Authenticator enable. Best-effort.
+        await FireAlertBestEffortAsync(user, SecurityAlertType.TwoFactorEnabled);
+
+        return new TwoFactorEnableResult(plaintextCodes);
+    }
+
+    public async Task RequestLoginEmailCodeAsync(User user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!user.TwoFactorEnabled || user.TwoFactorMethod != TwoFactorMethod.Email)
+        {
+            // Defensive: the caller (AuthService.LoginAsync) gates on this
+            // already, but a stale check elsewhere shouldn't blow up.
+            return;
+        }
+
+        var code = GenerateNumericCode(EmailCodeDigits);
+        await _state.SetEmailCodeHashAsync(user.Id, HashEmailCode(code), EmailCodeLoginTtl);
+
+        // Surface delivery failures — AuthService.LoginAsync swallows so a
+        // flaky SMTP doesn't block the login challenge from being returned,
+        // but lets the test seam observe.
+        await _codeSender.SendAsync(user, code, TwoFactorCodePurpose.Login, EmailCodeLoginTtl);
+
+        _logger.LogInformation("2FA email login code issued for user {UserId}", user.Id);
+    }
+
+    // ─────────────────────────────────────────────────────────
     //  Verify
     // ─────────────────────────────────────────────────────────
 
     public async Task<TwoFactorVerifyResult> VerifyAsync(User user, string codeOrRecovery)
     {
-        if (!user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret))
+        if (!user.TwoFactorEnabled || user.TwoFactorMethod == TwoFactorMethod.None)
             return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.NotEnabled);
 
         // Brute-force gate: refuse upfront if the account is currently locked.
@@ -127,7 +228,9 @@ public class TwoFactorService : ITwoFactorService
 
         var normalized = (codeOrRecovery ?? string.Empty).Trim();
 
-        // Recovery code path: detect by length / dashes.
+        // Recovery code path: detect by length / dashes. Works for BOTH
+        // methods — recovery codes are method-independent, they're the
+        // "I lost access to my channel" escape hatch.
         if (LooksLikeRecoveryCode(normalized))
         {
             var ok = await VerifyRecoveryCodeAsync(user.Id, normalized);
@@ -138,6 +241,22 @@ public class TwoFactorService : ITwoFactorService
             }
             return await RegisterFailureAsync(user.Id);
         }
+
+        // Dispatch on method.
+        return user.TwoFactorMethod switch
+        {
+            TwoFactorMethod.Authenticator => await VerifyAuthenticatorAsync(user, normalized),
+            TwoFactorMethod.Email => await VerifyEmailAsync(user, normalized),
+            // Defensive: TwoFactorEnabled=true + Method=None shouldn't be
+            // reachable through the API, but it's a cheap last check.
+            _ => new TwoFactorVerifyResult(TwoFactorVerifyOutcome.NotEnabled),
+        };
+    }
+
+    private async Task<TwoFactorVerifyResult> VerifyAuthenticatorAsync(User user, string normalized)
+    {
+        if (string.IsNullOrEmpty(user.TwoFactorSecret))
+            return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.NotEnabled);
 
         // TOTP path: 6 digits.
         var base32 = _encryption.Decrypt(user.TwoFactorSecret);
@@ -157,6 +276,39 @@ public class TwoFactorService : ITwoFactorService
         }
         await _state.SetLastReplayStepAsync(user.Id, matchedStep, ReplayGuardTtl);
 
+        await _state.ResetFailuresAsync(user.Id);
+        return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Valid);
+    }
+
+    private async Task<TwoFactorVerifyResult> VerifyEmailAsync(User user, string normalized)
+    {
+        // Must be exactly 6 digits — anything else is rejected upfront so we
+        // don't even hit Redis on obvious garbage. Letters / shorter / longer
+        // = treat as failure (counts against the lock-out budget).
+        if (normalized.Length != EmailCodeDigits || !normalized.All(char.IsDigit))
+        {
+            return await RegisterFailureAsync(user.Id);
+        }
+
+        var storedHash = await _state.GetEmailCodeHashAsync(user.Id);
+        if (storedHash is null)
+        {
+            // No active code — either expired or never issued. Count as a
+            // failure so a code-less brute force still trips the lock-out.
+            return await RegisterFailureAsync(user.Id);
+        }
+
+        var submittedHash = HashEmailCode(normalized);
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.ASCII.GetBytes(storedHash),
+                Encoding.ASCII.GetBytes(submittedHash)))
+        {
+            return await RegisterFailureAsync(user.Id);
+        }
+
+        // Single-use — wipe immediately so a sniffed code can't be replayed
+        // within its 5-min TTL.
+        await _state.DeleteEmailCodeAsync(user.Id);
         await _state.ResetFailuresAsync(user.Id);
         return new TwoFactorVerifyResult(TwoFactorVerifyOutcome.Valid);
     }
@@ -197,11 +349,15 @@ public class TwoFactorService : ITwoFactorService
         user.TwoFactorEnabled = false;
         user.TwoFactorSecret = null;
         user.TwoFactorEnabledAt = null;
+        user.TwoFactorMethod = TwoFactorMethod.None;
         await _users.UpdateAsync(user);
 
         await _recoveryCodes.DeleteAllForUserAsync(user.Id);
         await _state.DeleteSetupSecretAsync(user.Id);
         await _state.DeleteReplayStepAsync(user.Id);
+        // Phase 4b: also wipe any pending email code so a malicious actor
+        // who held one can't use it post-disable.
+        await _state.DeleteEmailCodeAsync(user.Id);
 
         _logger.LogInformation("2FA disabled for user {UserId}", user.Id);
 
@@ -235,7 +391,11 @@ public class TwoFactorService : ITwoFactorService
             ? await _recoveryCodes.CountUnusedAsync(user.Id)
             : 0;
 
-        return new TwoFactorStatus(user.TwoFactorEnabled, user.TwoFactorEnabledAt, remaining);
+        return new TwoFactorStatus(
+            user.TwoFactorEnabled,
+            user.TwoFactorEnabledAt,
+            remaining,
+            user.TwoFactorMethod);
     }
 
     // ─────────────────────────────────────────────────────────
@@ -262,6 +422,28 @@ public class TwoFactorService : ITwoFactorService
                 type, user.Id, user.Email);
         }
     }
+
+    /// <summary>
+    /// Generates a zero-padded numeric code (e.g. "042193" for 6 digits).
+    /// Uses <see cref="RandomNumberGenerator.GetInt32"/> so the distribution
+    /// is uniform — no modulo bias.
+    /// </summary>
+    private static string GenerateNumericCode(int digits)
+    {
+        Span<char> buf = stackalloc char[digits];
+        for (var i = 0; i < digits; i++)
+        {
+            buf[i] = (char)('0' + RandomNumberGenerator.GetInt32(10));
+        }
+        return new string(buf);
+    }
+
+    /// <summary>
+    /// Hex SHA-256 of the code. Stored in Redis instead of the plaintext so
+    /// a Redis snapshot leak doesn't let an attacker complete a 2FA challenge.
+    /// </summary>
+    private static string HashEmailCode(string code) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code)));
 
     private static bool VerifyTotpCode(string base32Secret, string code, out long matchedStep)
     {

@@ -9,6 +9,7 @@ public class RedisTwoFactorStateStore : ITwoFactorStateStore
     private static string ReplayKey(Guid userId) => $"2fa:replay:{userId}";
     private static string FailureKey(Guid userId) => $"2fa:failed:{userId}";
     private static string LockKey(Guid userId) => $"2fa:lock:{userId}";
+    private static string EmailCodeKey(Guid userId) => $"2fa:email-code:{userId}";
 
     private readonly IConnectionMultiplexer _redis;
 
@@ -76,4 +77,20 @@ public class RedisTwoFactorStateStore : ITwoFactorStateStore
         var ttl = await Db.KeyTimeToLiveAsync(key);
         return ttl;
     }
+
+    // ─────────────────────────────────────────────────────────
+    //  Phase 4b — email-based 2FA codes
+    // ─────────────────────────────────────────────────────────
+
+    public Task SetEmailCodeHashAsync(Guid userId, string codeHash, TimeSpan ttl)
+        => Db.StringSetAsync(EmailCodeKey(userId), codeHash, ttl);
+
+    public async Task<string?> GetEmailCodeHashAsync(Guid userId)
+    {
+        var v = await Db.StringGetAsync(EmailCodeKey(userId));
+        return v.IsNullOrEmpty ? null : v.ToString();
+    }
+
+    public Task DeleteEmailCodeAsync(Guid userId)
+        => Db.KeyDeleteAsync(EmailCodeKey(userId));
 }

@@ -13,13 +13,17 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { getErrorMessage } from '@/lib/api-errors';
+import { authService } from '@/lib/api-services';
+import { TwoFactorMethod } from '@/lib/enums';
 import { toast } from 'sonner';
 
 const SETUP_TOKEN_KEY = 'althea-setup-token';
 
 type Stage =
   | { kind: 'credentials' }
-  | { kind: 'twoFactor'; challengeToken: string }
+  // Phase 4b: `method` lets us show the right copy on the challenge screen
+  // (authenticator app vs emailed code).
+  | { kind: 'twoFactor'; challengeToken: string; method: number | null }
   // Phase 2: password OK but email isn't confirmed yet. Show a "check your
   // inbox" screen with a resend CTA. The email travels with the stage so the
   // resend call doesn't need to re-read the form state.
@@ -51,7 +55,11 @@ export default function LoginPage() {
           router.push('/');
           break;
         case 'twoFactorRequired':
-          setStage({ kind: 'twoFactor', challengeToken: result.challengeToken });
+          setStage({
+            kind: 'twoFactor',
+            challengeToken: result.challengeToken,
+            method: result.method,
+          });
           break;
         case 'mustSetupTwoFactor':
           // Stash the setupToken in sessionStorage so the /admin-setup page
@@ -138,13 +146,24 @@ export default function LoginPage() {
 
   // ── Stage: 2FA challenge ───────────────────────────
   if (stage.kind === 'twoFactor') {
+    const isEmailMethod = stage.method === TwoFactorMethod.Email;
+    // Different intro line for Email vs Authenticator so the user knows
+    // where to look. Recovery-code mode uses its own hint regardless.
+    const challengeHint = useRecovery
+      ? t('auth.2fa_recovery_hint')
+      : isEmailMethod
+        ? (locale === 'fr'
+            ? 'Saisissez le code à 6 chiffres envoyé à votre adresse email.'
+            : 'Enter the 6-digit code sent to your email address.')
+        : t('auth.2fa_authenticator_hint');
+
     return (
       <div className="container mx-auto px-4 py-16 max-w-md">
         <Card>
           <CardContent className="p-6">
             <h1 className="text-2xl text-brand-dark mb-2 text-center">{t('auth.2fa_challenge_title')}</h1>
             <p className="text-sm text-muted-foreground text-center mb-6">
-              {useRecovery ? t('auth.2fa_recovery_hint') : t('auth.2fa_authenticator_hint')}
+              {challengeHint}
             </p>
 
             <form onSubmit={handleTwoFactorSubmit} className="space-y-4">
@@ -181,6 +200,31 @@ export default function LoginPage() {
               >
                 {submitting ? '…' : t('auth.2fa_verify')}
               </Button>
+
+              {/* Phase 4b — Resend button only makes sense for Email
+                  method. The Authenticator method has no concept of
+                  "re-send" (TOTP refreshes itself every 30 s). */}
+              {isEmailMethod && !useRecovery && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (stage.kind !== 'twoFactor') return;
+                    setSubmitting(true);
+                    try {
+                      await authService.resendTwoFactorCode(stage.challengeToken);
+                      toast.success(locale === 'fr' ? 'Code renvoyé' : 'Code resent');
+                    } catch {
+                      toast.error(locale === 'fr' ? 'Échec du renvoi' : 'Resend failed');
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                  disabled={submitting}
+                  className="w-full text-sm text-brand-primary hover:underline disabled:opacity-50"
+                >
+                  {locale === 'fr' ? 'Renvoyer le code par email' : 'Resend code by email'}
+                </button>
+              )}
 
               <button
                 type="button"

@@ -1,3 +1,5 @@
+using API_Althea_systems.Common.Enums;
+
 namespace API_Althea_systems.Models.Users;
 
 /// <summary>
@@ -13,7 +15,13 @@ public record TwoFactorSetupResult(string Secret, string OtpAuthUri);
 /// </summary>
 public record TwoFactorEnableResult(IReadOnlyList<string> RecoveryCodes);
 
-public record TwoFactorStatus(bool Enabled, DateTime? EnabledAt, int RecoveryCodesRemaining);
+public record TwoFactorStatus(
+    bool Enabled,
+    DateTime? EnabledAt,
+    int RecoveryCodesRemaining,
+    // Phase 4b: lets the front render the right copy (Authenticator vs
+    // Email) on the security page and during login.
+    TwoFactorMethod Method);
 
 public enum TwoFactorVerifyOutcome
 {
@@ -54,3 +62,18 @@ public record TwoFactorEnableResponse(
 );
 
 public record RegenerateRecoveryCodesResponse(IReadOnlyList<string> RecoveryCodes);
+
+// ── Phase 4b — email-based 2FA ───────────────────────────
+
+/// <summary>
+/// Body of <c>POST /auth/2fa/enable/email</c>. Single field: the 6-digit
+/// code the user just received by mail after starting the email setup flow.
+/// </summary>
+public record EnableTwoFactorEmailRequest(string Code);
+
+/// <summary>
+/// Body of <c>POST /auth/2fa/resend-code</c>. Re-fires a fresh login code
+/// for users whose method is Email. The challengeToken is the same one
+/// returned by /auth/login when outcome=TwoFactorRequired.
+/// </summary>
+public record ResendTwoFactorCodeRequest(string ChallengeToken);

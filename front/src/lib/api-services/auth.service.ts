@@ -95,6 +95,38 @@ export const authService = {
       setupToken ? { bearerToken: setupToken } : undefined,
     ),
 
+  // ── Email-based 2FA (phase 4b) ───────────────────────
+  /**
+   * Starts the email-based 2FA setup. Returns 200 with an info message
+   * after sending a 6-digit code to the user's email.
+   */
+  setupTwoFactorEmail: (setupToken?: string) =>
+    api.post<void>(
+      '/auth/2fa/setup/email',
+      undefined,
+      setupToken ? { bearerToken: setupToken } : undefined,
+    ),
+
+  /**
+   * Confirms email-based 2FA: verifies the 6-digit code mailed to the user,
+   * activates 2FA with method=Email, returns recovery codes + AuthResponse.
+   */
+  enableTwoFactorEmail: (code: string, setupToken?: string) =>
+    api.post<TwoFactorEnableResponse>(
+      '/auth/2fa/enable/email',
+      { code },
+      setupToken ? { bearerToken: setupToken } : undefined,
+    ),
+
+  /**
+   * During the 2FA challenge, asks the server to re-send a login code by
+   * email (only effective for Method=Email users). Always returns 200.
+   * The challenge token is NOT stored locally — pass it through from the
+   * login flow's state.
+   */
+  resendTwoFactorCode: (challengeToken: string) =>
+    api.post<void>('/auth/2fa/resend-code', { challengeToken }),
+
   /**
    * Sensitive op — requires a fresh action step-up token (60s, single-use).
    * Caller obtains it via `stepUp({ purpose: 'Action', code })`, then calls
