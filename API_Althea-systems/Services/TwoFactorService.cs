@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using OtpNet;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Services;
@@ -34,6 +35,7 @@ public class TwoFactorService : ITwoFactorService
     private readonly IRecoveryCodeRepository _recoveryCodes;
     private readonly IEncryptionService _encryption;
     private readonly IPasswordHasher _hasher;
+    private readonly ISecurityAlertSender _alerts;
     private readonly ILogger<TwoFactorService> _logger;
 
     public TwoFactorService(
@@ -42,6 +44,7 @@ public class TwoFactorService : ITwoFactorService
         IRecoveryCodeRepository recoveryCodes,
         IEncryptionService encryption,
         IPasswordHasher hasher,
+        ISecurityAlertSender alerts,
         ILogger<TwoFactorService> logger)
     {
         _state = state;
@@ -49,6 +52,7 @@ public class TwoFactorService : ITwoFactorService
         _recoveryCodes = recoveryCodes;
         _encryption = encryption;
         _hasher = hasher;
+        _alerts = alerts;
         _logger = logger;
     }
 
@@ -92,6 +96,12 @@ public class TwoFactorService : ITwoFactorService
         await _recoveryCodes.AddRangeAsync(hashedEntities);
 
         _logger.LogInformation("2FA enabled for user {UserId}", user.Id);
+
+        // Phase 4a: notify the user out-of-band that 2FA was just turned on.
+        // Best-effort — SMTP failure must NOT unwind the just-completed enable,
+        // the user is now relying on this setting to log in.
+        await FireAlertBestEffortAsync(user, SecurityAlertType.TwoFactorEnabled);
+
         return new TwoFactorEnableResult(plaintextCodes);
     }
 
@@ -194,6 +204,10 @@ public class TwoFactorService : ITwoFactorService
         await _state.DeleteReplayStepAsync(user.Id);
 
         _logger.LogInformation("2FA disabled for user {UserId}", user.Id);
+
+        // Phase 4a: out-of-band alert. Especially important here — a malicious
+        // step-up token misuse could disable 2FA silently otherwise.
+        await FireAlertBestEffortAsync(user, SecurityAlertType.TwoFactorDisabled);
     }
 
     public async Task<IReadOnlyList<string>> RegenerateRecoveryCodesAsync(User user)
@@ -207,6 +221,11 @@ public class TwoFactorService : ITwoFactorService
         await _recoveryCodes.AddRangeAsync(hashedEntities);
 
         _logger.LogInformation("2FA recovery codes regenerated for user {UserId}", user.Id);
+
+        // Phase 4a: alert the user — if it wasn't them, the old codes still
+        // worked moments ago and we just invalidated them all.
+        await FireAlertBestEffortAsync(user, SecurityAlertType.RecoveryCodesRegenerated);
+
         return plaintextCodes;
     }
 
@@ -222,6 +241,27 @@ public class TwoFactorService : ITwoFactorService
     // ─────────────────────────────────────────────────────────
     //  Internals
     // ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fires a security alert email without ever throwing. SMTP failures are
+    /// logged but must NOT propagate — the underlying 2FA op already
+    /// completed and committed, surfacing an email failure would force the
+    /// user to retry an action that has already succeeded.
+    /// </summary>
+    private async Task FireAlertBestEffortAsync(User user, SecurityAlertType type)
+    {
+        try
+        {
+            await _alerts.SendAsync(user, type);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send {AlertType} security alert to user {UserId} ({Email}). " +
+                "The underlying 2FA operation already succeeded — alert is informational only.",
+                type, user.Id, user.Email);
+        }
+    }
 
     private static bool VerifyTotpCode(string base32Secret, string code, out long matchedStep)
     {

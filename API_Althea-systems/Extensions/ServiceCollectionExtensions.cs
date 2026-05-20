@@ -216,6 +216,10 @@ public static class ServiceCollectionExtensions
         // InvoiceService.EnsureEmailedAsync.
         services.AddScoped<IOrderConfirmationSender, OrderConfirmationSender>();
 
+        // Phase 4a: security-alert sender. Consumed by TwoFactorService on
+        // enable / disable / regenerate.
+        services.AddScoped<ISecurityAlertSender, SecurityAlertSender>();
+
         return services;
     }
 

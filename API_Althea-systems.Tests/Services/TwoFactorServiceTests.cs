@@ -7,6 +7,7 @@ using OtpNet;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
 
 namespace API_Althea_systems.Tests.Services;
@@ -18,6 +19,7 @@ public class TwoFactorServiceTests
     private readonly FakeStateStore _state = new();
     private readonly EncryptionService _encryption;
     private readonly TestPasswordHasher _hasher = new();
+    private readonly Mock<ISecurityAlertSender> _alerts = new();
     private readonly TwoFactorService _sut;
 
     public TwoFactorServiceTests()
@@ -38,6 +40,7 @@ public class TwoFactorServiceTests
             _recoveryRepo,
             _encryption,
             _hasher,
+            _alerts.Object,
             NullLogger<TwoFactorService>.Instance);
     }
 
@@ -363,6 +366,90 @@ public class TwoFactorServiceTests
         beforeUse.Enabled.Should().BeTrue();
         beforeUse.RecoveryCodesRemaining.Should().Be(10);
         afterUse.RecoveryCodesRemaining.Should().Be(9);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  Phase 4a — security alert side-effects
+    // ═════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task EnableAsync_FiresTwoFactorEnabledAlert()
+    {
+        var user = NewUser();
+        var setup = await _sut.StartSetupAsync(user);
+
+        await _sut.EnableAsync(user, ComputeTotp(setup.Secret));
+
+        _alerts.Verify(s => s.SendAsync(user, SecurityAlertType.TwoFactorEnabled,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DisableAsync_FiresTwoFactorDisabledAlert()
+    {
+        var user = NewUser();
+        var setup = await _sut.StartSetupAsync(user);
+        await _sut.EnableAsync(user, ComputeTotp(setup.Secret));
+        _alerts.Invocations.Clear();
+
+        await _sut.DisableAsync(user);
+
+        _alerts.Verify(s => s.SendAsync(user, SecurityAlertType.TwoFactorDisabled,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegenerateRecoveryCodesAsync_FiresRegeneratedAlert()
+    {
+        var user = NewUser();
+        var setup = await _sut.StartSetupAsync(user);
+        await _sut.EnableAsync(user, ComputeTotp(setup.Secret));
+        _alerts.Invocations.Clear();
+
+        await _sut.RegenerateRecoveryCodesAsync(user);
+
+        _alerts.Verify(s => s.SendAsync(user, SecurityAlertType.RecoveryCodesRegenerated,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task EnableAsync_AlertSendFails_DoesNotRollBackEnable()
+    {
+        // Best-effort contract: a flaky SMTP must NOT undo the just-completed
+        // enable. The user is now relying on 2FA being on; an exception here
+        // would force them to retry a setup that has already succeeded.
+        _alerts
+            .Setup(s => s.SendAsync(It.IsAny<User>(), It.IsAny<SecurityAlertType>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception()));
+        var user = NewUser();
+        var setup = await _sut.StartSetupAsync(user);
+
+        var result = await _sut.EnableAsync(user, ComputeTotp(setup.Secret));
+
+        // Operation succeeded — recovery codes generated, user flagged enabled.
+        result.RecoveryCodes.Should().HaveCount(10);
+        user.TwoFactorEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task DisableAsync_AlertSendFails_StillDisables()
+    {
+        // Same defensive contract — flipping TwoFactorEnabled=false has
+        // already been committed; surfacing the SMTP error would lie about
+        // the actual state.
+        var user = NewUser();
+        var setup = await _sut.StartSetupAsync(user);
+        await _sut.EnableAsync(user, ComputeTotp(setup.Secret));
+        _alerts
+            .Setup(s => s.SendAsync(It.IsAny<User>(), SecurityAlertType.TwoFactorDisabled,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EmailDeliveryException("smtp down", new Exception()));
+
+        var act = () => _sut.DisableAsync(user);
+
+        await act.Should().NotThrowAsync();
+        user.TwoFactorEnabled.Should().BeFalse();
     }
 
     // ═════════════════════════════════════════════════════════
