@@ -59,11 +59,13 @@ public class InvoiceService : IInvoiceService
         var totalHT = order.Items.Sum(i => i.PriceHT * i.Quantity);
         var vatAmount = order.Items.Sum(i => i.PriceHT * i.Quantity * GetVatMultiplier(i.VatRate));
 
+        var now = DateTime.UtcNow;
         var invoice = new Invoice
         {
             Id = Guid.NewGuid(),
             OrderId = request.OrderId,
-            Date = DateTime.UtcNow,
+            Number = await NextInvoiceNumberAsync(order.UserId, now),
+            Date = now,
             AmountHT = totalHT,
             VatAmount = vatAmount,
             AmountTTC = totalHT + vatAmount,
@@ -95,11 +97,13 @@ public class InvoiceService : IInvoiceService
         var totalHT = order.Items.Sum(i => i.PriceHT * i.Quantity);
         var vatAmount = order.Items.Sum(i => i.PriceHT * i.Quantity * GetVatMultiplier(i.VatRate));
 
+        var now = DateTime.UtcNow;
         var invoice = new Invoice
         {
             Id = Guid.NewGuid(),
             OrderId = order.Id,
-            Date = DateTime.UtcNow,
+            Number = await NextInvoiceNumberAsync(order.UserId, now),
+            Date = now,
             AmountHT = totalHT,
             VatAmount = vatAmount,
             // Match OrderDto.TotalTTC = HT + VAT + shipping. The customer paid
@@ -245,12 +249,19 @@ public class InvoiceService : IInvoiceService
         var vatAmount = Math.Round(request.AmountHT * effectiveVatRate, 2, MidpointRounding.ToEven);
 
         var amountTTC = request.AmountHT + vatAmount;
+        // Need the order on hand to resolve the customer for Number generation
+        // (Invoice doesn't carry UserId directly). Pull it once; both the
+        // Number lookup and the Refund/StoreCredit branches below reuse it.
+        var orderForNumber = await _orderRepository.GetByIdAsync(original.OrderId)
+            ?? throw new NotFoundException("Order", original.OrderId);
+        var now = DateTime.UtcNow;
         var creditNote = new Invoice
         {
             // Leave Id at default — see Address / OrderStatusChange: EF
             // marks default-PK additions as Added → INSERT.
             OrderId = original.OrderId,
-            Date = DateTime.UtcNow,
+            Number = await NextInvoiceNumberAsync(orderForNumber.UserId, now),
+            Date = now,
             AmountHT = request.AmountHT,
             VatAmount = vatAmount,
             AmountTTC = amountTTC,
@@ -270,10 +281,11 @@ public class InvoiceService : IInvoiceService
         // refunded, network error), we surface the error and the credit note
         // is NOT created — admin must retry. This keeps a "credit note in DB
         // without a refund attached" from being possible in Refund mode.
+        // We reuse orderForNumber pulled above (same OrderId) — saves a DB
+        // round-trip per credit note.
         if (request.Mode == CreditNoteMode.Refund)
         {
-            var order = await _orderRepository.GetByIdAsync(original.OrderId);
-            if (order is null || string.IsNullOrWhiteSpace(order.StripePaymentIntentId))
+            if (string.IsNullOrWhiteSpace(orderForNumber.StripePaymentIntentId))
             {
                 throw new BadRequestException(
                     "Cannot refund: original order has no Stripe PaymentIntent. " +
@@ -285,7 +297,7 @@ public class InvoiceService : IInvoiceService
             try
             {
                 var (refundId, refundStatus) = await _refunds.RefundAsync(
-                    order.StripePaymentIntentId,
+                    orderForNumber.StripePaymentIntentId,
                     amountCents,
                     reason: "requested_by_customer",
                     ct);
@@ -296,7 +308,7 @@ public class InvoiceService : IInvoiceService
             {
                 _logger.LogError(ex,
                     "Stripe rejected refund on PI {IntentId} for {Amount} cents.",
-                    order.StripePaymentIntentId, amountCents);
+                    orderForNumber.StripePaymentIntentId, amountCents);
                 throw new BadRequestException(
                     $"Stripe refund failed: {ex.Message}",
                     reason: "stripe_refund_failed");
@@ -311,12 +323,9 @@ public class InvoiceService : IInvoiceService
             // reconciliation pass). The reverse — credit note created without
             // wallet bump — is what we MUST avoid; doing the user save first
             // ensures the wallet is right even if the invoice insert fails.
-            var order = await _orderRepository.GetByIdAsync(original.OrderId)
+            var user = orderForNumber.User ?? await _userRepository.GetByIdAsync(orderForNumber.UserId)
                 ?? throw new InvalidOperationException(
-                    $"Cannot credit store balance: order {original.OrderId} not found.");
-            var user = order.User ?? await _userRepository.GetByIdAsync(order.UserId)
-                ?? throw new InvalidOperationException(
-                    $"Cannot credit store balance: user {order.UserId} not found.");
+                    $"Cannot credit store balance: user {orderForNumber.UserId} not found.");
             user.CreditBalanceCents += (long)Math.Round(amountTTC * 100m);
             await _userRepository.UpdateAsync(user);
         }
@@ -332,10 +341,10 @@ public class InvoiceService : IInvoiceService
         // ── Email customer (best-effort) ──────────────────
         try
         {
-            var order = await _orderRepository.GetByIdAsync(original.OrderId);
-            if (order?.User is not null)
+            // orderForNumber was fetched at the top; reuse it here.
+            if (orderForNumber.User is not null)
             {
-                await _creditNoteSender.SendAsync(creditNote, original, order, order.User, request.Reason, ct);
+                await _creditNoteSender.SendAsync(creditNote, original, orderForNumber, orderForNumber.User, request.Reason, ct);
             }
             else
             {
@@ -364,8 +373,48 @@ public class InvoiceService : IInvoiceService
         _ => 0m
     };
 
+    // ─────────────────────────────────────────────────────────
+    //  Invoice number generation
+    // ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// First 8 hex chars of the customer's User.Id, uppercased. Stable across
+    /// the user's lifetime, looks "official" on a PDF (e.g. <c>A3F8B2C1</c>),
+    /// and doesn't leak the full Guid (which would be longer + reversible to
+    /// other rows).
+    /// </summary>
+    private static string ClientCode(Guid userId)
+        => userId.ToString("N")[..8].ToUpperInvariant();
+
+    /// <summary>
+    /// Format an invoice number from its parts. Single source of truth so the
+    /// service code and the migration backfill stay aligned: changing the
+    /// shape here requires updating the SQL in
+    /// <c>AddInvoiceNumber.Up()</c> too.
+    /// </summary>
+    private static string FormatInvoiceNumber(Guid userId, DateTime date, int sequence)
+        => $"{ClientCode(userId)}-{date.Year:D4}-{date.Month:D2}-{sequence:D4}";
+
+    /// <summary>
+    /// Compute the next available invoice number for the given customer at
+    /// the given moment. Sequence resets each month (per VBL spec). Race
+    /// condition between read and INSERT is caught by the unique index on
+    /// <c>invoices.Number</c> — on collision the DB raises
+    /// <see cref="DbUpdateException"/> and the admin can retry. For our
+    /// volume (single-digit invoices per customer per month at peak) this
+    /// is overwhelmingly safe without a serialised transaction.
+    /// </summary>
+    private async Task<string> NextInvoiceNumberAsync(Guid userId, DateTime now)
+    {
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var monthEnd = monthStart.AddMonths(1);
+        var existingThisMonth = await _invoiceRepository.CountByUserAndPeriodAsync(
+            userId, monthStart, monthEnd);
+        return FormatInvoiceNumber(userId, now, existingThisMonth + 1);
+    }
+
     private static InvoiceDto MapToDto(Invoice i) => new(
-        i.Id, i.OrderId, i.Date, i.AmountHT, i.VatAmount, i.AmountTTC,
+        i.Id, i.OrderId, i.Number, i.Date, i.AmountHT, i.VatAmount, i.AmountTTC,
         i.Status, i.Type, i.RelatedInvoiceId,
         i.Mode, i.StripeRefundId, i.RefundStatus);
 }

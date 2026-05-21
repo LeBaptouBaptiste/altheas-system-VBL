@@ -236,6 +236,11 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
@@ -257,6 +262,9 @@ namespace API_Althea_systems.Migrations
                         .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
 
                     b.HasIndex("OrderId");
 

@@ -6,6 +6,22 @@ public class Invoice
 {
     public Guid Id { get; set; }
     public Guid OrderId { get; set; }
+
+    /// <summary>
+    /// Human-readable invoice number in the format
+    /// <c>{ClientCode}-{YYYY}-{MM}-{NNNN}</c> where:
+    /// <list type="bullet">
+    ///   <item>ClientCode = first 8 hex chars of the customer's User.Id (stable, anonymous-looking)</item>
+    ///   <item>YYYY-MM = year and month of issue</item>
+    ///   <item>NNNN = monthly sequence per customer, zero-padded to 4 digits</item>
+    /// </list>
+    /// Generated once at invoice creation (<see cref="API_Althea_systems.Services.InvoiceService"/>);
+    /// immutable thereafter — matches the French accounting requirement that
+    /// invoice numbers can't be changed after issue. Credit notes follow the
+    /// same format (the Type field distinguishes them).
+    /// </summary>
+    public string Number { get; set; } = string.Empty;
+
     public DateTime Date { get; set; }
     public decimal AmountHT { get; set; }
     public decimal VatAmount { get; set; }

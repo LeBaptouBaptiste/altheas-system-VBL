@@ -63,4 +63,17 @@ public class InvoiceRepository : IInvoiceRepository
                      && i.Type == InvoiceType.CreditNote)
             .ToListAsync();
     }
+
+    public async Task<int> CountByUserAndPeriodAsync(Guid userId, DateTime startInclusive, DateTime endExclusive)
+    {
+        // Join via Order because Invoice doesn't carry UserId directly. The
+        // result drives the monthly sequence for the next Number — counts
+        // both regular invoices and credit notes (single shared sequence per
+        // customer-month).
+        return await _context.Invoices
+            .Where(i => i.Date >= startInclusive
+                     && i.Date < endExclusive
+                     && i.Order.UserId == userId)
+            .CountAsync();
+    }
 }

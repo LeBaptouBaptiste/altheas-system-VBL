@@ -11,6 +11,12 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.ToTable("invoices");
 
         builder.HasKey(i => i.Id);
+        // {ClientCode 8}-{YYYY 4}-{MM 2}-{NNNN 4} = 22 chars exactly; 40 leaves
+        // room for future format tweaks (longer client code, suffixes, etc.)
+        // without a migration. Unique index enforces non-duplicate numbers
+        // even under race conditions — InvoiceService retries on collision.
+        builder.Property(i => i.Number).HasMaxLength(40).IsRequired();
+        builder.HasIndex(i => i.Number).IsUnique();
         builder.Property(i => i.AmountHT).HasPrecision(18, 2);
         builder.Property(i => i.VatAmount).HasPrecision(18, 2);
         builder.Property(i => i.AmountTTC).HasPrecision(18, 2);

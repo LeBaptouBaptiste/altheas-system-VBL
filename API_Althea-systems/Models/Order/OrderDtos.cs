@@ -45,6 +45,9 @@ public record OrderDto(
 /// </summary>
 public record OrderInvoiceSummaryDto(
     Guid Id,
+    // Human-readable invoice number ({ClientCode}-{YYYY}-{MM}-{NNNN}).
+    // Front displays this everywhere instead of the raw Guid.
+    string Number,
     InvoiceType Type,
     DateTime Date,
     decimal AmountTTC,

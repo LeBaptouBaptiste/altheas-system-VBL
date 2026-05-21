@@ -64,7 +64,7 @@ public class OrderConfirmationSender : IOrderConfirmationSender
 
         var pdfBytes = _pdf.Render(invoice, order, user, order.BillingAddress);
         var attachment = new EmailAttachment(
-            FileName: $"facture-{invoice.Id.ToString("N")[..8].ToUpperInvariant()}.pdf",
+            FileName: $"facture-{invoice.Number}.pdf",
             Content: pdfBytes,
             ContentType: "application/pdf");
 

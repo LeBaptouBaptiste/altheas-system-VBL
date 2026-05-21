@@ -5,6 +5,10 @@ namespace API_Althea_systems.Models.Invoices;
 public record InvoiceDto(
     Guid Id,
     Guid OrderId,
+    // Human-readable invoice number ({ClientCode}-{YYYY}-{MM}-{NNNN}).
+    // This is what's displayed everywhere — admin tables, account history,
+    // PDF headers, email subject lines. Distinct from the internal Guid Id.
+    string Number,
     DateTime Date,
     decimal AmountHT,
     decimal VatAmount,

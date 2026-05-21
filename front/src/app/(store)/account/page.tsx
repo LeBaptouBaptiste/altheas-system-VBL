@@ -269,7 +269,7 @@ export default function AccountPage() {
                                         : (locale === 'fr' ? 'Facture' : 'Invoice')}
                                       {' '}
                                       <span className="font-mono text-xs text-muted-foreground">
-                                        #{inv.id.slice(0, 8).toUpperCase()}
+                                        {inv.number}
                                       </span>
                                     </span>
                                     <span className={`text-xs ${isCreditNote ? 'text-error' : 'text-muted-foreground'}`}>

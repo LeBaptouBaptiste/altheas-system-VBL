@@ -224,7 +224,7 @@ export default function AdminInvoicesPage() {
               <tbody>
                 {filtered.map(inv => (
                   <tr key={inv.id} className="border-b hover:bg-gray-50/50">
-                    <td className="p-3 font-medium text-brand-dark">{inv.id}</td>
+                    <td className="p-3 font-medium text-brand-dark font-mono text-sm">{inv.number}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
                         {inv.type === InvoiceType.CreditNote ? <RotateCcw className="w-3.5 h-3.5 text-error" /> : <FileText className="w-3.5 h-3.5 text-brand-primary" />}
@@ -303,7 +303,7 @@ export default function AdminInvoicesPage() {
                   <p className="text-xs text-muted-foreground">
                     {locale === 'fr' ? 'Facture source' : 'Source invoice'}
                   </p>
-                  <p className="font-medium">#{creditNoteTarget.id.slice(0, 8).toUpperCase()}</p>
+                  <p className="font-medium font-mono">{creditNoteTarget.number}</p>
                   <p className="text-xs text-muted-foreground">
                     {locale === 'fr' ? 'Montant HT facture' : 'Invoice amount HT'}: <strong>{fmt(creditNoteTarget.amountHT)}</strong>
                     {alreadyCredited > 0 && (
