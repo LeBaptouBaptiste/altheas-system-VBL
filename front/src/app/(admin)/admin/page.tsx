@@ -68,7 +68,7 @@ export default function AdminDashboard() {
   const pieData = Object.entries(catBreakdown)
     .map(([catId, value]) => {
       const cat = categories.find(c => c.id === catId);
-      return { name: cat ? localized(toLocalized(cat.nameFr, cat.nameEn)) : catId, value };
+      return { name: cat ? localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr)) : catId, value };
     })
     .sort((a, b) => b.value - a.value);
 

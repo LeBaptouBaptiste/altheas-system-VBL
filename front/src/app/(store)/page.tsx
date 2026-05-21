@@ -89,16 +89,16 @@ export default function HomePage() {
           {slides.map((slide, index) => (
             <div key={slide.id} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/90 to-brand-dark/40 z-10" />
-              <Image src={getImageUrl(slide.image)} alt={localized(toLocalized(slide.titleFr, slide.titleEn))} fill className="object-cover" priority={index === 0} />
+              <Image src={getImageUrl(slide.image)} alt={localized(toLocalized(slide.titleFr, slide.titleEn, slide.titleMs, slide.titleAr))} fill className="object-cover" priority={index === 0} />
               <div className="absolute inset-0 z-20 flex items-center">
                 <div className="container mx-auto px-4">
                   <div className="max-w-2xl text-white">
-                    <h1 className="text-3xl md:text-5xl mb-3">{localized(toLocalized(slide.titleFr, slide.titleEn))}</h1>
-                    <p className="text-lg md:text-2xl mb-2 text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn))}</p>
+                    <h1 className="text-3xl md:text-5xl mb-3">{localized(toLocalized(slide.titleFr, slide.titleEn, slide.titleMs, slide.titleAr))}</h1>
+                    <p className="text-lg md:text-2xl mb-2 text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn, slide.subtitleMs, slide.subtitleAr))}</p>
                     <p className="text-base md:text-lg mb-6 text-gray-200">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn, slide.descriptionMs, slide.descriptionAr))}</p>
                     <Link href={slide.link}>
                       <Button size="lg" className="bg-brand-primary hover:bg-brand-hover text-white px-8">
-                        {localized(toLocalized(slide.ctaFr, slide.ctaEn))}
+                        {localized(toLocalized(slide.ctaFr, slide.ctaEn, slide.ctaMs, slide.ctaAr))}
                         <ArrowRight className="ms-2 w-5 h-5" />
                       </Button>
                     </Link>

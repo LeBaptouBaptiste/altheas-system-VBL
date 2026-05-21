@@ -77,7 +77,7 @@ export default function AdminStaticPagesPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <CardTitle className="text-base">{localized(toLocalized(page.titleFr, page.titleEn))}</CardTitle>
+                <CardTitle className="text-base">{localized(toLocalized(page.titleFr, page.titleEn, page.titleMs, page.titleAr))}</CardTitle>
                 <Badge variant="outline" className="text-xs">/{page.slug}</Badge>
               </div>
               <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export default function AdminStaticPagesPage() {
               </Tabs>
             ) : (
               <div className="text-sm text-muted-foreground">
-                <p className="line-clamp-3">{localized(toLocalized(page.contentFr, page.contentEn)).split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ')}</p>
+                <p className="line-clamp-3">{localized(toLocalized(page.contentFr, page.contentEn, page.contentMs, page.contentAr)).split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ')}</p>
                 <a href={`/${page.slug}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-primary text-xs mt-2 hover:underline">
                   <Eye className="w-3 h-3" /> {t('admin.view_page')}
                 </a>

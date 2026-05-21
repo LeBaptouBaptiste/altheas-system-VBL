@@ -123,13 +123,13 @@ export default function AdminCarouselPage() {
                   </Button>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-brand-dark">{localized(toLocalized(slide.titleFr, slide.titleEn))}</h3>
-                  <p className="text-sm text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn))}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn))}</p>
+                  <h3 className="font-semibold text-brand-dark">{localized(toLocalized(slide.titleFr, slide.titleEn, slide.titleMs, slide.titleAr))}</h3>
+                  <p className="text-sm text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn, slide.subtitleMs, slide.subtitleAr))}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn, slide.descriptionMs, slide.descriptionAr))}</p>
                   <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                     <ExternalLink className="w-3 h-3" /> {slide.link}
                     <span className="mx-1">|</span>
-                    CTA: {localized(toLocalized(slide.ctaFr, slide.ctaEn))}
+                    CTA: {localized(toLocalized(slide.ctaFr, slide.ctaEn, slide.ctaMs, slide.ctaAr))}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">

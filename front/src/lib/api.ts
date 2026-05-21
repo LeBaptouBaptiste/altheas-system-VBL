@@ -213,10 +213,14 @@ const ENUM_STRING_TO_NUMBER: Record<string, Record<string, number>> = {
   // un-normalized (front saw `"Paid"` string, comparisons against the numeric
   // enum failed silently). If Invoices ever start using Pending/Cancelled in
   // anger, swap to a per-DTO `invoiceStatus` field instead.
-  status: { Active: 0, Inactive: 1, Draft: 2, Pending: 0, Confirmed: 1, Processing: 2, Shipped: 3, Delivered: 4, Cancelled: 5, Returned: 6, Open: 0, InProgress: 1, Resolved: 2, Closed: 3, Unread: 0, Read: 1, Replied: 2, Archived: 3, Paid: 0, Overdue: 2 },
+  status: { Active: 0, Inactive: 1, Anonymized: 2, Draft: 2, Pending: 0, Confirmed: 1, Processing: 2, Shipped: 3, Delivered: 4, Cancelled: 5, Returned: 6, Open: 0, InProgress: 1, Resolved: 2, Closed: 3, Unread: 0, Read: 1, Replied: 2, Archived: 3, Paid: 0, Overdue: 2, Treated: 2 },
   vatRate: { Standard: 0, Intermediate: 1, Reduced: 2, Zero: 3 },
   stockStatus: { InStock: 0, LowStock: 1, OutOfStock: 2 },
-  paymentStatus: { Pending: 0, Paid: 1, Failed: 2, Refunded: 3 },
+  // Backend's PaymentStatus C# enum uses "Validated" (= 1), but the front's
+  // historic naming was "Paid" — keep both keys to handle either spelling
+  // off the wire. Without this alias, "Validated" leaks through unnormalised
+  // and shows literally in the admin orders table for AR/MS users.
+  paymentStatus: { Pending: 0, Paid: 1, Validated: 1, Failed: 2, Refunded: 3 },
   paymentMethod: { Card: 0, BankTransfer: 1, PayPal: 2 },
   shippingMethod: { Standard: 0, Express: 1, Overnight: 2 },
   type: { Invoice: 0, CreditNote: 1 },

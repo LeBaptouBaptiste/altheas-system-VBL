@@ -84,14 +84,26 @@ public class OrderConfirmationSender : IOrderConfirmationSender
             ["totalVAT"] = FormatEur(invoice.VatAmount),
             ["totalTTC"] = FormatEur(invoice.AmountTTC),
             ["shippingCost"] = FormatEur(order.ShippingCost),
-        });
+        }, user.PreferredLocale);
 
         await _emailSender.SendAsync(
             to: user.Email,
-            subject: $"Confirmation de commande #{order.Id.ToString("N")[..8].ToUpperInvariant()} — Althea Systems",
+            subject: LocalisedSubject(user.PreferredLocale, order.Id),
             htmlBody: html,
             attachments: new[] { attachment },
             ct: ct);
+    }
+
+    private static string LocalisedSubject(string? locale, Guid orderId)
+    {
+        var shortId = orderId.ToString("N")[..8].ToUpperInvariant();
+        return (locale?.ToLowerInvariant()) switch
+        {
+            "en" => $"Order confirmation #{shortId} — Althea Systems",
+            "ms" => $"Pengesahan pesanan #{shortId} — Althea Systems",
+            "ar" => $"تأكيد الطلب #{shortId} — Althea Systems",
+            _ => $"Confirmation de commande #{shortId} — Althea Systems",
+        };
     }
 
     private static string FormatEur(decimal amount) =>

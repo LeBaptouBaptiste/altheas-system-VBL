@@ -26,7 +26,7 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
   if (loading) return <div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
   if (notFoundState || !page) return notFound();
 
-  const content = localized(toLocalized(page.contentFr, page.contentEn));
+  const content = localized(toLocalized(page.contentFr, page.contentEn, page.contentMs, page.contentAr));
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl">

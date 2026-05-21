@@ -102,8 +102,8 @@ public class ChatContextBuilder : IChatContextBuilder
                                      + o.ShippingCost;
                         sb.Append("- #").Append(o.Id.ToString("N")[..8].ToUpperInvariant())
                           .Append(" · ").Append(o.Date.ToString("dd/MM/yyyy", FrFr))
-                          .Append(" · statut : ").Append(StatusLabel(o.Status))
-                          .Append(" · paiement : ").Append(PaymentStatusLabel(o.PaymentStatus))
+                          .Append(" · statut : ").Append(StatusLabel(o.Status, locale))
+                          .Append(" · paiement : ").Append(PaymentStatusLabel(o.PaymentStatus, locale))
                           .Append(" · total ").AppendFormat(FrFr, "{0:N2} €", totalTTC)
                           .AppendLine();
                         // List first 3 items inline so the model can answer
@@ -167,7 +167,7 @@ public class ChatContextBuilder : IChatContextBuilder
                     {
                         sb.Append("- ").Append(p.NameFr)
                           .Append(" — ").AppendFormat(FrFr, "{0:N2} € HT", p.PriceHT)
-                          .Append(" · ").Append(StockLabel(p.StockStatus));
+                          .Append(" · ").Append(StockLabel(p.StockStatus, locale));
                         if (!string.IsNullOrWhiteSpace(p.DescriptionFr))
                         {
                             sb.Append(" · ").Append(p.DescriptionFr);
@@ -227,34 +227,97 @@ public class ChatContextBuilder : IChatContextBuilder
     //  Helpers
     // ─────────────────────────────────────────────────────
 
-    private static string StatusLabel(OrderStatus s) => s switch
-    {
-        OrderStatus.Pending => "en attente",
-        OrderStatus.Confirmed => "confirmée",
-        OrderStatus.Processing => "en préparation",
-        OrderStatus.Shipped => "expédiée",
-        OrderStatus.Delivered => "livrée",
-        OrderStatus.Cancelled => "annulée",
-        OrderStatus.Returned => "retournée",
-        _ => s.ToString(),
-    };
+    // Status labels are emitted into the LLM context block, which is then
+    // shipped to the model alongside the user's question. Passing them in
+    // the customer's locale (rather than always French) avoids relying on
+    // the model to translate them — small models sometimes mis-translate
+    // domain terms ("Processing" → "Procédural" etc.), and translation
+    // costs tokens we'd rather spend on the actual answer.
 
-    private static string PaymentStatusLabel(PaymentStatus s) => s switch
-    {
-        PaymentStatus.Pending => "en attente",
-        PaymentStatus.Validated => "réglé",
-        PaymentStatus.Failed => "échec",
-        PaymentStatus.Refunded => "remboursé",
-        _ => s.ToString(),
-    };
+    private static string StatusLabel(OrderStatus s, string? locale)
+        => (s, locale?.ToLowerInvariant()) switch
+        {
+            (OrderStatus.Pending,    "en") => "pending",
+            (OrderStatus.Confirmed,  "en") => "confirmed",
+            (OrderStatus.Processing, "en") => "processing",
+            (OrderStatus.Shipped,    "en") => "shipped",
+            (OrderStatus.Delivered,  "en") => "delivered",
+            (OrderStatus.Cancelled,  "en") => "cancelled",
+            (OrderStatus.Returned,   "en") => "returned",
 
-    private static string StockLabel(StockStatus s) => s switch
-    {
-        StockStatus.InStock => "en stock",
-        StockStatus.LowStock => "stock faible",
-        StockStatus.OutOfStock => "épuisé",
-        _ => s.ToString(),
-    };
+            (OrderStatus.Pending,    "ms") => "menunggu",
+            (OrderStatus.Confirmed,  "ms") => "disahkan",
+            (OrderStatus.Processing, "ms") => "sedang diproses",
+            (OrderStatus.Shipped,    "ms") => "dihantar",
+            (OrderStatus.Delivered,  "ms") => "diserahkan",
+            (OrderStatus.Cancelled,  "ms") => "dibatalkan",
+            (OrderStatus.Returned,   "ms") => "dikembalikan",
+
+            (OrderStatus.Pending,    "ar") => "قيد الانتظار",
+            (OrderStatus.Confirmed,  "ar") => "مؤكّد",
+            (OrderStatus.Processing, "ar") => "قيد المعالجة",
+            (OrderStatus.Shipped,    "ar") => "تم الشحن",
+            (OrderStatus.Delivered,  "ar") => "تم التسليم",
+            (OrderStatus.Cancelled,  "ar") => "ملغى",
+            (OrderStatus.Returned,   "ar") => "مُرتجع",
+
+            // Default = French (the historic default + fallback when locale
+            // is null or an unknown code).
+            (OrderStatus.Pending,    _) => "en attente",
+            (OrderStatus.Confirmed,  _) => "confirmée",
+            (OrderStatus.Processing, _) => "en préparation",
+            (OrderStatus.Shipped,    _) => "expédiée",
+            (OrderStatus.Delivered,  _) => "livrée",
+            (OrderStatus.Cancelled,  _) => "annulée",
+            (OrderStatus.Returned,   _) => "retournée",
+            _ => s.ToString(),
+        };
+
+    private static string PaymentStatusLabel(PaymentStatus s, string? locale)
+        => (s, locale?.ToLowerInvariant()) switch
+        {
+            (PaymentStatus.Pending,   "en") => "pending",
+            (PaymentStatus.Validated, "en") => "paid",
+            (PaymentStatus.Failed,    "en") => "failed",
+            (PaymentStatus.Refunded,  "en") => "refunded",
+
+            (PaymentStatus.Pending,   "ms") => "menunggu",
+            (PaymentStatus.Validated, "ms") => "dibayar",
+            (PaymentStatus.Failed,    "ms") => "gagal",
+            (PaymentStatus.Refunded,  "ms") => "dipulangkan",
+
+            (PaymentStatus.Pending,   "ar") => "قيد الانتظار",
+            (PaymentStatus.Validated, "ar") => "مدفوع",
+            (PaymentStatus.Failed,    "ar") => "فشل",
+            (PaymentStatus.Refunded,  "ar") => "تم استرداده",
+
+            (PaymentStatus.Pending,   _) => "en attente",
+            (PaymentStatus.Validated, _) => "réglé",
+            (PaymentStatus.Failed,    _) => "échec",
+            (PaymentStatus.Refunded,  _) => "remboursé",
+            _ => s.ToString(),
+        };
+
+    private static string StockLabel(StockStatus s, string? locale)
+        => (s, locale?.ToLowerInvariant()) switch
+        {
+            (StockStatus.InStock,    "en") => "in stock",
+            (StockStatus.LowStock,   "en") => "low stock",
+            (StockStatus.OutOfStock, "en") => "out of stock",
+
+            (StockStatus.InStock,    "ms") => "dalam stok",
+            (StockStatus.LowStock,   "ms") => "stok rendah",
+            (StockStatus.OutOfStock, "ms") => "kehabisan stok",
+
+            (StockStatus.InStock,    "ar") => "متوفر",
+            (StockStatus.LowStock,   "ar") => "مخزون منخفض",
+            (StockStatus.OutOfStock, "ar") => "نفد المخزون",
+
+            (StockStatus.InStock,    _) => "en stock",
+            (StockStatus.LowStock,   _) => "stock faible",
+            (StockStatus.OutOfStock, _) => "épuisé",
+            _ => s.ToString(),
+        };
 
     private static decimal VatMultiplier(VatRate r) => r switch
     {

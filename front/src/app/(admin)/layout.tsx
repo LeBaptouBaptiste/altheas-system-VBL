@@ -282,6 +282,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <SelectContent>
                 <SelectItem value="fr">FR</SelectItem>
                 <SelectItem value="en">EN</SelectItem>
+                <SelectItem value="ms">MS</SelectItem>
+                <SelectItem value="ar">AR</SelectItem>
               </SelectContent>
             </Select>
           </div>

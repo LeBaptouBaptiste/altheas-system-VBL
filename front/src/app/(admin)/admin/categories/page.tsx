@@ -130,7 +130,7 @@ export default function AdminCategoriesPage() {
                 <tr key={cat.id} className="border-b hover:bg-gray-50/50">
                   <td className="p-3 text-center text-muted-foreground">{idx + 1}</td>
                   <td className="p-3">
-                    <span className="font-medium text-brand-dark">{localized(toLocalized(cat.nameFr, cat.nameEn))}</span>
+                    <span className="font-medium text-brand-dark">{localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr))}</span>
                     <span className="block text-xs text-muted-foreground">{cat.slug}</span>
                   </td>
                   <td className="p-3 text-center">

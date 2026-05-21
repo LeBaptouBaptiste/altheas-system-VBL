@@ -78,7 +78,7 @@ export default function AdminProductsPage() {
     let list = [...productsList];
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(p => localized(toLocalized(p.nameFr, p.nameEn)).toLowerCase().includes(q) || p.slug.includes(q));
+      list = list.filter(p => localized(toLocalized(p.nameFr, p.nameEn, p.nameMs, p.nameAr)).toLowerCase().includes(q) || p.slug.includes(q));
     }
     if (categoryFilter !== 'all') list = list.filter(p => p.categories.some(c => c.id === categoryFilter));
     if (statusFilter !== 'all') list = list.filter(p => p.status === Number(statusFilter));
@@ -86,7 +86,7 @@ export default function AdminProductsPage() {
     list.sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
-        case 'name': cmp = localized(toLocalized(a.nameFr, a.nameEn)).localeCompare(localized(toLocalized(b.nameFr, b.nameEn))); break;
+        case 'name': cmp = localized(toLocalized(a.nameFr, a.nameEn, a.nameMs, a.nameAr)).localeCompare(localized(toLocalized(b.nameFr, b.nameEn, b.nameMs, b.nameAr))); break;
         case 'priceHT': cmp = a.priceHT - b.priceHT; break;
         case 'stockQty': cmp = a.stockQty - b.stockQty; break;
         case 'status': cmp = a.status - b.status; break;
@@ -207,7 +207,7 @@ export default function AdminProductsPage() {
   const exportCSV = () => {
     const header = 'ID,Name,Price HT,Stock,Status,Category\n';
     const rows = filtered.map(p =>
-      `${p.id},"${localized(toLocalized(p.nameFr, p.nameEn))}",${p.priceHT},${p.stockQty},${enumLabel('ProductStatus', p.status, locale)},${p.categories.map(c => c.id).join(';')}`
+      `${p.id},"${localized(toLocalized(p.nameFr, p.nameEn, p.nameMs, p.nameAr))}",${p.priceHT},${p.stockQty},${enumLabel('ProductStatus', p.status, locale)},${p.categories.map(c => c.id).join(';')}`
     ).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -235,7 +235,7 @@ export default function AdminProductsPage() {
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('admin.all_categories')}</SelectItem>
-            {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(toLocalized(c.nameFr, c.nameEn))}</SelectItem>)}
+            {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(toLocalized(c.nameFr, c.nameEn, c.nameMs, c.nameAr))}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -295,7 +295,7 @@ export default function AdminProductsPage() {
                     <td className="p-3"><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} className="rounded" /></td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-brand-dark">{localized(toLocalized(p.nameFr, p.nameEn))}</span>
+                        <span className="font-medium text-brand-dark">{localized(toLocalized(p.nameFr, p.nameEn, p.nameMs, p.nameAr))}</span>
                         {p.isNew && <Badge className="bg-brand-primary text-white text-[10px]">NEW</Badge>}
                       </div>
                       <span className="text-xs text-muted-foreground">{p.slug}</span>
@@ -313,7 +313,7 @@ export default function AdminProductsPage() {
                       </Badge>
                     </td>
                     <td className="p-3 text-center text-xs text-muted-foreground">
-                      {p.categories.map(c => localized(toLocalized(c.nameFr, c.nameEn))).join(', ')}
+                      {p.categories.map(c => localized(toLocalized(c.nameFr, c.nameEn, c.nameMs, c.nameAr))).join(', ')}
                     </td>
                     <td className="p-3 text-end">
                       <div className="flex items-center justify-end gap-1">
@@ -409,7 +409,7 @@ export default function AdminProductsPage() {
                 <Select value={formData.categoryId} onValueChange={v => setFormData(d => ({ ...d, categoryId: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(toLocalized(c.nameFr, c.nameEn))}</SelectItem>)}
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{localized(toLocalized(c.nameFr, c.nameEn, c.nameMs, c.nameAr))}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

@@ -50,7 +50,7 @@ public class SecurityAlertSender : ISecurityAlertSender
     {
         ArgumentNullException.ThrowIfNull(user);
 
-        var (subject, title, message) = CopyFor(type);
+        var (subject, title, message) = CopyFor(type, user.PreferredLocale);
         var firstName = string.IsNullOrWhiteSpace(user.Name)
             ? user.Email.Split('@')[0]
             : user.Name.Split(' ')[0];
@@ -63,7 +63,7 @@ public class SecurityAlertSender : ISecurityAlertSender
             // UTC instant the alert is being sent — close enough to the
             // event itself (we fire synchronously after the action).
             ["when"] = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm 'UTC'"),
-        });
+        }, user.PreferredLocale);
 
         await _emailSender.SendAsync(
             to: user.Email,
@@ -77,27 +77,71 @@ public class SecurityAlertSender : ISecurityAlertSender
     }
 
     /// <summary>
-    /// Single source of truth for the (subject, title, message) triplet
-    /// of each alert. Keep the copy here rather than in the template so
-    /// the template stays generic and one file covers every alert type.
+    /// Single source of truth for the (subject, title, message) triplet of
+    /// each alert, localised to the user's preferred locale. Keep the copy
+    /// here rather than in the template so the template stays generic and
+    /// one file covers every alert type × every locale.
     /// </summary>
-    private static (string Subject, string Title, string Message) CopyFor(SecurityAlertType type) => type switch
-    {
-        SecurityAlertType.TwoFactorEnabled => (
-            Subject: "Authentification à deux facteurs activée — Althea Systems",
-            Title: "Authentification à deux facteurs activée",
-            Message: "L'authentification à deux facteurs vient d'être activée sur votre compte. Vous devrez désormais saisir un code à 6 chiffres généré par votre application authentificatrice à chaque connexion."),
+    private static (string Subject, string Title, string Message) CopyFor(
+        SecurityAlertType type, string? locale)
+        => (type, locale?.ToLowerInvariant()) switch
+        {
+            // ── English ─────────────────────────────────
+            (SecurityAlertType.TwoFactorEnabled, "en") => (
+                Subject: "Two-factor authentication enabled — Althea Systems",
+                Title: "Two-factor authentication enabled",
+                Message: "Two-factor authentication has just been enabled on your account. From now on you'll need to enter a 6-digit code from your authenticator app at every sign-in."),
+            (SecurityAlertType.TwoFactorDisabled, "en") => (
+                Subject: "Two-factor authentication disabled — Althea Systems",
+                Title: "Two-factor authentication disabled",
+                Message: "Two-factor authentication has just been disabled on your account. Your account is now protected by your password alone."),
+            (SecurityAlertType.RecoveryCodesRegenerated, "en") => (
+                Subject: "Recovery codes regenerated — Althea Systems",
+                Title: "Recovery codes regenerated",
+                Message: "A new set of recovery codes has just been generated for your account. The old codes no longer work."),
 
-        SecurityAlertType.TwoFactorDisabled => (
-            Subject: "Authentification à deux facteurs désactivée — Althea Systems",
-            Title: "Authentification à deux facteurs désactivée",
-            Message: "L'authentification à deux facteurs vient d'être désactivée sur votre compte. Votre compte est désormais protégé uniquement par votre mot de passe."),
+            // ── Bahasa Melayu ──────────────────────────
+            (SecurityAlertType.TwoFactorEnabled, "ms") => (
+                Subject: "Pengesahan dua faktor diaktifkan — Althea Systems",
+                Title: "Pengesahan dua faktor diaktifkan",
+                Message: "Pengesahan dua faktor baru sahaja diaktifkan pada akaun anda. Mulai sekarang anda perlu memasukkan kod 6 digit dari aplikasi pengesah anda pada setiap log masuk."),
+            (SecurityAlertType.TwoFactorDisabled, "ms") => (
+                Subject: "Pengesahan dua faktor dinyahaktifkan — Althea Systems",
+                Title: "Pengesahan dua faktor dinyahaktifkan",
+                Message: "Pengesahan dua faktor baru sahaja dinyahaktifkan pada akaun anda. Akaun anda kini dilindungi oleh kata laluan anda sahaja."),
+            (SecurityAlertType.RecoveryCodesRegenerated, "ms") => (
+                Subject: "Kod pemulihan dijana semula — Althea Systems",
+                Title: "Kod pemulihan dijana semula",
+                Message: "Satu set baru kod pemulihan baru sahaja dijana untuk akaun anda. Kod-kod lama tidak lagi berfungsi."),
 
-        SecurityAlertType.RecoveryCodesRegenerated => (
-            Subject: "Codes de récupération régénérés — Althea Systems",
-            Title: "Codes de récupération régénérés",
-            Message: "Une nouvelle série de codes de récupération vient d'être générée pour votre compte. Les anciens codes ne fonctionnent plus."),
+            // ── العربية ────────────────────────────────
+            (SecurityAlertType.TwoFactorEnabled, "ar") => (
+                Subject: "تم تفعيل المصادقة الثنائية — Althea Systems",
+                Title: "تم تفعيل المصادقة الثنائية",
+                Message: "تم للتو تفعيل المصادقة الثنائية على حسابك. من الآن فصاعداً، عليك إدخال رمز مكوّن من 6 أرقام من تطبيق المصادقة عند كل تسجيل دخول."),
+            (SecurityAlertType.TwoFactorDisabled, "ar") => (
+                Subject: "تم تعطيل المصادقة الثنائية — Althea Systems",
+                Title: "تم تعطيل المصادقة الثنائية",
+                Message: "تم للتو تعطيل المصادقة الثنائية على حسابك. أصبح حسابك الآن محمياً بكلمة المرور فقط."),
+            (SecurityAlertType.RecoveryCodesRegenerated, "ar") => (
+                Subject: "تم إعادة إنشاء رموز الاسترداد — Althea Systems",
+                Title: "تم إعادة إنشاء رموز الاسترداد",
+                Message: "تم للتو إنشاء مجموعة جديدة من رموز الاسترداد لحسابك. لم تعد الرموز القديمة صالحة."),
 
-        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown security alert type."),
-    };
+            // ── Français (default + fallback) ─────────
+            (SecurityAlertType.TwoFactorEnabled, _) => (
+                Subject: "Authentification à deux facteurs activée — Althea Systems",
+                Title: "Authentification à deux facteurs activée",
+                Message: "L'authentification à deux facteurs vient d'être activée sur votre compte. Vous devrez désormais saisir un code à 6 chiffres généré par votre application authentificatrice à chaque connexion."),
+            (SecurityAlertType.TwoFactorDisabled, _) => (
+                Subject: "Authentification à deux facteurs désactivée — Althea Systems",
+                Title: "Authentification à deux facteurs désactivée",
+                Message: "L'authentification à deux facteurs vient d'être désactivée sur votre compte. Votre compte est désormais protégé uniquement par votre mot de passe."),
+            (SecurityAlertType.RecoveryCodesRegenerated, _) => (
+                Subject: "Codes de récupération régénérés — Althea Systems",
+                Title: "Codes de récupération régénérés",
+                Message: "Une nouvelle série de codes de récupération vient d'être générée pour votre compte. Les anciens codes ne fonctionnent plus."),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown security alert type."),
+        };
 }

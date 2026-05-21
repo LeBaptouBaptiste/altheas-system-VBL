@@ -65,7 +65,7 @@ function FilterPanel({
           {categories.map(cat => (
             <div key={cat.id} className="flex items-center gap-2">
               <Checkbox id={cat.id} checked={selectedCategories.includes(cat.id)} onCheckedChange={() => toggleCategory(cat.id)} />
-              <Label htmlFor={cat.id} className="text-sm font-normal cursor-pointer">{localized(toLocalized(cat.nameFr, cat.nameEn))}</Label>
+              <Label htmlFor={cat.id} className="text-sm font-normal cursor-pointer">{localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr))}</Label>
             </div>
           ))}
         </div>

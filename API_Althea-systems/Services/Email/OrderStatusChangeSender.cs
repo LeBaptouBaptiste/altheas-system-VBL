@@ -47,14 +47,14 @@ public class OrderStatusChangeSender : IOrderStatusChangeSender
         ArgumentNullException.ThrowIfNull(user);
 
         // Allowlist — explicit so adding a new milestone is a deliberate
-        // change here, not an accident upstream.
-        var (templateName, subject) = newStatus switch
+        // change here, not an accident upstream. Both the template name
+        // (locale-aware via {name}.{locale}.html lookup) and the inline
+        // subject are picked here.
+        var templateName = newStatus switch
         {
-            OrderStatus.Shipped => ("order-shipped",
-                $"Votre commande #{ShortId(order.Id)} a été expédiée — Althea Systems"),
-            OrderStatus.Delivered => ("order-delivered",
-                $"Votre commande #{ShortId(order.Id)} a été livrée — Althea Systems"),
-            _ => (null, null),
+            OrderStatus.Shipped => "order-shipped",
+            OrderStatus.Delivered => "order-delivered",
+            _ => null,
         };
 
         if (templateName is null)
@@ -79,11 +79,11 @@ public class OrderStatusChangeSender : IOrderStatusChangeSender
             // notifications — defensive null check.
             ["shippingCity"] = order.ShippingAddress?.City ?? "",
             ["shippingPostalCode"] = order.ShippingAddress?.PostalCode ?? "",
-        });
+        }, user.PreferredLocale);
 
         await _emailSender.SendAsync(
             to: user.Email,
-            subject: subject!,
+            subject: LocalisedSubject(newStatus, user.PreferredLocale, order.Id),
             htmlBody: html,
             ct: ct);
 
@@ -93,4 +93,24 @@ public class OrderStatusChangeSender : IOrderStatusChangeSender
     }
 
     private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+
+    // Subject lines are emitted from C# (not the HTML template), so they need
+    // their own switch on (status, locale). Both Shipped/Delivered carry the
+    // short order id so the subject is searchable in the inbox.
+    private static string LocalisedSubject(OrderStatus status, string? locale, Guid orderId)
+    {
+        var shortId = ShortId(orderId);
+        return (status, locale?.ToLowerInvariant()) switch
+        {
+            (OrderStatus.Shipped, "en")   => $"Your order #{shortId} has shipped — Althea Systems",
+            (OrderStatus.Shipped, "ms")   => $"Pesanan anda #{shortId} telah dihantar — Althea Systems",
+            (OrderStatus.Shipped, "ar")   => $"تم شحن طلبك #{shortId} — Althea Systems",
+            (OrderStatus.Delivered, "en") => $"Your order #{shortId} has been delivered — Althea Systems",
+            (OrderStatus.Delivered, "ms") => $"Pesanan anda #{shortId} telah diserahkan — Althea Systems",
+            (OrderStatus.Delivered, "ar") => $"تم تسليم طلبك #{shortId} — Althea Systems",
+            (OrderStatus.Shipped, _)      => $"Votre commande #{shortId} a été expédiée — Althea Systems",
+            (OrderStatus.Delivered, _)    => $"Votre commande #{shortId} a été livrée — Althea Systems",
+            _ => $"Mise à jour de votre commande #{shortId} — Althea Systems",
+        };
+    }
 }

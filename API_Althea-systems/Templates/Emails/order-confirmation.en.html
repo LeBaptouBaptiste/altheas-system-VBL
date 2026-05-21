@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Order confirmation — Althea Systems</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f7; padding: 24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background-color: #0F4C81; padding: 24px 32px;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600;">Althea Systems</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <h2 style="margin: 0 0 8px 0; font-size: 20px; color: #1f2937;">Thank you for your order, {{firstName}}!</h2>
+              <p style="margin: 0 0 24px 0; font-size: 14px; color: #6b7280;">
+                Order <strong>#{{orderShortId}}</strong> · {{orderDate}}
+              </p>
+
+              <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+                Your payment has been received. You will find your invoice attached
+                as a PDF — keep it for your accounting records.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                     style="margin: 24px 0; background-color: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 13px; color: #6b7280;">Items</td>
+                        <td style="padding: 4px 0; font-size: 13px; color: #1f2937; text-align: right;">{{itemCount}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 13px; color: #6b7280;">Subtotal (excl. VAT)</td>
+                        <td style="padding: 4px 0; font-size: 13px; color: #1f2937; text-align: right;">{{totalHT}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 13px; color: #6b7280;">VAT</td>
+                        <td style="padding: 4px 0; font-size: 13px; color: #1f2937; text-align: right;">{{totalVAT}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 13px; color: #6b7280;">Shipping</td>
+                        <td style="padding: 4px 0; font-size: 13px; color: #1f2937; text-align: right;">{{shippingCost}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0 4px 0; font-size: 15px; font-weight: 600; color: #1f2937; border-top: 1px solid #e5e7eb;">Total (incl. VAT)</td>
+                        <td style="padding: 10px 0 4px 0; font-size: 15px; font-weight: 600; color: #0F4C81; text-align: right; border-top: 1px solid #e5e7eb;">{{totalTTC}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 16px 0; font-size: 14px; color: #6b7280; line-height: 1.6;">
+                You will receive a notification as soon as your order is shipped.
+                You can track the status of your order at any time from your
+                customer account.
+              </p>
+
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">
+                A question about this order? Simply reply to this email or
+                contact us at contact@altheasystems.com.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 16px 32px; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                Althea Systems · contact@altheasystems.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
