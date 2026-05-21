@@ -13,7 +13,7 @@ import { useCart } from '@/context/cart-context';
 import { categoriesService, productsService } from '@/lib/api-services';
 import type { CategoryDto, ProductDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getCategoryImageUrl } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -128,10 +128,10 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                   <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
                   <div className="flex items-center justify-between">
                     <span className={`text-lg font-bold ${isOOS ? 'text-muted-foreground line-through' : 'text-brand-dark'}`}>
-                      {formatPrice(priceTTC, locale === 'fr' ? 'fr-FR' : 'en-US')}
+                      {formatPrice(priceTTC, toIntlLocale(locale))}
                     </span>
                     <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" disabled={isOOS}
-                      onClick={() => { addItem(product.id); toast.success(name + (locale === 'fr' ? ' ajouté' : ' added')); }}>
+                      onClick={() => { addItem(product.id); toast.success(t('cart.added_to_cart').replace('{name}', name)); }}>
                       <ShoppingCart className="w-4 h-4" />
                     </Button>
                   </div>

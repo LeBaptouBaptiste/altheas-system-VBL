@@ -14,7 +14,7 @@ import { toLocalized } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 export default function AdminCarouselPage() {
-  const { locale, localized } = useI18n();
+  const { t, localized } = useI18n();
   const [slides, setSlides] = useState<HeroSlideDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [editSlide, setEditSlide] = useState<HeroSlideDto | null>(null);
@@ -69,16 +69,16 @@ export default function AdminCarouselPage() {
       if (editSlide) {
         const updated = await contentService.updateSlide(editSlide.id, payload);
         setSlides(prev => prev.map(s => s.id === editSlide.id ? updated : s));
-        toast.success(locale === 'fr' ? 'Slide mise à jour' : 'Slide updated');
+        toast.success(t('admin.slide_updated'));
       } else {
         const created = await contentService.createSlide({ ...payload, displayOrder: slides.length + 1 });
         setSlides(prev => [...prev, created]);
-        toast.success(locale === 'fr' ? 'Slide créée' : 'Slide created');
+        toast.success(t('admin.slide_created'));
       }
       setShowDialog(false);
     } catch (err) {
       console.error('Failed to save slide', err);
-      toast.error(locale === 'fr' ? 'Erreur lors de la sauvegarde' : 'Failed to save slide');
+      toast.error(t('admin.save_slide_failed'));
     }
   };
 
@@ -104,7 +104,7 @@ export default function AdminCarouselPage() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{slides.length} slides</p>
         <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={openNew}>
-          <Plus className="w-4 h-4 me-1" />{locale === 'fr' ? 'Nouvelle slide' : 'New slide'}
+          <Plus className="w-4 h-4 me-1" />{t('admin.new_slide')}
         </Button>
       </div>
 
@@ -140,10 +140,10 @@ export default function AdminCarouselPage() {
                     try {
                       await contentService.deleteSlide(slide.id);
                       setSlides(prev => prev.filter(s => s.id !== slide.id));
-                      toast.success(locale === 'fr' ? 'Slide supprimée' : 'Slide deleted');
+                      toast.success(t('admin.slide_deleted'));
                     } catch (err) {
                       console.error('Failed to delete slide', err);
-                      toast.error(locale === 'fr' ? 'Erreur' : 'Error');
+                      toast.error(t('admin.error'));
                     }
                   }}>
                     <Trash2 className="w-4 h-4" />
@@ -158,16 +158,16 @@ export default function AdminCarouselPage() {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editSlide ? (locale === 'fr' ? 'Modifier la slide' : 'Edit Slide') : (locale === 'fr' ? 'Nouvelle slide' : 'New Slide')}</DialogTitle>
+            <DialogTitle>{editSlide ? t('admin.edit_slide') : t('admin.new_slide')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>{locale === 'fr' ? 'Titre (FR)' : 'Title (FR)'}</Label><Input value={formData.titleFr} onChange={e => setFormData(d => ({ ...d, titleFr: e.target.value }))} /></div>
-              <div><Label>{locale === 'fr' ? 'Titre (EN)' : 'Title (EN)'}</Label><Input value={formData.titleEn} onChange={e => setFormData(d => ({ ...d, titleEn: e.target.value }))} /></div>
+              <div><Label>{t('admin.title_fr')}</Label><Input value={formData.titleFr} onChange={e => setFormData(d => ({ ...d, titleFr: e.target.value }))} /></div>
+              <div><Label>{t('admin.title_en')}</Label><Input value={formData.titleEn} onChange={e => setFormData(d => ({ ...d, titleEn: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>{locale === 'fr' ? 'Sous-titre (FR)' : 'Subtitle (FR)'}</Label><Input value={formData.subtitleFr} onChange={e => setFormData(d => ({ ...d, subtitleFr: e.target.value }))} /></div>
-              <div><Label>{locale === 'fr' ? 'Sous-titre (EN)' : 'Subtitle (EN)'}</Label><Input value={formData.subtitleEn} onChange={e => setFormData(d => ({ ...d, subtitleEn: e.target.value }))} /></div>
+              <div><Label>{t('admin.subtitle_fr')}</Label><Input value={formData.subtitleFr} onChange={e => setFormData(d => ({ ...d, subtitleFr: e.target.value }))} /></div>
+              <div><Label>{t('admin.subtitle_en')}</Label><Input value={formData.subtitleEn} onChange={e => setFormData(d => ({ ...d, subtitleEn: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Description (FR)</Label><textarea className="w-full border rounded-md p-2 text-sm h-16 resize-none" value={formData.descFr} onChange={e => setFormData(d => ({ ...d, descFr: e.target.value }))} /></div>
@@ -177,13 +177,13 @@ export default function AdminCarouselPage() {
               <div><Label>CTA (FR)</Label><Input value={formData.ctaFr} onChange={e => setFormData(d => ({ ...d, ctaFr: e.target.value }))} /></div>
               <div><Label>CTA (EN)</Label><Input value={formData.ctaEn} onChange={e => setFormData(d => ({ ...d, ctaEn: e.target.value }))} /></div>
             </div>
-            <div><Label>{locale === 'fr' ? 'Lien' : 'Link'}</Label><Input value={formData.link} onChange={e => setFormData(d => ({ ...d, link: e.target.value }))} placeholder="/product/..." /></div>
-            <div><Label>{locale === 'fr' ? 'Image (clé)' : 'Image (key)'}</Label><Input value={formData.image} onChange={e => setFormData(d => ({ ...d, image: e.target.value }))} placeholder="slide1, slide2, slide3" /></div>
+            <div><Label>{t('admin.link_label')}</Label><Input value={formData.link} onChange={e => setFormData(d => ({ ...d, link: e.target.value }))} placeholder="/product/..." /></div>
+            <div><Label>{t('admin.image_key')}</Label><Input value={formData.image} onChange={e => setFormData(d => ({ ...d, image: e.target.value }))} placeholder="slide1, slide2, slide3" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>{locale === 'fr' ? 'Annuler' : 'Cancel'}</Button>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>{t('admin.cancel')}</Button>
             <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={handleSave}>
-              {editSlide ? (locale === 'fr' ? 'Enregistrer' : 'Save') : (locale === 'fr' ? 'Créer' : 'Create')}
+              {editSlide ? t('admin.save') : t('admin.create')}
             </Button>
           </DialogFooter>
         </DialogContent>

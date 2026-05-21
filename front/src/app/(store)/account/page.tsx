@@ -19,7 +19,7 @@ import { useStepUp } from '@/components/two-factor/step-up-provider';
 import { getErrorMessage } from '@/lib/api-errors';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { OrderStatus, enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -38,7 +38,7 @@ export default function AccountPage() {
   const { user, isAuthenticated, anonymizeAccount, logout, refreshUser, loading: authLoading } = useAuth();
   const { withStepUp } = useStepUp();
   const router = useRouter();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
   const [userOrders, setUserOrders] = useState<OrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [editName, setEditName] = useState('');
@@ -58,14 +58,14 @@ export default function AccountPage() {
       const isCreditNote = type === 1;
       if (isCreditNote) {
         await downloadCreditNotePdf(invoiceId);
-        toast.success(locale === 'fr' ? 'Avoir téléchargé' : 'Credit note downloaded');
+        toast.success(t('account.credit_note_downloaded'));
       } else {
         await downloadInvoicePdf(invoiceId);
-        toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+        toast.success(t('account.invoice_downloaded'));
       }
     } catch (err) {
       console.error('Invoice download failed', err);
-      toast.error(locale === 'fr' ? 'Échec du téléchargement' : 'Download failed');
+      toast.error(t('account.download_failed'));
     } finally {
       setDownloadingInvoiceId(null);
     }
@@ -130,7 +130,7 @@ export default function AccountPage() {
           <RotateCcw className="w-4 h-4 text-success" />
           <span className="text-sm">
             <span className="text-muted-foreground">
-              {locale === 'fr' ? 'Avoir disponible' : 'Available credit'}:
+              {t('account.credit_available')}:
             </span>{' '}
             <strong className="text-success">{fmt(user.creditBalanceCents / 100)}</strong>
           </span>
@@ -151,7 +151,7 @@ export default function AccountPage() {
         <TabsContent value="settings">
           <Card><CardContent className="p-6 space-y-4">
             <div><Label>{t('auth.full_name')}</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
-            <div><Label>{t('auth.email')}</Label><Input value={editEmail} onChange={e => setEditEmail(e.target.value)} /><p className="text-xs text-muted-foreground mt-1">{locale === 'fr' ? 'Modifier l\'email nécessite une confirmation' : 'Changing email requires confirmation'}</p></div>
+            <div><Label>{t('auth.email')}</Label><Input value={editEmail} onChange={e => setEditEmail(e.target.value)} /><p className="text-xs text-muted-foreground mt-1">{t('account.email_change_requires_confirmation')}</p></div>
             <Separator />
             <div><Label>{t('auth.password')}</Label><Input type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} /><p className="text-xs text-muted-foreground mt-1">{t('auth.password_rules')}</p></div>
             <Button className="bg-brand-primary hover:bg-brand-hover text-white" disabled={saving} onClick={async () => {
@@ -265,8 +265,8 @@ export default function AccountPage() {
                                       : <FileText className="w-3.5 h-3.5 text-brand-primary shrink-0" />}
                                     <span className={isCreditNote ? 'text-error' : 'text-brand-dark'}>
                                       {isCreditNote
-                                        ? (locale === 'fr' ? 'Avoir' : 'Credit note')
-                                        : (locale === 'fr' ? 'Facture' : 'Invoice')}
+                                        ? t('account.credit_note_label')
+                                        : t('account.invoice_label')}
                                       {' '}
                                       <span className="font-mono text-xs text-muted-foreground">
                                         {inv.number}
@@ -283,8 +283,8 @@ export default function AccountPage() {
                                     disabled={downloadingInvoiceId === inv.id}
                                     onClick={() => handleDownloadInvoice(inv.id, inv.type)}
                                     title={isCreditNote
-                                      ? (locale === 'fr' ? "Télécharger l'avoir (PDF)" : 'Download credit note (PDF)')
-                                      : (locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)')}
+                                      ? t('account.download_credit_note_pdf')
+                                      : t('account.download_invoice_pdf')}
                                   >
                                     {downloadingInvoiceId === inv.id
                                       ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -318,7 +318,7 @@ export default function AccountPage() {
                     <h3 className="font-medium">{addr.label}</h3>
                     {addr.isDefault && (
                       <Badge className="bg-brand-primary text-white text-xs">
-                        {locale === 'fr' ? 'Par défaut' : 'Default'}
+                        {t('account.default_address_badge')}
                       </Badge>
                     )}
                   </div>
@@ -335,11 +335,11 @@ export default function AccountPage() {
                           try {
                             await usersService.setDefaultAddress(user.id, addr.id);
                             await refreshUser();
-                            toast.success(locale === 'fr' ? 'Adresse par défaut mise à jour' : 'Default address updated');
+                            toast.success(t('account.default_address_updated'));
                           } catch { toast.error(t('common.error')); }
                         }}
                       >
-                        {locale === 'fr' ? 'Définir par défaut' : 'Set as default'}
+                        {t('account.set_as_default')}
                       </Button>
                     )}
                     <Button
@@ -350,7 +350,7 @@ export default function AccountPage() {
                         try {
                           await usersService.deleteAddress(user.id, addr.id);
                           await refreshUser();
-                          toast.success(locale === 'fr' ? 'Adresse supprimée' : 'Address deleted');
+                          toast.success(t('account.address_deleted'));
                         } catch { toast.error(t('common.error')); }
                       }}
                     >
@@ -385,7 +385,7 @@ export default function AccountPage() {
                         {pm.expMonth !== null && pm.expYear !== null && (
                           <p className={`text-xs ${isExpired ? 'text-warning font-medium' : 'text-muted-foreground'}`}>
                             {isExpired
-                              ? (locale === 'fr' ? 'Expirée — ' : 'Expired — ')
+                              ? t('account.expired_card')
                               : ''}
                             {String(pm.expMonth).padStart(2, '0')}/{String(pm.expYear).slice(-2)}
                           </p>
@@ -404,7 +404,7 @@ export default function AccountPage() {
                         if (out === null) return; // user cancelled the step-up modal
                         try {
                           await refreshUser();
-                          toast.success(locale === 'fr' ? 'Moyen de paiement supprimé' : 'Payment method deleted');
+                          toast.success(t('account.payment_method_deleted'));
                         } catch {
                           toast.error(t('common.error'));
                         }
@@ -419,15 +419,11 @@ export default function AccountPage() {
           </div>
           {user.paymentMethods.length === 0 && (
             <p className="text-muted-foreground text-sm py-4">
-              {locale === 'fr'
-                ? 'Aucune carte enregistrée. Cochez "Sauvegarder ma carte" lors d\'un prochain paiement.'
-                : 'No saved cards. Tick "Save my card" on your next payment to add one.'}
+              {t('account.no_saved_cards')}
             </p>
           )}
           <p className="text-xs text-muted-foreground mt-2">
-            {locale === 'fr'
-              ? 'Aucune donnée sensible n\'est stockée (PAN, CVC). Seuls la marque, les 4 derniers chiffres et la date d\'expiration.'
-              : 'No sensitive data is stored (PAN, CVC). Only the brand, last 4 digits, and expiry.'}
+            {t('account.no_sensitive_data')}
           </p>
         </TabsContent>
       </Tabs>

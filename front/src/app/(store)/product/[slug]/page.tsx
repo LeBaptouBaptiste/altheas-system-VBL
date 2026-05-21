@@ -14,7 +14,7 @@ import { useCart } from '@/context/cart-context';
 import { productsService } from '@/lib/api-services';
 import type { ProductDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getImageUrl } from '@/lib/api-types';
-import { formatPrice, calculateTTC, calculateVAT } from '@/lib/money';
+import { formatPrice, calculateTTC, calculateVAT, toIntlLocale } from '@/lib/money';
 import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -32,7 +32,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const [similar, setSimilar] = useState<ProductDto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   useEffect(() => {
     setLoading(true);
@@ -64,7 +64,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
 
   const handleAddToCart = () => {
     addItem(product.id, qty);
-    toast.success(`${name} ${locale === 'fr' ? 'ajouté au panier' : 'added to cart'} (x${qty})`);
+    toast.success(t('cart.added_to_cart_qty').replace('{name}', name).replace('{qty}', String(qty)));
   };
 
   return (

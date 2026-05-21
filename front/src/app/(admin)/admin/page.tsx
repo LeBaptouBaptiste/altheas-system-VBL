@@ -9,14 +9,14 @@ import { useI18n } from '@/context/i18n-context';
 import { analyticsService, categoriesService } from '@/lib/api-services';
 import type { DashboardKpiDto, SalesAnalyticsDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const COLORS = ['#00A8B5', '#33BFC9', '#003D5C', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 export default function AdminDashboard() {
   const { t, locale, localized } = useI18n();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [kpis, setKpis] = useState<DashboardKpiDto | null>(null);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
@@ -74,7 +74,7 @@ export default function AdminDashboard() {
 
   // Bar chart: daily revenue
   const barData = kpis.dailySales.map(d => ({
-    date: new Date(d.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US', { weekday: 'short', day: 'numeric' }),
+    date: new Date(d.date).toLocaleDateString(toIntlLocale(locale), { weekday: 'short', day: 'numeric' }),
     revenue: d.revenue,
   }));
 

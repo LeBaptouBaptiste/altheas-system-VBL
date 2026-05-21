@@ -11,12 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/i18n-context';
 import { contentService } from '@/lib/api-services';
+import { toIntlLocale } from '@/lib/money';
 import type { StaticPageDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 export default function AdminStaticPagesPage() {
-  const { locale, localized } = useI18n();
+  const { t, locale, localized } = useI18n();
   const [pages, setPages] = useState<StaticPageDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,10 +55,10 @@ export default function AdminStaticPagesPage() {
       });
       setPages(prev => prev.map(p => p.id === pageId ? updated : p));
       setEditingId(null);
-      toast.success(locale === 'fr' ? 'Page mise à jour' : 'Page updated');
+      toast.success(t('admin.page_updated'));
     } catch (err) {
       console.error('Failed to save page', err);
-      toast.error(locale === 'fr' ? 'Erreur lors de la sauvegarde' : 'Failed to save page');
+      toast.error(t('admin.save_page_failed'));
     }
   };
 
@@ -81,17 +82,17 @@ export default function AdminStaticPagesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
-                  {locale === 'fr' ? 'Mis à jour' : 'Updated'}: {new Date(page.updatedAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}
+                  {t('admin.updated_short')}: {new Date(page.updatedAt).toLocaleDateString(toIntlLocale(locale))}
                 </span>
                 {editingId !== page.id ? (
                   <Button size="sm" variant="outline" onClick={() => startEdit(page)}>
-                    <Pencil className="w-3.5 h-3.5 me-1" />{locale === 'fr' ? 'Modifier' : 'Edit'}
+                    <Pencil className="w-3.5 h-3.5 me-1" />{t('admin.edit')}
                   </Button>
                 ) : (
                   <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>{locale === 'fr' ? 'Annuler' : 'Cancel'}</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>{t('admin.cancel')}</Button>
                     <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={() => handleSave(page.id)}>
-                      <Save className="w-3.5 h-3.5 me-1" />{locale === 'fr' ? 'Enregistrer' : 'Save'}
+                      <Save className="w-3.5 h-3.5 me-1" />{t('admin.save')}
                     </Button>
                   </div>
                 )}
@@ -107,11 +108,11 @@ export default function AdminStaticPagesPage() {
                 </TabsList>
                 <TabsContent value="fr" className="space-y-3 mt-3">
                   <div>
-                    <Label>{locale === 'fr' ? 'Titre' : 'Title'}</Label>
+                    <Label>{t('admin.title')}</Label>
                     <Input value={formData.titleFr} onChange={e => setFormData(d => ({ ...d, titleFr: e.target.value }))} />
                   </div>
                   <div>
-                    <Label>{locale === 'fr' ? 'Contenu (Markdown)' : 'Content (Markdown)'}</Label>
+                    <Label>{t('admin.content_markdown')}</Label>
                     <textarea
                       className="w-full border rounded-md p-3 text-sm font-mono h-64 resize-y"
                       value={formData.contentFr}
@@ -138,7 +139,7 @@ export default function AdminStaticPagesPage() {
               <div className="text-sm text-muted-foreground">
                 <p className="line-clamp-3">{localized(toLocalized(page.contentFr, page.contentEn)).split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ')}</p>
                 <a href={`/${page.slug}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-primary text-xs mt-2 hover:underline">
-                  <Eye className="w-3 h-3" /> {locale === 'fr' ? 'Voir la page' : 'View page'}
+                  <Eye className="w-3 h-3" /> {t('admin.view_page')}
                 </a>
               </div>
             )}

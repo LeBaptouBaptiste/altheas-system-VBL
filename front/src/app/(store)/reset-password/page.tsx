@@ -24,7 +24,7 @@ import { ApiError } from '@/lib/api';
  *   - 200 → success screen with "go to login" CTA
  */
 function ResetPasswordInner() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -47,7 +47,7 @@ function ResetPasswordInner() {
     setError('');
 
     if (password !== confirm) {
-      setError(locale === 'fr' ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
+      setError(t('auth.passwords_no_match'));
       return;
     }
     if (password.length < 8) {
@@ -69,7 +69,7 @@ function ResetPasswordInner() {
         else if (err.reason === 'weak_password') {
           setError(t('auth.password_rules'));
         } else if (err.reason === 'passwords_mismatch') {
-          setError(locale === 'fr' ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
+          setError(t('auth.passwords_no_match'));
         } else {
           setError(err.message);
         }
@@ -85,22 +85,16 @@ function ResetPasswordInner() {
   if (status === 'token_invalid' || status === 'token_consumed' || status === 'token_expired') {
     const copy = {
       token_invalid: {
-        title: locale === 'fr' ? 'Lien invalide' : 'Invalid link',
-        body: locale === 'fr'
-          ? "Ce lien n'est pas reconnu. Recommencez la procédure depuis l'écran « Mot de passe oublié »."
-          : 'This link is not recognised. Restart from the "Forgot password" screen.',
+        title: t('auth.link_invalid_title'),
+        body: t('auth.reset_link_invalid_body'),
       },
       token_consumed: {
-        title: locale === 'fr' ? 'Lien déjà utilisé' : 'Link already used',
-        body: locale === 'fr'
-          ? 'Ce lien a déjà servi à réinitialiser votre mot de passe. Connectez-vous, ou demandez-en un nouveau si vous avez oublié à nouveau.'
-          : 'This link has already been used. Log in, or request a new one if you forgot again.',
+        title: t('auth.link_used_title'),
+        body: t('auth.reset_link_consumed_body'),
       },
       token_expired: {
-        title: locale === 'fr' ? 'Lien expiré' : 'Link expired',
-        body: locale === 'fr'
-          ? "Ce lien a expiré (durée de validité : 30 min). Demandez-en un nouveau."
-          : 'This link has expired (30 min validity). Request a new one.',
+        title: t('auth.link_expired_title'),
+        body: t('auth.reset_link_expired_body'),
       },
     }[status];
 
@@ -113,11 +107,11 @@ function ResetPasswordInner() {
           <div className="flex flex-col gap-2">
             <Button asChild className="bg-brand-primary hover:bg-brand-hover text-white">
               <Link href="/forgot-password">
-                {locale === 'fr' ? 'Demander un nouveau lien' : 'Request a new link'}
+                {t('auth.request_new_link')}
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/login">{locale === 'fr' ? 'Se connecter' : 'Log in'}</Link>
+              <Link href="/login">{t('auth.log_in')}</Link>
             </Button>
           </div>
         </CardContent></Card>
@@ -132,18 +126,16 @@ function ResetPasswordInner() {
         <Card><CardContent className="p-8 text-center space-y-4">
           <CheckCircle2 className="w-14 h-14 mx-auto text-success" />
           <h1 className="text-2xl text-brand-dark">
-            {locale === 'fr' ? 'Mot de passe mis à jour' : 'Password updated'}
+            {t('auth.password_updated_title')}
           </h1>
           <p className="text-muted-foreground">
-            {locale === 'fr'
-              ? 'Vous pouvez désormais vous connecter avec votre nouveau mot de passe.'
-              : 'You can now log in with your new password.'}
+            {t('auth.password_updated_body')}
           </p>
           <Button
             onClick={() => router.push('/login')}
             className="bg-brand-primary hover:bg-brand-hover text-white w-full"
           >
-            {locale === 'fr' ? 'Se connecter' : 'Log in'}
+            {t('auth.log_in')}
           </Button>
         </CardContent></Card>
       </div>
@@ -155,17 +147,15 @@ function ResetPasswordInner() {
     <div className="container mx-auto px-4 py-16 max-w-md">
       <Card><CardContent className="p-6">
         <h1 className="text-2xl text-brand-dark mb-2 text-center">
-          {locale === 'fr' ? 'Choisissez un nouveau mot de passe' : 'Choose a new password'}
+          {t('auth.choose_new_password')}
         </h1>
         <p className="text-sm text-muted-foreground text-center mb-6">
-          {locale === 'fr'
-            ? 'Saisissez et confirmez votre nouveau mot de passe.'
-            : 'Enter and confirm your new password.'}
+          {t('auth.choose_new_password_hint')}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="password">{locale === 'fr' ? 'Nouveau mot de passe' : 'New password'}</Label>
+            <Label htmlFor="password">{t('auth.new_password')}</Label>
             <Input
               id="password"
               type="password"
@@ -177,7 +167,7 @@ function ResetPasswordInner() {
             <p className="text-xs text-muted-foreground mt-1">{t('auth.password_rules')}</p>
           </div>
           <div>
-            <Label htmlFor="confirm">{locale === 'fr' ? 'Confirmer le mot de passe' : 'Confirm password'}</Label>
+            <Label htmlFor="confirm">{t('auth.confirm_password_label')}</Label>
             <Input
               id="confirm"
               type="password"
@@ -196,7 +186,7 @@ function ResetPasswordInner() {
           >
             {submitting
               ? '…'
-              : (locale === 'fr' ? 'Réinitialiser' : 'Reset password')}
+              : t('auth.reset_button')}
           </Button>
         </form>
       </CardContent></Card>

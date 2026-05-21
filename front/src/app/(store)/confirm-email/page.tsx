@@ -26,7 +26,7 @@ type Status = 'pending' | 'success' | 'invalid' | 'consumed' | 'expired' | 'erro
  * the `reason` field on the 400 response.
  */
 function ConfirmEmailInner() {
-  const { locale } = useI18n();
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const [status, setStatus] = useState<Status>('pending');
@@ -63,7 +63,7 @@ function ConfirmEmailInner() {
           <>
             <Loader2 className="w-12 h-12 mx-auto text-brand-primary animate-spin" />
             <h1 className="text-xl text-brand-dark">
-              {locale === 'fr' ? 'Confirmation en cours…' : 'Confirming…'}
+              {t('auth.confirming')}
             </h1>
           </>
         )}
@@ -72,16 +72,14 @@ function ConfirmEmailInner() {
           <>
             <CheckCircle2 className="w-14 h-14 mx-auto text-success" />
             <h1 className="text-2xl text-brand-dark">
-              {locale === 'fr' ? 'Email confirmé' : 'Email confirmed'}
+              {t('auth.email_confirmed_title')}
             </h1>
             <p className="text-muted-foreground">
-              {locale === 'fr'
-                ? 'Votre compte est prêt — vous pouvez vous connecter.'
-                : 'Your account is ready — you can now log in.'}
+              {t('auth.email_confirmed_body')}
             </p>
             <Button asChild className="bg-brand-primary hover:bg-brand-hover text-white w-full">
               <Link href="/login">
-                {locale === 'fr' ? 'Se connecter' : 'Log in'}
+                {t('auth.log_in')}
               </Link>
             </Button>
           </>
@@ -91,16 +89,14 @@ function ConfirmEmailInner() {
           <>
             <Mail className="w-14 h-14 mx-auto text-brand-primary" />
             <h1 className="text-2xl text-brand-dark">
-              {locale === 'fr' ? 'Lien déjà utilisé' : 'Link already used'}
+              {t('auth.link_used_title')}
             </h1>
             <p className="text-muted-foreground">
-              {locale === 'fr'
-                ? 'Ce lien de confirmation a déjà été utilisé. Vous pouvez vous connecter.'
-                : 'This confirmation link has already been used. You can log in.'}
+              {t('auth.link_used_body')}
             </p>
             <Button asChild className="bg-brand-primary hover:bg-brand-hover text-white w-full">
               <Link href="/login">
-                {locale === 'fr' ? 'Se connecter' : 'Log in'}
+                {t('auth.log_in')}
               </Link>
             </Button>
           </>
@@ -110,16 +106,14 @@ function ConfirmEmailInner() {
           <>
             <AlertCircle className="w-14 h-14 mx-auto text-warning" />
             <h1 className="text-2xl text-brand-dark">
-              {locale === 'fr' ? 'Lien expiré' : 'Link expired'}
+              {t('auth.link_expired_title')}
             </h1>
             <p className="text-muted-foreground">
-              {locale === 'fr'
-                ? 'Ce lien de confirmation a expiré. Connectez-vous pour en recevoir un nouveau.'
-                : 'This confirmation link has expired. Log in to request a new one.'}
+              {t('auth.link_expired_body')}
             </p>
             <Button asChild className="bg-brand-primary hover:bg-brand-hover text-white w-full">
               <Link href="/login">
-                {locale === 'fr' ? 'Se connecter' : 'Log in'}
+                {t('auth.log_in')}
               </Link>
             </Button>
           </>
@@ -129,16 +123,14 @@ function ConfirmEmailInner() {
           <>
             <AlertCircle className="w-14 h-14 mx-auto text-error" />
             <h1 className="text-2xl text-brand-dark">
-              {locale === 'fr' ? 'Lien invalide' : 'Invalid link'}
+              {t('auth.link_invalid_title')}
             </h1>
             <p className="text-muted-foreground">
-              {locale === 'fr'
-                ? "Ce lien n'est pas reconnu. Demandez un nouveau lien depuis l'écran de connexion."
-                : 'This link is not recognised. Request a new one from the login screen.'}
+              {t('auth.link_invalid_body')}
             </p>
             <Button asChild variant="outline" className="w-full">
               <Link href="/login">
-                {locale === 'fr' ? 'Aller à la connexion' : 'Go to login'}
+                {t('auth.go_to_login')}
               </Link>
             </Button>
           </>

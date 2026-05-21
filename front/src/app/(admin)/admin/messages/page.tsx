@@ -13,6 +13,7 @@ import { messagesService } from '@/lib/api-services';
 import type { ContactMessageDto, ChatConversationDto, SupportTicketDto } from '@/lib/api-types';
 import { MessageStatus, TicketStatus } from '@/lib/enums';
 import { enumLabel } from '@/lib/enums';
+import { toIntlLocale } from '@/lib/money';
 import { toast } from 'sonner';
 
 const MSG_STATUS_COLORS: Record<number, string> = {
@@ -63,10 +64,10 @@ export default function AdminMessagesPage() {
     try {
       await messagesService.updateStatus(id, status);
       setMessages(prev => prev.map(m => m.id === id ? { ...m, status: status as ContactMessageDto['status'] } : m));
-      toast.success(locale === 'fr' ? 'Statut mis à jour' : 'Status updated');
+      toast.success(t('admin.status_updated'));
     } catch (err) {
       console.error('Failed to update message status', err);
-      toast.error(locale === 'fr' ? 'Erreur' : 'Error');
+      toast.error(t('admin.error'));
     }
   };
 
@@ -74,27 +75,27 @@ export default function AdminMessagesPage() {
     try {
       const updated = await messagesService.updateTicket(id, status);
       setTickets(prev => prev.map(t => t.id === id ? updated : t));
-      toast.success(locale === 'fr' ? 'Ticket mis à jour' : 'Ticket updated');
+      toast.success(t('admin.ticket_updated'));
     } catch (err) {
       console.error('Failed to update ticket', err);
-      toast.error(locale === 'fr' ? 'Erreur' : 'Error');
+      toast.error(t('admin.error'));
     }
   };
 
   const copyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
-    toast.success(locale === 'fr' ? 'Email copié' : 'Email copied');
+    toast.success(t('admin.email_copied'));
   };
 
   const handleSendReply = async () => {
     if (!viewChat || !replyText.trim()) return;
     try {
       await messagesService.sendMessage(viewChat.id, replyText);
-      toast.success(locale === 'fr' ? 'Réponse envoyée' : 'Reply sent');
+      toast.success(t('admin.reply_sent'));
       setReplyText('');
     } catch (err) {
       console.error('Failed to send reply', err);
-      toast.error(locale === 'fr' ? 'Erreur lors de l\'envoi' : 'Failed to send reply');
+      toast.error(t('admin.send_reply_failed'));
     }
   };
 
@@ -116,25 +117,25 @@ export default function AdminMessagesPage() {
       <div className="grid grid-cols-3 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
           <Mail className="w-5 h-5 text-error" />
-          <div><p className="text-xl font-bold">{unreadCount}</p><p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Messages non lus' : 'Unread messages'}</p></div>
+          <div><p className="text-xl font-bold">{unreadCount}</p><p className="text-xs text-muted-foreground">{t('admin.unread_messages_label')}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
           <MessageSquare className="w-5 h-5 text-warning" />
-          <div><p className="text-xl font-bold">{escalatedCount}</p><p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Conversations escaladées' : 'Escalated chats'}</p></div>
+          <div><p className="text-xl font-bold">{escalatedCount}</p><p className="text-xs text-muted-foreground">{t('admin.escalated_chats')}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
           <Ticket className="w-5 h-5 text-brand-primary" />
-          <div><p className="text-xl font-bold">{openTickets}</p><p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Tickets ouverts' : 'Open tickets'}</p></div>
+          <div><p className="text-xl font-bold">{openTickets}</p><p className="text-xs text-muted-foreground">{t('admin.open_tickets')}</p></div>
         </CardContent></Card>
       </div>
 
       <Tabs defaultValue="messages">
         <TabsList>
           <TabsTrigger value="messages">
-            <Mail className="w-4 h-4 me-1" />{locale === 'fr' ? 'Messages' : 'Messages'} ({messages.length})
+            <Mail className="w-4 h-4 me-1" />{t('admin.messages_tab')} ({messages.length})
           </TabsTrigger>
           <TabsTrigger value="chats">
-            <MessageSquare className="w-4 h-4 me-1" />{locale === 'fr' ? 'Conversations' : 'Chats'} ({chats.length})
+            <MessageSquare className="w-4 h-4 me-1" />{t('admin.chats_tab')} ({chats.length})
           </TabsTrigger>
           <TabsTrigger value="tickets">
             <Ticket className="w-4 h-4 me-1" />Tickets ({tickets.length})
@@ -149,7 +150,7 @@ export default function AdminMessagesPage() {
                 <thead>
                   <tr className="border-b bg-gray-50">
                     <th className="p-3 text-start">Email</th>
-                    <th className="p-3 text-start">{locale === 'fr' ? 'Sujet' : 'Subject'}</th>
+                    <th className="p-3 text-start">{t('admin.subject_label')}</th>
                     <th className="p-3 text-start">Date</th>
                     <th className="p-3 text-center">Status</th>
                     <th className="p-3 text-end">Actions</th>
@@ -168,7 +169,7 @@ export default function AdminMessagesPage() {
                           <span className={msg.status === MessageStatus.Unread ? 'font-semibold' : ''}>{msg.subject}</span>
                         </button>
                       </td>
-                      <td className="p-3 text-muted-foreground text-xs">{new Date(msg.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
+                      <td className="p-3 text-muted-foreground text-xs">{new Date(msg.createdAt).toLocaleDateString(toIntlLocale(locale))}</td>
                       <td className="p-3 text-center">
                         <Badge variant="outline" className={MSG_STATUS_COLORS[msg.status] || ''}>{enumLabel('MessageStatus', msg.status, locale)}</Badge>
                       </td>
@@ -201,14 +202,14 @@ export default function AdminMessagesPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{chat.email || chat.userId || 'Anonymous'}</span>
-                      {chat.escalated && <Badge className="bg-warning/10 text-warning text-[10px]">{locale === 'fr' ? 'Escaladé' : 'Escalated'}</Badge>}
+                      {chat.escalated && <Badge className="bg-warning/10 text-warning text-[10px]">{t('admin.escalated_badge')}</Badge>}
                       {chat.ticketId && <Badge variant="outline" className="text-[10px]">Ticket: {chat.ticketId}</Badge>}
                     </div>
-                    <span className="text-xs text-muted-foreground">{new Date(chat.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(chat.createdAt).toLocaleDateString(toIntlLocale(locale))}</span>
                   </div>
                   <div className="text-xs text-muted-foreground mb-2">{chat.messages.length} messages</div>
                   <Button size="sm" variant="outline" onClick={() => setViewChat(chat)}>
-                    <Eye className="w-3.5 h-3.5 me-1" />{locale === 'fr' ? 'Voir la conversation' : 'View conversation'}
+                    <Eye className="w-3.5 h-3.5 me-1" />{t('admin.view_conversation')}
                   </Button>
                 </CardContent>
               </Card>
@@ -224,10 +225,10 @@ export default function AdminMessagesPage() {
                 <thead>
                   <tr className="border-b bg-gray-50">
                     <th className="p-3 text-start">ID</th>
-                    <th className="p-3 text-start">{locale === 'fr' ? 'Sujet' : 'Subject'}</th>
+                    <th className="p-3 text-start">{t('admin.subject_label')}</th>
                     <th className="p-3 text-start">Email</th>
                     <th className="p-3 text-center">Status</th>
-                    <th className="p-3 text-start">{locale === 'fr' ? 'Mis à jour' : 'Updated'}</th>
+                    <th className="p-3 text-start">{t('admin.updated_label')}</th>
                     <th className="p-3 text-end">Actions</th>
                   </tr>
                 </thead>
@@ -242,22 +243,22 @@ export default function AdminMessagesPage() {
                           {enumLabel('TicketStatus', ticket.status, locale)}
                         </Badge>
                       </td>
-                      <td className="p-3 text-muted-foreground text-xs">{new Date(ticket.updatedAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</td>
+                      <td className="p-3 text-muted-foreground text-xs">{new Date(ticket.updatedAt).toLocaleDateString(toIntlLocale(locale))}</td>
                       <td className="p-3 text-end">
                         <div className="flex items-center justify-end gap-1">
                           {ticket.status === TicketStatus.Open && (
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, TicketStatus.InProgress)}>
-                              {locale === 'fr' ? 'Prendre en charge' : 'Take over'}
+                              {t('admin.take_over')}
                             </Button>
                           )}
                           {ticket.status === TicketStatus.InProgress && (
                             <Button size="sm" variant="outline" className="h-7 text-xs text-success" onClick={() => handleTicketStatus(ticket.id, TicketStatus.Closed)}>
-                              {locale === 'fr' ? 'Fermer' : 'Close'}
+                              {t('admin.close_action')}
                             </Button>
                           )}
                           {ticket.status === TicketStatus.Closed && (
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleTicketStatus(ticket.id, TicketStatus.Open)}>
-                              {locale === 'fr' ? 'Réouvrir' : 'Reopen'}
+                              {t('admin.reopen_action')}
                             </Button>
                           )}
                         </div>
@@ -282,7 +283,7 @@ export default function AdminMessagesPage() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{viewMessage.email}</span>
-                  <span>{new Date(viewMessage.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
+                  <span>{new Date(viewMessage.createdAt).toLocaleDateString(toIntlLocale(locale))}</span>
                 </div>
                 <Separator />
                 <p className="whitespace-pre-wrap text-muted-foreground">{viewMessage.message}</p>
@@ -309,7 +310,7 @@ export default function AdminMessagesPage() {
           {viewChat && (
             <>
               <DialogHeader>
-                <DialogTitle>{locale === 'fr' ? 'Conversation' : 'Conversation'} - {viewChat.email || 'Anonymous'}</DialogTitle>
+                <DialogTitle>{t('admin.conversation_label')} - {viewChat.email || 'Anonymous'}</DialogTitle>
               </DialogHeader>
               <div className="flex-1 overflow-y-auto space-y-2 py-2">
                 {viewChat.messages.map(msg => (
@@ -325,7 +326,7 @@ export default function AdminMessagesPage() {
                 <input
                   type="text"
                   className="flex-1 border rounded-md px-3 py-2 text-sm"
-                  placeholder={locale === 'fr' ? 'Répondre...' : 'Reply...'}
+                  placeholder={t('admin.reply_placeholder')}
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
                 />

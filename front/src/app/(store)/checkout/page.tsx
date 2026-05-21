@@ -16,7 +16,7 @@ import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
 import { ordersService, paymentsService, usersService } from '@/lib/api-services';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { SHIPPING_METHODS } from '@/lib/constants';
 import { ShippingMethod, PaymentMethod } from '@/lib/enums';
 import type { PaymentMethodDto } from '@/lib/api-types';
@@ -51,7 +51,7 @@ export default function CheckoutPage() {
   const { t, localized, locale } = useI18n();
   const { user, isAuthenticated, refreshUser } = useAuth();
   const { items, subtotalHT, totalVAT, totalTTC, clearCart } = useCart();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [step, setStep] = useState<number>(isAuthenticated ? 1 : 0);
   const [sameAddress, setSameAddress] = useState(true);
@@ -135,7 +135,7 @@ export default function CheckoutPage() {
    * leaves Step 2; if it fails we keep them on Step 2 to retry.
    */
   const preparePayment = useCallback(async () => {
-    if (!user) { toast.error(locale === 'fr' ? 'Veuillez vous connecter' : 'Please log in'); return false; }
+    if (!user) { toast.error(t('checkout.please_log_in')); return false; }
 
     setPreparingPayment(true);
     setPaymentError(null);
@@ -149,7 +149,7 @@ export default function CheckoutPage() {
         billingAddrId = selectedBillingId;
       } else {
         const billingAddr = await usersService.addAddress(user.id, {
-          label: locale === 'fr' ? 'Facturation' : 'Billing',
+          label: t('checkout.billing_label'),
           ...billing,
           company: billing.company || null,
           phone: billing.phone || null,
@@ -165,7 +165,7 @@ export default function CheckoutPage() {
           shippingAddrId = selectedShippingId;
         } else {
           const shipAddr = await usersService.addAddress(user.id, {
-            label: locale === 'fr' ? 'Livraison' : 'Shipping',
+            label: t('checkout.shipping_label'),
             ...shipping,
             company: shipping.company || null,
             phone: shipping.phone || null,
@@ -205,7 +205,7 @@ export default function CheckoutPage() {
       setSelectedCardId(stripeCards.length > 0 ? stripeCards[0].id : 'new');
       return true;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : (locale === 'fr' ? 'Erreur lors de la préparation du paiement' : 'Failed to prepare payment');
+      const msg = err instanceof Error ? err.message : t('checkout.prepare_payment_error');
       setPaymentError(msg);
       toast.error(msg);
       return false;
@@ -213,7 +213,7 @@ export default function CheckoutPage() {
       setPreparingPayment(false);
     }
   }, [
-    user, locale,
+    user, t,
     billing, shipping, sameAddress,
     // Picker selections: without these, the useCallback captures the
     // initial 'new' values and ignores the address the user just radio-
@@ -252,7 +252,7 @@ export default function CheckoutPage() {
       setClientSecret(intent.clientSecret);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message
-        : (locale === 'fr' ? 'Erreur lors de la mise à jour' : 'Failed to update payment');
+        : t('checkout.update_payment_error');
       setPaymentError(msg);
       toast.error(msg);
       // Roll back the checkbox so the UI stays consistent with the server.
@@ -260,7 +260,7 @@ export default function CheckoutPage() {
     } finally {
       setPreparingPayment(false);
     }
-  }, [orderId, locale, creditToApply]);
+  }, [orderId, t, creditToApply]);
 
   /**
    * Phase 7: "Use my credit" toggle. Same refresh-the-PI pattern as
@@ -281,7 +281,7 @@ export default function CheckoutPage() {
       setClientSecret(intent.clientSecret);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message
-        : (locale === 'fr' ? 'Erreur lors de la mise à jour' : 'Failed to update payment');
+        : t('checkout.update_payment_error');
       setPaymentError(msg);
       toast.error(msg);
       // Roll back UI to whatever was actually persisted.
@@ -289,7 +289,7 @@ export default function CheckoutPage() {
     } finally {
       setPreparingPayment(false);
     }
-  }, [orderId, locale, saveCard, creditToApply]);
+  }, [orderId, t, saveCard, creditToApply]);
 
   /**
    * Handles the return from a Stripe redirect (3DS / wallet) or the inline
@@ -314,9 +314,7 @@ export default function CheckoutPage() {
       refreshUser().catch(() => { /* non-fatal */ });
       toast.success(t('checkout.order_confirmed'));
     } else if (status === 'failed') {
-      setPaymentError(locale === 'fr'
-        ? 'Le paiement a échoué. Veuillez réessayer.'
-        : 'Payment failed. Please try again.');
+      setPaymentError(t('checkout.payment_failed_retry'));
     }
     // Run once at mount; further state changes come from in-page actions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,7 +389,7 @@ export default function CheckoutPage() {
                       <span className="font-medium text-sm">{a.label}</span>
                       {a.isDefault && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-brand-primary text-white">
-                          {locale === 'fr' ? 'Par défaut' : 'Default'}
+                          {t('checkout.default_badge')}
                         </span>
                       )}
                     </div>
@@ -415,7 +413,7 @@ export default function CheckoutPage() {
               >
                 <RadioGroupItem value="new" id="billing-new" className="mt-1" />
                 <span className="text-sm font-medium">
-                  {locale === 'fr' ? 'Saisir une nouvelle adresse' : 'Enter a new address'}
+                  {t('checkout.enter_new_address')}
                 </span>
               </label>
             </RadioGroup>
@@ -425,14 +423,14 @@ export default function CheckoutPage() {
               user has no saved address at all (brand-new account). */}
           {(selectedBillingId === 'new' || !user || user.addresses.length === 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={billing.firstName} onChange={e => updateBilling('firstName', e.target.value)} required /></div>
-              <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={billing.lastName} onChange={e => updateBilling('lastName', e.target.value)} required /></div>
-              <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Entreprise' : 'Company'}</Label><Input value={billing.company} onChange={e => updateBilling('company', e.target.value)} /></div>
-              <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={billing.street} onChange={e => updateBilling('street', e.target.value)} required /></div>
-              <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={billing.city} onChange={e => updateBilling('city', e.target.value)} required /></div>
-              <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={billing.postalCode} onChange={e => updateBilling('postalCode', e.target.value)} required /></div>
-              <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={billing.country} onChange={e => updateBilling('country', e.target.value)} required /></div>
-              <div><Label>{locale === 'fr' ? 'Téléphone' : 'Phone'}</Label><Input value={billing.phone} onChange={e => updateBilling('phone', e.target.value)} /></div>
+              <div><Label>{t('checkout.first_name_label')}</Label><Input value={billing.firstName} onChange={e => updateBilling('firstName', e.target.value)} required /></div>
+              <div><Label>{t('checkout.last_name_label')}</Label><Input value={billing.lastName} onChange={e => updateBilling('lastName', e.target.value)} required /></div>
+              <div className="sm:col-span-2"><Label>{t('checkout.company_label')}</Label><Input value={billing.company} onChange={e => updateBilling('company', e.target.value)} /></div>
+              <div className="sm:col-span-2"><Label>{t('checkout.address_label')}</Label><Input value={billing.street} onChange={e => updateBilling('street', e.target.value)} required /></div>
+              <div><Label>{t('checkout.city_label')}</Label><Input value={billing.city} onChange={e => updateBilling('city', e.target.value)} required /></div>
+              <div><Label>{t('checkout.postal_code_label')}</Label><Input value={billing.postalCode} onChange={e => updateBilling('postalCode', e.target.value)} required /></div>
+              <div><Label>{t('checkout.country_label')}</Label><Input value={billing.country} onChange={e => updateBilling('country', e.target.value)} required /></div>
+              <div><Label>{t('checkout.phone_label')}</Label><Input value={billing.phone} onChange={e => updateBilling('phone', e.target.value)} /></div>
             </div>
           )}
 
@@ -481,19 +479,19 @@ export default function CheckoutPage() {
                   >
                     <RadioGroupItem value="new" id="shipping-new" className="mt-1" />
                     <span className="text-sm font-medium">
-                      {locale === 'fr' ? 'Saisir une nouvelle adresse' : 'Enter a new address'}
+                      {t('checkout.enter_new_address')}
                     </span>
                   </label>
                 </RadioGroup>
               )}
               {(selectedShippingId === 'new' || !user || user.addresses.length === 0) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div><Label>{locale === 'fr' ? 'Prénom' : 'First Name'}</Label><Input value={shipping.firstName} onChange={e => updateShipping('firstName', e.target.value)} /></div>
-                  <div><Label>{locale === 'fr' ? 'Nom' : 'Last Name'}</Label><Input value={shipping.lastName} onChange={e => updateShipping('lastName', e.target.value)} /></div>
-                  <div className="sm:col-span-2"><Label>{locale === 'fr' ? 'Adresse' : 'Address'}</Label><Input value={shipping.street} onChange={e => updateShipping('street', e.target.value)} /></div>
-                  <div><Label>{locale === 'fr' ? 'Ville' : 'City'}</Label><Input value={shipping.city} onChange={e => updateShipping('city', e.target.value)} /></div>
-                  <div><Label>{locale === 'fr' ? 'Code postal' : 'Postal Code'}</Label><Input value={shipping.postalCode} onChange={e => updateShipping('postalCode', e.target.value)} /></div>
-                  <div><Label>{locale === 'fr' ? 'Pays' : 'Country'}</Label><Input value={shipping.country} onChange={e => updateShipping('country', e.target.value)} /></div>
+                  <div><Label>{t('checkout.first_name_label')}</Label><Input value={shipping.firstName} onChange={e => updateShipping('firstName', e.target.value)} /></div>
+                  <div><Label>{t('checkout.last_name_label')}</Label><Input value={shipping.lastName} onChange={e => updateShipping('lastName', e.target.value)} /></div>
+                  <div className="sm:col-span-2"><Label>{t('checkout.address_label')}</Label><Input value={shipping.street} onChange={e => updateShipping('street', e.target.value)} /></div>
+                  <div><Label>{t('checkout.city_label')}</Label><Input value={shipping.city} onChange={e => updateShipping('city', e.target.value)} /></div>
+                  <div><Label>{t('checkout.postal_code_label')}</Label><Input value={shipping.postalCode} onChange={e => updateShipping('postalCode', e.target.value)} /></div>
+                  <div><Label>{t('checkout.country_label')}</Label><Input value={shipping.country} onChange={e => updateShipping('country', e.target.value)} /></div>
                 </div>
               )}
             </div>
@@ -585,7 +583,7 @@ export default function CheckoutPage() {
           {clientSecret && savedCards.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-brand-dark">
-                {locale === 'fr' ? 'Vos cartes enregistrées' : 'Your saved cards'}
+                {t('checkout.your_saved_cards')}
               </p>
               <RadioGroup value={selectedCardId} onValueChange={setSelectedCardId}>
                 {savedCards.map(card => (
@@ -606,7 +604,7 @@ export default function CheckoutPage() {
                   <RadioGroupItem value="new" id="saved-new" />
                   <CreditCard className="w-5 h-5 text-muted-foreground" />
                   <Label htmlFor="saved-new" className="cursor-pointer flex-1">
-                    {locale === 'fr' ? '+ Utiliser une nouvelle carte' : '+ Use a new card'}
+                    {t('checkout.use_new_card')}
                   </Label>
                 </div>
               </RadioGroup>
@@ -661,13 +659,13 @@ export default function CheckoutPage() {
           ) : !clientSecret && preparingPayment ? (
             <div className="flex items-center gap-2 p-6 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" />
-              {locale === 'fr' ? 'Préparation du paiement…' : 'Preparing payment…'}
+              {t('checkout.preparing_payment')}
             </div>
           ) : paymentError ? (
             <div className="p-4 bg-error/10 border border-error/30 rounded-md text-sm text-error">
               {paymentError}
               <Button variant="outline" size="sm" className="ms-3" onClick={preparePayment}>
-                {locale === 'fr' ? 'Réessayer' : 'Retry'}
+                {t('checkout.retry')}
               </Button>
             </div>
           ) : null}
@@ -677,7 +675,7 @@ export default function CheckoutPage() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm"><span>{t('cart.subtotal')}</span><span>{fmt(subtotalHT)}</span></div>
             <div className="flex justify-between text-sm"><span>{t('cart.vat')}</span><span>{fmt(totalVAT)}</span></div>
-            <div className="flex justify-between text-sm"><span>{locale === 'fr' ? 'Livraison' : 'Shipping'}</span><span>{fmt(shippingCost)}</span></div>
+            <div className="flex justify-between text-sm"><span>{t('checkout.shipping_line')}</span><span>{fmt(shippingCost)}</span></div>
 
             {/* Phase 7: apply store credit. Visible only when the user has
                 a positive balance. Capping to grandTotal - 0.50 € (Stripe
@@ -708,13 +706,13 @@ export default function CheckoutPage() {
                     />
                     <label htmlFor="useCredit" className="cursor-pointer flex-1 text-sm">
                       <p>
-                        {locale === 'fr' ? 'Utiliser mon avoir' : 'Apply my store credit'}{' '}
+                        {t('checkout.use_credit')}{' '}
                         (<strong className="text-success">{fmt(balanceEur)}</strong>{' '}
-                        {locale === 'fr' ? 'disponible' : 'available'})
+                        {t('checkout.available')})
                       </p>
                       {creditToApply > 0 && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {locale === 'fr' ? 'Appliqué' : 'Applied'}:{' '}
+                          {t('checkout.applied')}:{' '}
                           <strong>−{fmt(creditToApply / 100)}</strong>
                         </p>
                       )}
@@ -731,7 +729,7 @@ export default function CheckoutPage() {
             </div>
             {creditToApply > 0 && (
               <p className="text-xs text-muted-foreground text-end">
-                ({fmt(grandTotal)} − {fmt(creditToApply / 100)} {locale === 'fr' ? 'avoir' : 'credit'})
+                ({fmt(grandTotal)} − {fmt(creditToApply / 100)} {t('checkout.credit_word')})
               </p>
             )}
           </div>
@@ -752,7 +750,7 @@ export default function CheckoutPage() {
           </div>
           <h2 className="text-2xl font-semibold text-brand-dark">{t('checkout.order_confirmed')}</h2>
           <p className="text-muted-foreground">{t('checkout.email_sent')}</p>
-          {orderId && <p className="text-sm text-muted-foreground font-mono">{locale === 'fr' ? 'Commande' : 'Order'}: {orderId.slice(0, 8)}...</p>}
+          {orderId && <p className="text-sm text-muted-foreground font-mono">{t('checkout.order_word')}: {orderId.slice(0, 8)}...</p>}
           <div className="pt-4">
             <Link href="/"><Button className="bg-brand-primary hover:bg-brand-hover text-white">{t('checkout.continue_shopping')}</Button></Link>
           </div>

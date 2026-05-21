@@ -70,7 +70,7 @@ export function StripePaymentForm(props: StripePaymentFormProps) {
 
 /** Inner component — must live UNDER <Elements> to use useStripe / useElements. */
 function Inner({ returnUrl, saveCard, onSaveCardChange, saveCardLocked, onSuccess }: StripePaymentFormProps) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -139,14 +139,10 @@ function Inner({ returnUrl, saveCard, onSaveCardChange, saveCardLocked, onSucces
       case 'requires_confirmation':
         // Stripe should have redirected us already if redirect was needed.
         // Show a waiting state in case the redirect is delayed (slow network).
-        setAwaitingAction(locale === 'fr'
-          ? 'Validation en cours, ne fermez pas cet onglet…'
-          : 'Authentication in progress, do not close this tab…');
+        setAwaitingAction(t('payment.authenticating'));
         return;
       case 'requires_payment_method':
-        setError(locale === 'fr'
-          ? 'Le paiement a échoué. Veuillez réessayer avec une autre méthode.'
-          : 'Payment failed. Please try a different method.');
+        setError(t('payment.payment_failed_method'));
         setSubmitting(false);
         return;
       default:
@@ -182,9 +178,7 @@ function Inner({ returnUrl, saveCard, onSaveCardChange, saveCardLocked, onSucces
           onCheckedChange={(v) => onSaveCardChange(!!v)}
         />
         <Label htmlFor="saveCard" className="cursor-pointer text-sm">
-          {locale === 'fr'
-            ? 'Sauvegarder ma carte pour mes prochains achats'
-            : 'Save this card for future purchases'}
+          {t('payment.save_card')}
         </Label>
       </div>
 

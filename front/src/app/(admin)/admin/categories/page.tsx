@@ -15,7 +15,7 @@ import { toLocalized } from '@/lib/api-types';
 import { toast } from 'sonner';
 
 export default function AdminCategoriesPage() {
-  const { locale, localized } = useI18n();
+  const { t, localized } = useI18n();
   const [catList, setCatList] = useState<CategoryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [editCat, setEditCat] = useState<CategoryDto | null>(null);
@@ -64,16 +64,16 @@ export default function AdminCategoriesPage() {
       if (editCat) {
         const updated = await categoriesService.update(editCat.id, payload);
         setCatList(prev => prev.map(c => c.id === editCat.id ? updated : c));
-        toast.success(locale === 'fr' ? 'Catégorie mise à jour' : 'Category updated');
+        toast.success(t('admin.category_updated'));
       } else {
         const created = await categoriesService.create({ ...payload, displayOrder: catList.length + 1 });
         setCatList(prev => [...prev, created]);
-        toast.success(locale === 'fr' ? 'Catégorie créée' : 'Category created');
+        toast.success(t('admin.category_created'));
       }
       setShowDialog(false);
     } catch (err) {
       console.error('Failed to save category', err);
-      toast.error(locale === 'fr' ? 'Erreur lors de la sauvegarde' : 'Failed to save category');
+      toast.error(t('admin.save_category_failed'));
     }
   };
 
@@ -106,9 +106,9 @@ export default function AdminCategoriesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{catList.length} {locale === 'fr' ? 'catégories' : 'categories'}</p>
+        <p className="text-sm text-muted-foreground">{catList.length} {t('admin.categories_word')}</p>
         <Button size="sm" className="bg-brand-primary hover:bg-brand-hover text-white" onClick={openNew}>
-          <Plus className="w-4 h-4 me-1" />{locale === 'fr' ? 'Nouvelle catégorie' : 'New category'}
+          <Plus className="w-4 h-4 me-1" />{t('admin.new_category')}
         </Button>
       </div>
 
@@ -118,10 +118,10 @@ export default function AdminCategoriesPage() {
             <thead>
               <tr className="border-b bg-gray-50">
                 <th className="p-3 w-10">#</th>
-                <th className="p-3 text-start">{locale === 'fr' ? 'Nom' : 'Name'}</th>
-                <th className="p-3 text-center">{locale === 'fr' ? 'Produits' : 'Products'}</th>
+                <th className="p-3 text-start">{t('admin.name')}</th>
+                <th className="p-3 text-center">{t('admin.products_count_label')}</th>
                 <th className="p-3 text-center">Status</th>
-                <th className="p-3 text-center">{locale === 'fr' ? 'Ordre' : 'Order'}</th>
+                <th className="p-3 text-center">{t('admin.order_label')}</th>
                 <th className="p-3 text-end">Actions</th>
               </tr>
             </thead>
@@ -138,7 +138,7 @@ export default function AdminCategoriesPage() {
                   </td>
                   <td className="p-3 text-center">
                     <Badge variant="outline" className={cat.active ? 'text-success border-success' : 'text-muted-foreground'}>
-                      {cat.active ? (locale === 'fr' ? 'Active' : 'Active') : (locale === 'fr' ? 'Inactive' : 'Inactive')}
+                      {cat.active ? t('admin.active') : t('admin.inactive')}
                     </Badge>
                   </td>
                   <td className="p-3">
@@ -160,7 +160,7 @@ export default function AdminCategoriesPage() {
                           setCatList(prev => prev.map(c => c.id === cat.id ? updated : c));
                         } catch (err) {
                           console.error('Failed to toggle category', err);
-                          toast.error(locale === 'fr' ? 'Erreur' : 'Error');
+                          toast.error(t('admin.error'));
                         }
                       }}>
                         {cat.active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -172,10 +172,10 @@ export default function AdminCategoriesPage() {
                         try {
                           await categoriesService.delete(cat.id);
                           setCatList(prev => prev.filter(c => c.id !== cat.id));
-                          toast.success(locale === 'fr' ? 'Catégorie supprimée' : 'Category deleted');
+                          toast.success(t('admin.category_deleted'));
                         } catch (err) {
                           console.error('Failed to delete category', err);
-                          toast.error(locale === 'fr' ? 'Erreur lors de la suppression' : 'Failed to delete category');
+                          toast.error(t('admin.delete_category_failed'));
                         }
                       }}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -192,12 +192,12 @@ export default function AdminCategoriesPage() {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editCat ? (locale === 'fr' ? 'Modifier la catégorie' : 'Edit Category') : (locale === 'fr' ? 'Nouvelle catégorie' : 'New Category')}</DialogTitle>
+            <DialogTitle>{editCat ? t('admin.edit_category') : t('admin.new_category')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>{locale === 'fr' ? 'Nom (FR)' : 'Name (FR)'}</Label><Input value={formData.nameFr} onChange={e => setFormData(d => ({ ...d, nameFr: e.target.value }))} /></div>
-              <div><Label>{locale === 'fr' ? 'Nom (EN)' : 'Name (EN)'}</Label><Input value={formData.nameEn} onChange={e => setFormData(d => ({ ...d, nameEn: e.target.value }))} /></div>
+              <div><Label>{t('admin.name_fr')}</Label><Input value={formData.nameFr} onChange={e => setFormData(d => ({ ...d, nameFr: e.target.value }))} /></div>
+              <div><Label>{t('admin.name_en')}</Label><Input value={formData.nameEn} onChange={e => setFormData(d => ({ ...d, nameEn: e.target.value }))} /></div>
             </div>
             <div><Label>Slug</Label><Input value={formData.slug} onChange={e => setFormData(d => ({ ...d, slug: e.target.value }))} placeholder="auto-generated" /></div>
             <div className="grid grid-cols-2 gap-3">
@@ -206,13 +206,13 @@ export default function AdminCategoriesPage() {
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={formData.active} onChange={e => setFormData(d => ({ ...d, active: e.target.checked }))} className="rounded" />
-              {locale === 'fr' ? 'Catégorie active' : 'Active category'}
+              {t('admin.active_category')}
             </label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>{locale === 'fr' ? 'Annuler' : 'Cancel'}</Button>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>{t('admin.cancel')}</Button>
             <Button className="bg-brand-primary hover:bg-brand-hover text-white" onClick={handleSave}>
-              {editCat ? (locale === 'fr' ? 'Enregistrer' : 'Save') : (locale === 'fr' ? 'Créer' : 'Create')}
+              {editCat ? t('admin.save') : t('admin.create')}
             </Button>
           </DialogFooter>
         </DialogContent>

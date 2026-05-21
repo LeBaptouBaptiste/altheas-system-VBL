@@ -225,7 +225,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-100 transition-colors"
         >
           <Store className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>{locale === 'fr' ? 'Voir le site' : 'View store'}</span>}
+          {!collapsed && <span>{t('admin.view_store')}</span>}
         </Link>
         <button
           onClick={handleLogout}

@@ -30,7 +30,7 @@ type Stage =
   | { kind: 'emailConfirmationRequired'; email: string };
 
 export default function LoginPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { login, completeTwoFactorChallenge, resendConfirmation } = useAuth();
   const router = useRouter();
 
@@ -110,34 +110,32 @@ export default function LoginPage() {
         <Card><CardContent className="p-6 text-center space-y-4">
           <Mail className="w-12 h-12 mx-auto text-brand-primary" />
           <h1 className="text-2xl text-brand-dark">
-            {locale === 'fr' ? 'Confirmez votre email' : 'Confirm your email'}
+            {t('auth.confirm_email_pending_title')}
           </h1>
           <p className="text-muted-foreground">
-            {locale === 'fr'
-              ? `Votre compte ${stage.email} n'est pas encore activé. Cliquez sur le lien envoyé par mail pour finaliser l'inscription.`
-              : `Your account ${stage.email} is not yet activated. Click the link we mailed you to finish signing up.`}
+            {t('auth.confirm_email_pending_body').replace('{email}', stage.email)}
           </p>
           <Button
             onClick={async () => {
               setSubmitting(true);
               await resendConfirmation(stage.email);
               setSubmitting(false);
-              toast.success(locale === 'fr' ? 'Email renvoyé' : 'Email resent');
+              toast.success(t('auth.email_resent'));
             }}
             disabled={submitting}
             variant="outline"
             className="w-full"
           >
             {submitting
-              ? (locale === 'fr' ? 'Envoi…' : 'Sending…')
-              : (locale === 'fr' ? 'Renvoyer l’email de confirmation' : 'Resend confirmation email')}
+              ? t('auth.sending')
+              : t('auth.resend_confirmation_email')}
           </Button>
           <button
             type="button"
             onClick={() => { setStage({ kind: 'credentials' }); setError(''); }}
             className="w-full text-sm text-muted-foreground hover:underline"
           >
-            {locale === 'fr' ? 'Revenir à la connexion' : 'Back to login'}
+            {t('auth.back_to_login')}
           </button>
         </CardContent></Card>
       </div>
@@ -152,9 +150,7 @@ export default function LoginPage() {
     const challengeHint = useRecovery
       ? t('auth.2fa_recovery_hint')
       : isEmailMethod
-        ? (locale === 'fr'
-            ? 'Saisissez le code à 6 chiffres envoyé à votre adresse email.'
-            : 'Enter the 6-digit code sent to your email address.')
+        ? t('auth.2fa_email_hint')
         : t('auth.2fa_authenticator_hint');
 
     return (
@@ -212,9 +208,9 @@ export default function LoginPage() {
                     setSubmitting(true);
                     try {
                       await authService.resendTwoFactorCode(stage.challengeToken);
-                      toast.success(locale === 'fr' ? 'Code renvoyé' : 'Code resent');
+                      toast.success(t('auth.code_resent'));
                     } catch {
-                      toast.error(locale === 'fr' ? 'Échec du renvoi' : 'Resend failed');
+                      toast.error(t('auth.resend_failed'));
                     } finally {
                       setSubmitting(false);
                     }
@@ -222,7 +218,7 @@ export default function LoginPage() {
                   disabled={submitting}
                   className="w-full text-sm text-brand-primary hover:underline disabled:opacity-50"
                 >
-                  {locale === 'fr' ? 'Renvoyer le code par email' : 'Resend code by email'}
+                  {t('auth.resend_email_code')}
                 </button>
               )}
 

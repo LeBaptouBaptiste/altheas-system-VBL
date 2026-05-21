@@ -20,7 +20,7 @@ import { useCart } from '@/context/cart-context';
 import { productsService, categoriesService } from '@/lib/api-services';
 import type { ProductDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl } from '@/lib/api-types';
-import { formatPrice, calculateTTC } from '@/lib/money';
+import { formatPrice, calculateTTC, toIntlLocale } from '@/lib/money';
 import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -94,7 +94,7 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const { t, localized, locale } = useI18n();
   const { addItem } = useCart();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [priceMin, setPriceMin] = useState('');
@@ -249,7 +249,7 @@ function SearchContent() {
                           <div className="flex items-center justify-between mt-2">
                             <span className="font-bold text-brand-dark">{fmt(price)}</span>
                             <Button size="sm" variant="ghost" className="text-brand-primary" disabled={isOOS}
-                              onClick={() => { addItem(product.id); toast.success(name + (locale === 'fr' ? ' ajouté' : ' added')); }}>
+                              onClick={() => { addItem(product.id); toast.success(t('cart.added_to_cart').replace('{name}', name)); }}>
                               <ShoppingCart className="w-4 h-4" />
                             </Button>
                           </div>

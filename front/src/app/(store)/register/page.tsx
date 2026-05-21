@@ -12,7 +12,7 @@ import { useAuth } from '@/context/auth-context';
 import { toast } from 'sonner';
 
 export default function RegisterPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { register, resendConfirmation } = useAuth();
   const [step, setStep] = useState<'form' | 'confirm'>('form');
   const [name, setName] = useState('');
@@ -41,7 +41,7 @@ export default function RegisterPage() {
     setResending(true);
     await resendConfirmation(email);
     setResending(false);
-    toast.success(locale === 'fr' ? 'Email renvoyé' : 'Email resent');
+    toast.success(t('auth.email_resent'));
   };
 
   if (step === 'confirm') {
@@ -50,12 +50,10 @@ export default function RegisterPage() {
         <Card><CardContent className="p-6 text-center space-y-4">
           <Mail className="w-12 h-12 mx-auto text-brand-primary" />
           <h1 className="text-2xl text-brand-dark">
-            {locale === 'fr' ? 'Vérifiez votre boîte mail' : 'Check your inbox'}
+            {t('auth.check_inbox_title')}
           </h1>
           <p className="text-muted-foreground">
-            {locale === 'fr'
-              ? `Nous avons envoyé un lien de confirmation à ${email}. Cliquez dessus pour activer votre compte (valable 24 h).`
-              : `We sent a confirmation link to ${email}. Click it to activate your account (valid for 24 h).`}
+            {t('auth.check_inbox_body').replace('{email}', email)}
           </p>
           <Button
             onClick={handleResend}
@@ -64,12 +62,12 @@ export default function RegisterPage() {
             className="w-full"
           >
             {resending
-              ? (locale === 'fr' ? 'Envoi…' : 'Sending…')
-              : (locale === 'fr' ? 'Renvoyer l’email' : 'Resend email')}
+              ? t('auth.sending')
+              : t('auth.resend_email')}
           </Button>
           <p className="text-sm text-muted-foreground">
             <Link href="/login" className="text-brand-primary hover:underline">
-              {locale === 'fr' ? 'Revenir à la connexion' : 'Back to login'}
+              {t('auth.back_to_login')}
             </Link>
           </p>
         </CardContent></Card>

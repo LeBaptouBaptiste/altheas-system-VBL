@@ -35,7 +35,7 @@ export function SavedCardPaymentForm({
   label,
   onSuccess,
 }: SavedCardPaymentFormProps) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,14 +81,10 @@ export function SavedCardPaymentForm({
       case 'requires_action':
       case 'requires_confirmation':
         // Stripe should have redirected for 3DS; show transition state.
-        setError(locale === 'fr'
-          ? 'Validation en cours, ne fermez pas cet onglet…'
-          : 'Authentication in progress, do not close this tab…');
+        setError(t('payment.authenticating'));
         return;
       case 'requires_payment_method':
-        setError(locale === 'fr'
-          ? 'Le paiement a échoué. Essayez une autre carte.'
-          : 'Payment failed. Try a different card.');
+        setError(t('payment.payment_failed_card'));
         setSubmitting(false);
         return;
       default:
@@ -100,11 +96,9 @@ export function SavedCardPaymentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-md text-sm text-brand-dark">
-        {locale === 'fr'
-          ? 'Vous allez payer avec '
-          : 'You are about to pay with '}
+        {t('payment.about_to_pay_with')}{' '}
         <span className="font-semibold">{label}</span>
-        {locale === 'fr' ? '.' : '.'}
+        .
       </div>
 
       {error && (

@@ -26,7 +26,7 @@ const STATUS_COLORS: Record<number, string> = {
 };
 
 export default function AdminInvoicesPage() {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [invoicesList, setInvoicesList] = useState<InvoiceDto[]>([]);
@@ -72,14 +72,14 @@ export default function AdminInvoicesPage() {
       // is "avoir-XXX.pdf" instead of "facture-XXX.pdf".
       if (inv.type === InvoiceType.CreditNote) {
         await downloadCreditNotePdf(inv.id);
-        toast.success(locale === 'fr' ? 'Avoir téléchargé' : 'Credit note downloaded');
+        toast.success(t('account.credit_note_downloaded'));
       } else {
         await downloadInvoicePdf(inv.id);
-        toast.success(locale === 'fr' ? 'Facture téléchargée' : 'Invoice downloaded');
+        toast.success(t('account.invoice_downloaded'));
       }
     } catch (err) {
       console.error('PDF download failed', err);
-      toast.error(locale === 'fr' ? 'Échec du téléchargement' : 'Download failed');
+      toast.error(t('account.download_failed'));
     } finally {
       setDownloadingId(null);
     }
@@ -110,7 +110,7 @@ export default function AdminInvoicesPage() {
     if (!creditNoteTarget) return;
     const amount = Number(creditAmount.replace(',', '.'));
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error(locale === 'fr' ? 'Montant invalide' : 'Invalid amount');
+      toast.error(t('admin.invalid_amount'));
       return;
     }
     setCreditSubmitting(true);
@@ -129,8 +129,8 @@ export default function AdminInvoicesPage() {
       // Offer the PDF immediately — common UX for accounting flows.
       await downloadCreditNotePdf(created.id);
       toast.success(creditMode === CreditNoteMode.Refund
-        ? (locale === 'fr' ? 'Avoir émis · remboursement déclenché' : 'Credit note issued · refund triggered')
-        : (locale === 'fr' ? 'Avoir émis · crédit ajouté au compte' : 'Credit note issued · added to wallet'));
+        ? t('admin.cn_refund_done')
+        : t('admin.cn_wallet_done'));
       setCreditNoteTarget(null);
     } catch (err) {
       toast.error(getErrorMessage(err, (k) => k));
@@ -159,13 +159,13 @@ export default function AdminInvoicesPage() {
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Total factures' : 'Total invoices'}</p>
+            <p className="text-xs text-muted-foreground">{t('admin.total_invoices')}</p>
             <p className="text-xl font-bold text-brand-dark">{fmt(totals.invoices)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Total avoirs' : 'Total credits'}</p>
+            <p className="text-xs text-muted-foreground">{t('admin.total_credits')}</p>
             <p className="text-xl font-bold text-error">{fmt(totals.credits)}</p>
           </CardContent>
         </Card>
@@ -181,20 +181,20 @@ export default function AdminInvoicesPage() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher...' : 'Search...'} className="ps-9" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('admin.search_generic')} className="ps-9" />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{locale === 'fr' ? 'Tous types' : 'All types'}</SelectItem>
-            <SelectItem value={String(InvoiceType.Invoice)}>{locale === 'fr' ? 'Factures' : 'Invoices'}</SelectItem>
-            <SelectItem value={String(InvoiceType.CreditNote)}>{locale === 'fr' ? 'Avoirs' : 'Credit notes'}</SelectItem>
+            <SelectItem value="all">{t('admin.all_types')}</SelectItem>
+            <SelectItem value={String(InvoiceType.Invoice)}>{t('admin.invoices_filter')}</SelectItem>
+            <SelectItem value={String(InvoiceType.CreditNote)}>{t('admin.credit_notes_filter')}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
+            <SelectItem value="all">{t('admin.all_statuses')}</SelectItem>
             <SelectItem value={String(InvoiceStatus.Paid)}>{enumLabel('InvoiceStatus', InvoiceStatus.Paid, locale)}</SelectItem>
             <SelectItem value={String(InvoiceStatus.Pending)}>{enumLabel('InvoiceStatus', InvoiceStatus.Pending, locale)}</SelectItem>
             <SelectItem value={String(InvoiceStatus.Overdue)}>{enumLabel('InvoiceStatus', InvoiceStatus.Overdue, locale)}</SelectItem>
@@ -213,7 +213,7 @@ export default function AdminInvoicesPage() {
                   <th className="p-3 text-start">N°</th>
                   <th className="p-3 text-start">Type</th>
                   <th className="p-3 text-start">Date</th>
-                  <th className="p-3 text-start">{locale === 'fr' ? 'Commande' : 'Order'}</th>
+                  <th className="p-3 text-start">{t('admin.order_short')}</th>
                   <th className="p-3 text-end">HT</th>
                   <th className="p-3 text-end">TVA</th>
                   <th className="p-3 text-end">TTC</th>
@@ -233,7 +233,7 @@ export default function AdminInvoicesPage() {
                         </span>
                       </div>
                       {inv.relatedInvoiceId && (
-                        <span className="text-xs text-muted-foreground block">{locale === 'fr' ? 'Réf' : 'Ref'}: {inv.relatedInvoiceId}</span>
+                        <span className="text-xs text-muted-foreground block">{t('admin.ref_short')}: {inv.relatedInvoiceId}</span>
                       )}
                     </td>
                     <td className="p-3 text-muted-foreground">{new Date(inv.date).toLocaleDateString(toIntlLocale(locale))}</td>
@@ -255,7 +255,7 @@ export default function AdminInvoicesPage() {
                             variant="ghost"
                             className="h-7 w-7 text-error hover:bg-error/10"
                             onClick={() => openCreditNoteModal(inv)}
-                            title={locale === 'fr' ? 'Émettre un avoir' : 'Issue credit note'}
+                            title={t('admin.issue_credit_note')}
                           >
                             <FilePlus className="w-3.5 h-3.5" />
                           </Button>
@@ -267,8 +267,8 @@ export default function AdminInvoicesPage() {
                           onClick={() => handleDownload(inv)}
                           disabled={downloadingId === inv.id}
                           title={inv.type === InvoiceType.CreditNote
-                            ? (locale === 'fr' ? "Télécharger l'avoir (PDF)" : 'Download credit note (PDF)')
-                            : (locale === 'fr' ? 'Télécharger la facture (PDF)' : 'Download invoice (PDF)')}
+                            ? t('account.download_credit_note_pdf')
+                            : t('account.download_invoice_pdf')}
                         >
                           {downloadingId === inv.id
                             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -289,7 +289,7 @@ export default function AdminInvoicesPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {locale === 'fr' ? 'Émettre un avoir' : 'Issue credit note'}
+              {t('admin.issue_credit_note')}
             </DialogTitle>
           </DialogHeader>
           {creditNoteTarget && (() => {
@@ -301,21 +301,21 @@ export default function AdminInvoicesPage() {
               <div className="space-y-4 text-sm">
                 <div className="bg-gray-50 rounded-md border p-3 space-y-1">
                   <p className="text-xs text-muted-foreground">
-                    {locale === 'fr' ? 'Facture source' : 'Source invoice'}
+                    {t('admin.source_invoice')}
                   </p>
                   <p className="font-medium font-mono">{creditNoteTarget.number}</p>
                   <p className="text-xs text-muted-foreground">
-                    {locale === 'fr' ? 'Montant HT facture' : 'Invoice amount HT'}: <strong>{fmt(creditNoteTarget.amountHT)}</strong>
+                    {t('admin.invoice_amount_ht')}: <strong>{fmt(creditNoteTarget.amountHT)}</strong>
                     {alreadyCredited > 0 && (
-                      <> · {locale === 'fr' ? 'Déjà crédité' : 'Already credited'}: <strong>{fmt(alreadyCredited)}</strong></>
+                      <> · {t('admin.already_credited')}: <strong>{fmt(alreadyCredited)}</strong></>
                     )}
-                    {' '}· {locale === 'fr' ? 'Restant' : 'Remaining'}: <strong className="text-error">{fmt(remainingHT)}</strong>
+                    {' '}· {t('admin.remaining')}: <strong className="text-error">{fmt(remainingHT)}</strong>
                   </p>
                 </div>
 
                 <div>
                   <Label htmlFor="creditAmount">
-                    {locale === 'fr' ? 'Montant HT à créditer (€)' : 'Amount to credit HT (€)'}
+                    {t('admin.amount_to_credit_ht')}
                   </Label>
                   <Input
                     id="creditAmount"
@@ -328,23 +328,19 @@ export default function AdminInvoicesPage() {
                     autoFocus
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {locale === 'fr'
-                      ? 'La TVA est calculée automatiquement au taux effectif de la facture source.'
-                      : 'VAT is auto-prorated at the source invoice effective rate.'}
+                    {t('admin.vat_auto_calc')}
                   </p>
                 </div>
 
                 <div>
                   <Label htmlFor="creditReason">
-                    {locale === 'fr' ? 'Motif (optionnel)' : 'Reason (optional)'}
+                    {t('admin.reason_optional')}
                   </Label>
                   <Input
                     id="creditReason"
                     type="text"
                     maxLength={500}
-                    placeholder={locale === 'fr'
-                      ? 'Ex : produit défectueux, retour client...'
-                      : 'e.g. defective product, customer return...'}
+                    placeholder={t('admin.reason_placeholder')}
                     value={creditReason}
                     onChange={(e) => setCreditReason(e.target.value)}
                   />
@@ -353,7 +349,7 @@ export default function AdminInvoicesPage() {
                 {/* Phase 7: mode picker. Refund hits Stripe directly,
                     StoreCredit alimente le wallet du client. */}
                 <div>
-                  <Label>{locale === 'fr' ? 'Mode' : 'Mode'}</Label>
+                  <Label>{t('admin.mode_label')}</Label>
                   <div className="grid grid-cols-1 gap-2 mt-1">
                     <label className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer ${
                       creditMode === CreditNoteMode.Refund
@@ -369,12 +365,10 @@ export default function AdminInvoicesPage() {
                       />
                       <div className="flex-1">
                         <p className="font-medium text-sm">
-                          {locale === 'fr' ? 'Rembourser sur la carte' : 'Refund to card'}
+                          {t('admin.refund_to_card')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {locale === 'fr'
-                            ? 'Stripe re-crédite la CB du client (3-5 jours ouvrés). Nécessite que la commande ait été payée via Stripe.'
-                            : 'Stripe refunds the card (3-5 business days). Requires a Stripe PaymentIntent on the order.'}
+                          {t('admin.refund_to_card_help')}
                         </p>
                       </div>
                     </label>
@@ -392,12 +386,10 @@ export default function AdminInvoicesPage() {
                       />
                       <div className="flex-1">
                         <p className="font-medium text-sm">
-                          {locale === 'fr' ? 'Créditer le compte client' : 'Add to customer wallet'}
+                          {t('admin.add_to_wallet')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {locale === 'fr'
-                            ? "Le client utilisera l'avoir lors d'un prochain achat. Aucun mouvement bancaire."
-                            : 'Customer uses the credit on their next order. No bank movement.'}
+                          {t('admin.add_to_wallet_help')}
                         </p>
                       </div>
                     </label>
@@ -407,7 +399,7 @@ export default function AdminInvoicesPage() {
                 <div className="flex gap-2 pt-2">
                   <DialogClose asChild>
                     <Button variant="outline" className="flex-1" disabled={creditSubmitting}>
-                      {locale === 'fr' ? 'Annuler' : 'Cancel'}
+                      {t('admin.cancel')}
                     </Button>
                   </DialogClose>
                   <Button
@@ -417,7 +409,7 @@ export default function AdminInvoicesPage() {
                   >
                     {creditSubmitting
                       ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : (locale === 'fr' ? 'Émettre l’avoir' : 'Issue credit note')}
+                      : t('admin.issue_cn_action')}
                   </Button>
                 </div>
               </div>
