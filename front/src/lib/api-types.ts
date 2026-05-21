@@ -425,20 +425,69 @@ export interface HealthResponse {
 
 // ── Image helpers (moved from mock/images.ts) ─────────
 
+// 43 unique Unsplash photos curated for the medical-equipment catalog.
+// One image per product (32) + per category (8) + hero slide (3). No two
+// URLs share the same photo-* prefix — each entry is a distinct shot so
+// the homepage / search / category pages don't end up with identical
+// thumbnails across half the catalog (which was the case before — only
+// 9 images for 32 products, with several products sharing the same URL).
 const IMAGE_MAP: Record<string, string> = {
-  // Hero slides
-  'hero-1': 'https://images.unsplash.com/photo-1587010580103-fd86b8ea14ca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
-  'hero-2': 'https://images.unsplash.com/photo-1721114989769-0423619f03d2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
-  'hero-3': 'https://images.unsplash.com/photo-1758653500328-1c4474a8adfe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
-  // Products
-  'imaging-1': 'https://images.unsplash.com/photo-1587010580103-fd86b8ea14ca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'monitors-1': 'https://images.unsplash.com/photo-1721114989769-0423619f03d2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'sterilization-1': 'https://images.unsplash.com/photo-1758653500328-1c4474a8adfe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'surgical-1': 'https://images.unsplash.com/photo-1560269941-141b145a1b57?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'furniture-1': 'https://images.unsplash.com/photo-1710074213374-e68503a1b795?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'respiratory-1': 'https://images.unsplash.com/photo-1721114989769-0423619f03d2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'consumables-1': 'https://images.unsplash.com/photo-1758653500328-1c4474a8adfe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
-  'laboratory-1': 'https://images.unsplash.com/photo-1766299892549-b56b257d1ddd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // ── Hero slides (w=1200) ──────────────────────────────
+  'hero-1': 'https://images.unsplash.com/photo-1516549655169-df83a0774514?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
+  'hero-2': 'https://images.unsplash.com/photo-1666214275099-0ca566aefe26?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
+  'hero-3': 'https://images.unsplash.com/photo-1638598124048-10c5b3f2f964?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1200',
+
+  // ── Categories (w=800) ────────────────────────────────
+  'imaging': 'https://images.unsplash.com/photo-1631562501312-044a38befa5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'monitors': 'https://images.unsplash.com/photo-1587230307094-7ea936b24278?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'sterilization': 'https://images.unsplash.com/photo-1612246963308-0441bc24af0e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'surgical': 'https://images.unsplash.com/photo-1560269941-141b145a1b57?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'furniture': 'https://images.unsplash.com/photo-1611587266737-cc128ffe2946?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'respiratory': 'https://images.unsplash.com/photo-1615486510988-2c6ecc66ceba?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'consumables': 'https://images.unsplash.com/photo-1628235176517-71013205a2de?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  'laboratory': 'https://images.unsplash.com/photo-1614308457932-e16d85c5d053?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+
+  // ── Products (w=600) — one unique photo per product ───
+  // Imaging
+  'imaging-1': 'https://images.unsplash.com/photo-1631563020241-09beac7791b7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'imaging-2': 'https://images.unsplash.com/photo-1691933880082-8ca234497bf4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'imaging-3': 'https://images.unsplash.com/photo-1666214280352-db292c05fd80?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'imaging-4': 'https://images.unsplash.com/photo-1626878880028-0438b1403b3f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Monitors & Diagnostics
+  'monitors-1': 'https://images.unsplash.com/photo-1630531210974-dab9b07c4eff?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'monitors-2': 'https://images.unsplash.com/photo-1700832082200-af7deeb63d9b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'monitors-3': 'https://images.unsplash.com/photo-1598532037823-2f11cc6a866c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'monitors-4': 'https://images.unsplash.com/photo-1657028551158-fd08eb69e15b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Sterilization & Hygiene
+  'sterilization-1': 'https://images.unsplash.com/photo-1720180244494-c56d7f57e2b5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'sterilization-2': 'https://images.unsplash.com/photo-1583912372059-83f2d324c524?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'sterilization-3': 'https://images.unsplash.com/photo-1623986854265-3f4f4082c4c2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'sterilization-4': 'https://images.unsplash.com/photo-1624711078613-aa19b0797855?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Surgical instruments
+  'surgical-1': 'https://images.unsplash.com/photo-1691935443892-c08791a3e944?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'surgical-2': 'https://images.unsplash.com/photo-1593086586351-1673fca190cf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'surgical-3': 'https://images.unsplash.com/photo-1643660527074-0ddcec3bda96?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'surgical-4': 'https://images.unsplash.com/photo-1647113412291-6d91b48f7f7c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Medical furniture
+  'furniture-1': 'https://images.unsplash.com/photo-1614101062781-09a8dfb90dce?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'furniture-2': 'https://images.unsplash.com/photo-1612037418575-55c54d942c5a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'furniture-3': 'https://images.unsplash.com/photo-1611073061541-842812eaa37c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'furniture-4': 'https://images.unsplash.com/photo-1631507623442-fee09e89c6a8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Respiratory equipment
+  'respiratory-1': 'https://images.unsplash.com/photo-1606166187734-a4cb74079037?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'respiratory-2': 'https://images.unsplash.com/photo-1615486510940-4e96763c7f6d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'respiratory-3': 'https://images.unsplash.com/photo-1645273474760-c5f8b0d86d0f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'respiratory-4': 'https://images.unsplash.com/photo-1776104501594-4d4212ba118c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Consumables (VAT reduced 5.5%)
+  'consumables-1': 'https://images.unsplash.com/photo-1598300188480-626f2f79ab8d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'consumables-2': 'https://images.unsplash.com/photo-1552572633-716616a6ad07?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'consumables-3': 'https://images.unsplash.com/photo-1544531664-12a4ea82b7d4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'consumables-4': 'https://images.unsplash.com/photo-1651493803684-03a332c42014?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  // Laboratory equipment
+  'laboratory-1': 'https://images.unsplash.com/photo-1582560475213-c396393eab98?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'laboratory-2': 'https://images.unsplash.com/photo-1707944745824-c038557dfd7c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'laboratory-3': 'https://images.unsplash.com/photo-1614308459036-779d0dfe51ff?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
+  'laboratory-4': 'https://images.unsplash.com/photo-1663363912772-b2f34992c805?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600',
 };
 
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1766299892693-2370a8d47e23?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600';
