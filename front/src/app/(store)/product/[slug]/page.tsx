@@ -75,7 +75,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         <span>/</span>
         {product.categories[0] && <>
           <Link href={`/category/${product.categories[0].slug}`} className="hover:text-brand-primary">
-            {localized(toLocalized(product.categories[0].nameFr, product.categories[0].nameEn))}
+            {localized(toLocalized(product.categories[0].nameFr, product.categories[0].nameEn, product.categories[0].nameMs, product.categories[0].nameAr))}
           </Link>
           <span>/</span>
         </>}

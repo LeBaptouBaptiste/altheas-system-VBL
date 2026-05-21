@@ -162,6 +162,11 @@ export interface UserDto {
    * issued with Mode=StoreCredit; decrements on checkout when applied.
    */
   creditBalanceCents: number;
+  /**
+   * Two-letter locale for transactional emails: 'fr' | 'en' | 'ms' | 'ar'.
+   * Null = system default (French). Editable via account preferences.
+   */
+  preferredLocale: string | null;
 }
 
 export interface AddressDto {
@@ -232,6 +237,8 @@ export interface CategorySummaryDto {
   slug: string;
   nameFr: string;
   nameEn: string;
+  nameMs: string | null;
+  nameAr: string | null;
 }
 
 export interface ProductSpecDto {
@@ -252,8 +259,12 @@ export interface CategoryDto {
   slug: string;
   nameFr: string;
   nameEn: string;
+  nameMs: string | null;
+  nameAr: string | null;
   descriptionFr: string;
   descriptionEn: string;
+  descriptionMs: string | null;
+  descriptionAr: string | null;
   image: string;
   parentId: string | null;
   displayOrder: number;
@@ -393,12 +404,20 @@ export interface HeroSlideDto {
   image: string;
   titleFr: string;
   titleEn: string;
+  titleMs: string | null;
+  titleAr: string | null;
   subtitleFr: string;
   subtitleEn: string;
+  subtitleMs: string | null;
+  subtitleAr: string | null;
   descriptionFr: string;
   descriptionEn: string;
+  descriptionMs: string | null;
+  descriptionAr: string | null;
   ctaFr: string;
   ctaEn: string;
+  ctaMs: string | null;
+  ctaAr: string | null;
   link: string;
   displayOrder: number;
   active: boolean;
@@ -409,8 +428,12 @@ export interface StaticPageDto {
   slug: string;
   titleFr: string;
   titleEn: string;
+  titleMs: string | null;
+  titleAr: string | null;
   contentFr: string;
   contentEn: string;
+  contentMs: string | null;
+  contentAr: string | null;
   updatedAt: string;
 }
 

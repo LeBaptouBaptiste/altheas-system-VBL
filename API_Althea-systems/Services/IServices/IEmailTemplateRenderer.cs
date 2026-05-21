@@ -15,6 +15,16 @@ public interface IEmailTemplateRenderer
     /// exist or if it references a placeholder not provided in
     /// <paramref name="placeholders"/> — we'd rather fail loudly than ship
     /// a "{{customerName}}" literal to a customer.
+    ///
+    /// When <paramref name="locale"/> is provided, the renderer looks up
+    /// <c>{templateName}.{locale}.html</c> first (e.g. <c>welcome.en.html</c>)
+    /// and falls back to <c>{templateName}.html</c> (the default French
+    /// template) when no localised version exists. This keeps the catalog
+    /// additive: untranslated emails ship in French until someone drops in
+    /// a localised file.
     /// </summary>
-    string Render(string templateName, IReadOnlyDictionary<string, string> placeholders);
+    string Render(
+        string templateName,
+        IReadOnlyDictionary<string, string> placeholders,
+        string? locale = null);
 }

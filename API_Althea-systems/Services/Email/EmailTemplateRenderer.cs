@@ -48,16 +48,21 @@ public class EmailTemplateRenderer : IEmailTemplateRenderer
         _logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<EmailTemplateRenderer>.Instance;
     }
 
-    public string Render(string templateName, IReadOnlyDictionary<string, string> placeholders)
+    public string Render(
+        string templateName,
+        IReadOnlyDictionary<string, string> placeholders,
+        string? locale = null)
     {
-        if (!_templates.TryGetValue(templateName, out var raw))
-        {
-            // Fail loud at the call site — easier to debug than a 500 in
-            // production with a vague "template not found" deep in the stack.
-            throw new InvalidOperationException(
+        // Locale lookup chain:
+        //   1. {templateName}.{locale}.html  (e.g. welcome.en.html)
+        //   2. {templateName}.html           (default — currently French)
+        // Anything that doesn't have a localised file falls back transparently
+        // so the catalog can be translated incrementally without breaking
+        // un-translated senders.
+        var raw = ResolveTemplate(templateName, locale)
+            ?? throw new InvalidOperationException(
                 $"Email template '{templateName}' is not loaded. " +
                 $"Known templates: [{string.Join(", ", _templates.Keys)}]");
-        }
 
         return PlaceholderRegex.Replace(raw, match =>
         {
@@ -72,6 +77,27 @@ public class EmailTemplateRenderer : IEmailTemplateRenderer
             }
             return value;
         });
+    }
+
+    /// <summary>
+    /// Try locale-specific file first, fall back to the base template.
+    /// Returns null when neither exists (caller throws with full context).
+    /// </summary>
+    private string? ResolveTemplate(string templateName, string? locale)
+    {
+        if (!string.IsNullOrEmpty(locale))
+        {
+            var loc = locale.ToLowerInvariant();
+            if (_templates.TryGetValue($"{templateName}.{loc}", out var localised))
+            {
+                return localised;
+            }
+            // Silently fall through to the default template. The first time a
+            // sender is run for an untranslated locale we don't want noise
+            // every email — at boot we already log the loaded set.
+        }
+
+        return _templates.TryGetValue(templateName, out var raw) ? raw : null;
     }
 
     private static IReadOnlyDictionary<string, string> LoadFromDisk(

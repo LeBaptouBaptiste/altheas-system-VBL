@@ -52,17 +52,7 @@ public class TwoFactorCodeSender : ITwoFactorCodeSender
             ? user.Email.Split('@')[0]
             : user.Name.Split(' ')[0];
 
-        var (subject, purposeLine) = purpose switch
-        {
-            TwoFactorCodePurpose.Setup => (
-                "Activez la 2FA par email — Althea Systems",
-                "Voici le code à usage unique pour activer l'authentification à deux facteurs par email sur votre compte."),
-            TwoFactorCodePurpose.Login => (
-                "Code de connexion — Althea Systems",
-                "Voici votre code de connexion à usage unique. Saisissez-le sur la page de connexion pour finaliser l'authentification."),
-            _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose,
-                "Unknown 2FA code purpose."),
-        };
+        var (subject, purposeLine) = LocalisedCopy(purpose, user.PreferredLocale);
 
         var html = _renderer.Render("2fa-code", new Dictionary<string, string>
         {
@@ -70,7 +60,7 @@ public class TwoFactorCodeSender : ITwoFactorCodeSender
             ["code"] = code,
             ["purposeLine"] = purposeLine,
             ["ttlMinutes"] = ((int)ttl.TotalMinutes).ToString(),
-        });
+        }, user.PreferredLocale);
 
         await _emailSender.SendAsync(
             to: user.Email,
@@ -78,4 +68,39 @@ public class TwoFactorCodeSender : ITwoFactorCodeSender
             htmlBody: html,
             ct: ct);
     }
+
+    // Subject + the "purposeLine" placeholder are translated inline because
+    // they don't live in the HTML template — they're prose injected per call.
+    // 4-locale switch matches the system-wide convention.
+    private static (string Subject, string PurposeLine) LocalisedCopy(
+        TwoFactorCodePurpose purpose, string? locale)
+        => (purpose, locale?.ToLowerInvariant()) switch
+        {
+            (TwoFactorCodePurpose.Setup, "en") => (
+                "Enable email 2FA — Althea Systems",
+                "Here is the one-time code to enable email two-factor authentication on your account."),
+            (TwoFactorCodePurpose.Login, "en") => (
+                "Sign-in code — Althea Systems",
+                "Here is your one-time sign-in code. Enter it on the login page to complete authentication."),
+            (TwoFactorCodePurpose.Setup, "ms") => (
+                "Aktifkan 2FA e-mel — Althea Systems",
+                "Berikut adalah kod sekali guna untuk mengaktifkan pengesahan dua faktor melalui e-mel pada akaun anda."),
+            (TwoFactorCodePurpose.Login, "ms") => (
+                "Kod log masuk — Althea Systems",
+                "Berikut adalah kod log masuk sekali guna anda. Masukkannya di halaman log masuk untuk menyelesaikan pengesahan."),
+            (TwoFactorCodePurpose.Setup, "ar") => (
+                "تفعيل المصادقة الثنائية عبر البريد — Althea Systems",
+                "هذا هو رمز الاستخدام لمرة واحدة لتفعيل المصادقة الثنائية عبر البريد الإلكتروني على حسابك."),
+            (TwoFactorCodePurpose.Login, "ar") => (
+                "رمز تسجيل الدخول — Althea Systems",
+                "هذا هو رمز تسجيل الدخول لمرة واحدة. أدخله في صفحة تسجيل الدخول لإكمال المصادقة."),
+            (TwoFactorCodePurpose.Setup, _) => (
+                "Activez la 2FA par email — Althea Systems",
+                "Voici le code à usage unique pour activer l'authentification à deux facteurs par email sur votre compte."),
+            (TwoFactorCodePurpose.Login, _) => (
+                "Code de connexion — Althea Systems",
+                "Voici votre code de connexion à usage unique. Saisissez-le sur la page de connexion pour finaliser l'authentification."),
+            _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose,
+                "Unknown 2FA code purpose."),
+        };
 }

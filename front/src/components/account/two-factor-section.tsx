@@ -13,6 +13,7 @@ import { getErrorMessage } from '@/lib/api-errors';
 import { useI18n } from '@/context/i18n-context';
 import { useAuth } from '@/context/auth-context';
 import { toast } from 'sonner';
+import { toIntlLocale } from '@/lib/money';
 
 type View =
   | { kind: 'loading' }
@@ -63,7 +64,7 @@ export function TwoFactorSection() {
     try {
       await authService.setupTwoFactorEmail();
       setView({ kind: 'emailSetupVerify' });
-      toast.success(locale === 'fr' ? 'Code envoyé par email' : 'Code sent by email');
+      toast.success(t('2fa.toast_code_sent'));
     } catch (err) {
       toast.error(getErrorMessage(err, t));
     } finally {
@@ -207,7 +208,7 @@ export function TwoFactorSection() {
                 <p className="text-sm text-muted-foreground">
                   {t('2fa.section_enabled_at')}{' '}
                   {view.status.enabledAt
-                    ? new Date(view.status.enabledAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')
+                    ? new Date(view.status.enabledAt).toLocaleDateString(toIntlLocale(locale))
                     : '—'}
                   .{' '}
                   {view.status.recoveryCodesRemaining}{' '}
@@ -246,9 +247,7 @@ export function TwoFactorSection() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground mb-3">
-              {locale === 'fr'
-                ? 'Choisissez votre méthode d’authentification à deux facteurs :'
-                : 'Pick your two-factor authentication method:'}
+              {t('2fa.method_picker_prompt')}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <Button
@@ -257,7 +256,7 @@ export function TwoFactorSection() {
                 className="bg-brand-primary hover:bg-brand-hover text-white justify-start"
               >
                 <Smartphone className="w-4 h-4 me-2" />
-                {locale === 'fr' ? 'Application authentificatrice' : 'Authenticator app'}
+                {t('2fa.method_authenticator')}
               </Button>
               <Button
                 onClick={startEmailSetup}
@@ -266,13 +265,11 @@ export function TwoFactorSection() {
                 className="justify-start"
               >
                 <Mail className="w-4 h-4 me-2" />
-                {locale === 'fr' ? 'Email' : 'Email'}
+                {t('2fa.method_email_button')}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              {locale === 'fr'
-                ? 'L’application est plus rapide (codes locaux à 30 s). L’email est plus simple mais nécessite l’accès à votre boîte à chaque connexion.'
-                : 'The app is faster (local 30 s codes). Email is simpler but requires mailbox access at every login.'}
+              {t('2fa.method_compare')}
             </p>
           </>
         )}
@@ -281,12 +278,10 @@ export function TwoFactorSection() {
         {view.kind === 'emailSetupVerify' && (
           <form onSubmit={verifyAndEnableEmail}>
             <h3 className="font-semibold text-brand-dark mb-3">
-              {locale === 'fr' ? 'Vérifiez votre email' : 'Verify your email'}
+              {t('2fa.verify_email_heading')}
             </h3>
             <p className="text-sm text-gray-700 mb-4">
-              {locale === 'fr'
-                ? 'Saisissez le code à 6 chiffres que nous venons de vous envoyer par email pour activer la 2FA par email.'
-                : 'Enter the 6-digit code we just emailed you to activate email-based 2FA.'}
+              {t('2fa.verify_email_prompt')}
             </p>
             <div className="flex justify-center mb-4">
               <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>

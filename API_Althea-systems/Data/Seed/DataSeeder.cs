@@ -142,14 +142,54 @@ public static class DataSeeder
 
         var categories = new List<Category>
         {
-            new() { Id = cat1Id, Slug = "imagerie-medicale", NameFr = "Imagerie Médicale", NameEn = "Medical Imaging", DescriptionFr = "Équipements d'imagerie diagnostique", DescriptionEn = "Diagnostic imaging equipment", Image = "imaging", DisplayOrder = 1 },
-            new() { Id = cat2Id, Slug = "moniteurs-diagnostics", NameFr = "Moniteurs & Diagnostics", NameEn = "Monitors & Diagnostics", DescriptionFr = "Moniteurs de surveillance patient", DescriptionEn = "Patient monitoring systems", Image = "monitors", DisplayOrder = 2 },
-            new() { Id = cat3Id, Slug = "sterilisation-hygiene", NameFr = "Stérilisation & Hygiène", NameEn = "Sterilization & Hygiene", DescriptionFr = "Matériel de stérilisation et d'hygiène", DescriptionEn = "Sterilization and hygiene equipment", Image = "sterilization", DisplayOrder = 3 },
-            new() { Id = cat4Id, Slug = "instruments-chirurgicaux", NameFr = "Instruments Chirurgicaux", NameEn = "Surgical Instruments", DescriptionFr = "Instruments de chirurgie professionnels", DescriptionEn = "Professional surgical instruments", Image = "surgical", DisplayOrder = 4 },
-            new() { Id = cat5Id, Slug = "mobilier-medical", NameFr = "Mobilier Médical", NameEn = "Medical Furniture", DescriptionFr = "Mobilier professionnel pour établissements de santé", DescriptionEn = "Professional furniture for healthcare facilities", Image = "furniture", DisplayOrder = 5 },
-            new() { Id = cat6Id, Slug = "equipements-respiratoires", NameFr = "Équipements Respiratoires", NameEn = "Respiratory Equipment", DescriptionFr = "Matériel respiratoire et ventilation", DescriptionEn = "Respiratory and ventilation equipment", Image = "respiratory", DisplayOrder = 6 },
-            new() { Id = cat7Id, Slug = "consommables-medicaux", NameFr = "Consommables Médicaux", NameEn = "Medical Consumables", DescriptionFr = "Consommables et fournitures médicales", DescriptionEn = "Medical consumables and supplies", Image = "consumables", DisplayOrder = 7 },
-            new() { Id = cat8Id, Slug = "equipements-laboratoire", NameFr = "Équipements de Laboratoire", NameEn = "Laboratory Equipment", DescriptionFr = "Matériel de laboratoire d'analyse", DescriptionEn = "Laboratory analysis equipment", Image = "laboratory", DisplayOrder = 8 }
+            new() { Id = cat1Id, Slug = "imagerie-medicale",
+                NameFr = "Imagerie Médicale", NameEn = "Medical Imaging",
+                NameMs = "Pengimejan Perubatan", NameAr = "التصوير الطبي",
+                DescriptionFr = "Équipements d'imagerie diagnostique", DescriptionEn = "Diagnostic imaging equipment",
+                DescriptionMs = "Peralatan pengimejan diagnostik", DescriptionAr = "أجهزة التصوير التشخيصي",
+                Image = "imaging", DisplayOrder = 1 },
+            new() { Id = cat2Id, Slug = "moniteurs-diagnostics",
+                NameFr = "Moniteurs & Diagnostics", NameEn = "Monitors & Diagnostics",
+                NameMs = "Monitor & Diagnostik", NameAr = "أجهزة المراقبة والتشخيص",
+                DescriptionFr = "Moniteurs de surveillance patient", DescriptionEn = "Patient monitoring systems",
+                DescriptionMs = "Sistem pemantauan pesakit", DescriptionAr = "أنظمة مراقبة المرضى",
+                Image = "monitors", DisplayOrder = 2 },
+            new() { Id = cat3Id, Slug = "sterilisation-hygiene",
+                NameFr = "Stérilisation & Hygiène", NameEn = "Sterilization & Hygiene",
+                NameMs = "Pensterilan & Kebersihan", NameAr = "التعقيم والنظافة",
+                DescriptionFr = "Matériel de stérilisation et d'hygiène", DescriptionEn = "Sterilization and hygiene equipment",
+                DescriptionMs = "Peralatan pensterilan dan kebersihan", DescriptionAr = "معدات التعقيم والنظافة",
+                Image = "sterilization", DisplayOrder = 3 },
+            new() { Id = cat4Id, Slug = "instruments-chirurgicaux",
+                NameFr = "Instruments Chirurgicaux", NameEn = "Surgical Instruments",
+                NameMs = "Alat Pembedahan", NameAr = "أدوات جراحية",
+                DescriptionFr = "Instruments de chirurgie professionnels", DescriptionEn = "Professional surgical instruments",
+                DescriptionMs = "Alat pembedahan profesional", DescriptionAr = "أدوات جراحية احترافية",
+                Image = "surgical", DisplayOrder = 4 },
+            new() { Id = cat5Id, Slug = "mobilier-medical",
+                NameFr = "Mobilier Médical", NameEn = "Medical Furniture",
+                NameMs = "Perabot Perubatan", NameAr = "أثاث طبي",
+                DescriptionFr = "Mobilier professionnel pour établissements de santé", DescriptionEn = "Professional furniture for healthcare facilities",
+                DescriptionMs = "Perabot profesional untuk kemudahan penjagaan kesihatan", DescriptionAr = "أثاث احترافي لمرافق الرعاية الصحية",
+                Image = "furniture", DisplayOrder = 5 },
+            new() { Id = cat6Id, Slug = "equipements-respiratoires",
+                NameFr = "Équipements Respiratoires", NameEn = "Respiratory Equipment",
+                NameMs = "Peralatan Pernafasan", NameAr = "معدات الجهاز التنفسي",
+                DescriptionFr = "Matériel respiratoire et ventilation", DescriptionEn = "Respiratory and ventilation equipment",
+                DescriptionMs = "Peralatan pernafasan dan pengudaraan", DescriptionAr = "أجهزة التنفس والتهوية",
+                Image = "respiratory", DisplayOrder = 6 },
+            new() { Id = cat7Id, Slug = "consommables-medicaux",
+                NameFr = "Consommables Médicaux", NameEn = "Medical Consumables",
+                NameMs = "Bahan Pakai Buang Perubatan", NameAr = "المستهلكات الطبية",
+                DescriptionFr = "Consommables et fournitures médicales", DescriptionEn = "Medical consumables and supplies",
+                DescriptionMs = "Bahan pakai buang dan bekalan perubatan", DescriptionAr = "المستهلكات والمستلزمات الطبية",
+                Image = "consumables", DisplayOrder = 7 },
+            new() { Id = cat8Id, Slug = "equipements-laboratoire",
+                NameFr = "Équipements de Laboratoire", NameEn = "Laboratory Equipment",
+                NameMs = "Peralatan Makmal", NameAr = "معدات المختبر",
+                DescriptionFr = "Matériel de laboratoire d'analyse", DescriptionEn = "Laboratory analysis equipment",
+                DescriptionMs = "Peralatan analisis makmal", DescriptionAr = "معدات تحليل المختبر",
+                Image = "laboratory", DisplayOrder = 8 }
         };
         context.Categories.AddRange(categories);
 
@@ -1513,18 +1553,63 @@ public static class DataSeeder
         // ── Hero Slides ──────────────────────────────────
         var heroSlides = new List<HeroSlide>
         {
-            new() { Id = Guid.NewGuid(), Image = "hero-1", TitleFr = "Équipement Médical de Pointe", TitleEn = "Cutting-Edge Medical Equipment", SubtitleFr = "Althea Systems", SubtitleEn = "Althea Systems", DescriptionFr = "Solutions professionnelles pour les établissements de santé", DescriptionEn = "Professional solutions for healthcare facilities", CtaFr = "Découvrir", CtaEn = "Discover", Link = "/categories", DisplayOrder = 1 },
-            new() { Id = Guid.NewGuid(), Image = "hero-2", TitleFr = "Nouveautés 2026", TitleEn = "New in 2026", SubtitleFr = "Innovation", SubtitleEn = "Innovation", DescriptionFr = "Découvrez nos dernières innovations en imagerie médicale", DescriptionEn = "Discover our latest innovations in medical imaging", CtaFr = "Voir les nouveautés", CtaEn = "See what's new", Link = "/categories/imagerie-medicale", DisplayOrder = 2 },
-            new() { Id = Guid.NewGuid(), Image = "hero-3", TitleFr = "Service & Support", TitleEn = "Service & Support", SubtitleFr = "Accompagnement", SubtitleEn = "Support", DescriptionFr = "Un accompagnement technique dédié pour votre établissement", DescriptionEn = "Dedicated technical support for your facility", CtaFr = "Nous contacter", CtaEn = "Contact us", Link = "/contact", DisplayOrder = 3 }
+            new() { Id = Guid.NewGuid(), Image = "hero-1",
+                TitleFr = "Équipement Médical de Pointe", TitleEn = "Cutting-Edge Medical Equipment",
+                TitleMs = "Peralatan Perubatan Terkini", TitleAr = "معدات طبية متطورة",
+                SubtitleFr = "Althea Systems", SubtitleEn = "Althea Systems",
+                SubtitleMs = "Althea Systems", SubtitleAr = "Althea Systems",
+                DescriptionFr = "Solutions professionnelles pour les établissements de santé",
+                DescriptionEn = "Professional solutions for healthcare facilities",
+                DescriptionMs = "Penyelesaian profesional untuk kemudahan penjagaan kesihatan",
+                DescriptionAr = "حلول احترافية لمرافق الرعاية الصحية",
+                CtaFr = "Découvrir", CtaEn = "Discover",
+                CtaMs = "Terokai", CtaAr = "اكتشف",
+                Link = "/categories", DisplayOrder = 1 },
+            new() { Id = Guid.NewGuid(), Image = "hero-2",
+                TitleFr = "Nouveautés 2026", TitleEn = "New in 2026",
+                TitleMs = "Terbaru 2026", TitleAr = "جديد 2026",
+                SubtitleFr = "Innovation", SubtitleEn = "Innovation",
+                SubtitleMs = "Inovasi", SubtitleAr = "ابتكار",
+                DescriptionFr = "Découvrez nos dernières innovations en imagerie médicale",
+                DescriptionEn = "Discover our latest innovations in medical imaging",
+                DescriptionMs = "Terokai inovasi terkini kami dalam pengimejan perubatan",
+                DescriptionAr = "اكتشف أحدث ابتكاراتنا في التصوير الطبي",
+                CtaFr = "Voir les nouveautés", CtaEn = "See what's new",
+                CtaMs = "Lihat yang baru", CtaAr = "اطّلع على الجديد",
+                Link = "/categories/imagerie-medicale", DisplayOrder = 2 },
+            new() { Id = Guid.NewGuid(), Image = "hero-3",
+                TitleFr = "Service & Support", TitleEn = "Service & Support",
+                TitleMs = "Servis & Sokongan", TitleAr = "الخدمة والدعم",
+                SubtitleFr = "Accompagnement", SubtitleEn = "Support",
+                SubtitleMs = "Sokongan", SubtitleAr = "المرافقة",
+                DescriptionFr = "Un accompagnement technique dédié pour votre établissement",
+                DescriptionEn = "Dedicated technical support for your facility",
+                DescriptionMs = "Sokongan teknikal khusus untuk kemudahan anda",
+                DescriptionAr = "دعم تقني مخصص لمنشأتك",
+                CtaFr = "Nous contacter", CtaEn = "Contact us",
+                CtaMs = "Hubungi kami", CtaAr = "اتصل بنا",
+                Link = "/contact", DisplayOrder = 3 }
         };
         context.HeroSlides.AddRange(heroSlides);
 
         // ── Static Pages ─────────────────────────────────
         var staticPages = new List<Models.Content.StaticPage>
         {
-            new() { Id = Guid.NewGuid(), Slug = "cgu", TitleFr = "Conditions Générales d'Utilisation", TitleEn = "Terms of Service", ContentFr = "Contenu des CGU...", ContentEn = "Terms of Service content..." },
-            new() { Id = Guid.NewGuid(), Slug = "mentions-legales", TitleFr = "Mentions Légales", TitleEn = "Legal Notice", ContentFr = "Contenu des mentions légales...", ContentEn = "Legal notice content..." },
-            new() { Id = Guid.NewGuid(), Slug = "a-propos", TitleFr = "À Propos", TitleEn = "About Us", ContentFr = "À propos d'Althea Systems...", ContentEn = "About Althea Systems..." }
+            new() { Id = Guid.NewGuid(), Slug = "cgu",
+                TitleFr = "Conditions Générales d'Utilisation", TitleEn = "Terms of Service",
+                TitleMs = "Terma Perkhidmatan", TitleAr = "شروط الخدمة",
+                ContentFr = "Contenu des CGU...", ContentEn = "Terms of Service content...",
+                ContentMs = "Kandungan Terma Perkhidmatan...", ContentAr = "محتوى شروط الخدمة..." },
+            new() { Id = Guid.NewGuid(), Slug = "mentions-legales",
+                TitleFr = "Mentions Légales", TitleEn = "Legal Notice",
+                TitleMs = "Notis Undang-undang", TitleAr = "إشعار قانوني",
+                ContentFr = "Contenu des mentions légales...", ContentEn = "Legal notice content...",
+                ContentMs = "Kandungan notis undang-undang...", ContentAr = "محتوى الإشعار القانوني..." },
+            new() { Id = Guid.NewGuid(), Slug = "a-propos",
+                TitleFr = "À Propos", TitleEn = "About Us",
+                TitleMs = "Tentang Kami", TitleAr = "من نحن",
+                ContentFr = "À propos d'Althea Systems...", ContentEn = "About Althea Systems...",
+                ContentMs = "Tentang Althea Systems...", ContentAr = "حول Althea Systems..." }
         };
         context.StaticPages.AddRange(staticPages);
 

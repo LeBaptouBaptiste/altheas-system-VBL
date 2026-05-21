@@ -29,6 +29,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         // Not unique-indexed because nullable and 1-1 with user (covered by PK).
         builder.Property(u => u.StripeCustomerId).HasMaxLength(255);
 
+        // Two-letter locale code (fr/en/ms/ar). Nullable: null means "use the
+        // system default" (French). Short fixed-size column.
+        builder.Property(u => u.PreferredLocale).HasMaxLength(5);
+
         builder.HasIndex(u => u.Email).IsUnique();
 
         builder.HasMany(u => u.Addresses).WithOne(a => a.User).HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);

@@ -136,7 +136,10 @@ public class ProductService : IProductService
         p.PriceHT, p.VatRate,
         p.StockQty, p.StockStatus, p.IsNew, p.PriorityRank, p.Images, p.Status,
         p.CreatedAt, p.UpdatedAt,
-        p.ProductCategories.Select(pc => new CategorySummaryDto(pc.Category.Id, pc.Category.Slug, pc.Category.NameFr, pc.Category.NameEn)),
+        p.ProductCategories.Select(pc => new CategorySummaryDto(
+            pc.Category.Id, pc.Category.Slug,
+            pc.Category.NameFr, pc.Category.NameEn,
+            pc.Category.NameMs, pc.Category.NameAr)),
         p.Specs.Select(s => new ProductSpecDto(
             s.Label, s.Value,
             s.LabelEn, s.LabelMs, s.LabelAr,

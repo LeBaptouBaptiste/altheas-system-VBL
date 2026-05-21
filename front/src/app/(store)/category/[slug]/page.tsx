@@ -74,12 +74,12 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
     <div>
       {/* Category Header */}
       <div className="relative h-48 md:h-64">
-        <Image src={getCategoryImageUrl(category)} alt={localized(toLocalized(category.nameFr, category.nameEn))} fill className="object-cover" />
+        <Image src={getCategoryImageUrl(category)} alt={localized(toLocalized(category.nameFr, category.nameEn, category.nameMs, category.nameAr))} fill className="object-cover" />
         <div className="absolute inset-0 bg-brand-dark/70" />
         <div className="absolute inset-0 flex items-center">
           <div className="container mx-auto px-4">
-            <h1 className="text-3xl md:text-4xl text-white">{localized(toLocalized(category.nameFr, category.nameEn))}</h1>
-            <p className="text-gray-200 mt-2 max-w-2xl">{localized(toLocalized(category.descriptionFr, category.descriptionEn))}</p>
+            <h1 className="text-3xl md:text-4xl text-white">{localized(toLocalized(category.nameFr, category.nameEn, category.nameMs, category.nameAr))}</h1>
+            <p className="text-gray-200 mt-2 max-w-2xl">{localized(toLocalized(category.descriptionFr, category.descriptionEn, category.descriptionMs, category.descriptionAr))}</p>
             <p className="text-brand-primary mt-1 text-sm">{sortedProducts.length} {t('category.products')}</p>
           </div>
         </div>

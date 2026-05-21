@@ -62,12 +62,20 @@ public class PasswordResetSender : IPasswordResetSender
             ["firstName"] = firstName,
             ["resetLink"] = link,
             ["tokenLifetimeMinutes"] = ((int)_options.TokenLifetime.TotalMinutes).ToString(),
-        });
+        }, user.PreferredLocale);
 
         await _emailSender.SendAsync(
             to: user.Email,
-            subject: "Réinitialisation de votre mot de passe — Althea Systems",
+            subject: LocalisedSubject(user.PreferredLocale),
             htmlBody: html,
             ct: ct);
     }
+
+    private static string LocalisedSubject(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "Reset your password — Althea Systems",
+        "ms" => "Set semula kata laluan anda — Althea Systems",
+        "ar" => "إعادة تعيين كلمة المرور — Althea Systems",
+        _ => "Réinitialisation de votre mot de passe — Althea Systems",
+    };
 }

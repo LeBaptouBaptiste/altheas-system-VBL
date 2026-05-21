@@ -44,8 +44,12 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(c => c.Slug).HasMaxLength(200).IsRequired();
         builder.Property(c => c.NameFr).HasMaxLength(200).IsRequired();
         builder.Property(c => c.NameEn).HasMaxLength(200).IsRequired();
+        builder.Property(c => c.NameMs).HasMaxLength(200);
+        builder.Property(c => c.NameAr).HasMaxLength(200);
         builder.Property(c => c.DescriptionFr).HasMaxLength(1000);
         builder.Property(c => c.DescriptionEn).HasMaxLength(1000);
+        builder.Property(c => c.DescriptionMs).HasMaxLength(1000);
+        builder.Property(c => c.DescriptionAr).HasMaxLength(1000);
         builder.Property(c => c.Image).HasMaxLength(500);
 
         builder.HasIndex(c => c.Slug).IsUnique();
