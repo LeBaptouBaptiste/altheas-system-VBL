@@ -70,7 +70,7 @@ public class CreditNoteSender : ICreditNoteSender
 
         var pdfBytes = _pdf.Render(creditNote, order, user, order.BillingAddress);
         var attachment = new EmailAttachment(
-            FileName: $"avoir-{creditNote.Id.ToString("N")[..8].ToUpperInvariant()}.pdf",
+            FileName: $"avoir-{creditNote.Number}.pdf",
             Content: pdfBytes,
             ContentType: "application/pdf");
 
@@ -78,11 +78,15 @@ public class CreditNoteSender : ICreditNoteSender
             ? user.Email.Split('@')[0]
             : user.Name.Split(' ')[0];
 
+        // Template placeholders previously named "*ShortId" — kept as-is to
+        // avoid touching the HTML; the values now carry the human-readable
+        // Number for invoices and credit notes (orderShortId stays a short
+        // Guid since Order has no equivalent Number column).
         var html = _renderer.Render("credit-note-issued", new Dictionary<string, string>
         {
             ["firstName"] = firstName,
-            ["creditNoteShortId"] = creditNote.Id.ToString("N")[..8].ToUpperInvariant(),
-            ["originalInvoiceShortId"] = originalInvoice.Id.ToString("N")[..8].ToUpperInvariant(),
+            ["creditNoteShortId"] = creditNote.Number,
+            ["originalInvoiceShortId"] = originalInvoice.Number,
             ["orderShortId"] = order.Id.ToString("N")[..8].ToUpperInvariant(),
             ["creditNoteDate"] = creditNote.Date.ToString("dd MMMM yyyy", FrFr),
             ["amountTTC"] = FormatEur(creditNote.AmountTTC),
@@ -94,7 +98,7 @@ public class CreditNoteSender : ICreditNoteSender
 
         await _emailSender.SendAsync(
             to: user.Email,
-            subject: $"Avoir #{creditNote.Id.ToString("N")[..8].ToUpperInvariant()} émis — Althea Systems",
+            subject: $"Avoir {creditNote.Number} émis — Althea Systems",
             htmlBody: html,
             attachments: new[] { attachment },
             ct: ct);

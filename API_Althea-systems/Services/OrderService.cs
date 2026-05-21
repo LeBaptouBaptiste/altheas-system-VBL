@@ -197,6 +197,7 @@ public class OrderService : IOrderService
             .OrderBy(inv => inv.Date)
             .Select(inv => new OrderInvoiceSummaryDto(
                 inv.Id,
+                inv.Number,
                 inv.Type,
                 inv.Date,
                 inv.AmountTTC,

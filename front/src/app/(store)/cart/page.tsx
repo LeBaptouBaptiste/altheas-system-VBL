@@ -47,7 +47,7 @@ export default function CartPage() {
             const priceTTC = calculateTTC(product.priceHT, vatRate);
             const lineTTC = priceTTC * item.quantity;
             const isOOS = product.stockStatus === StockStatus.OutOfStock;
-            const name = localized(toLocalized(product.nameFr, product.nameEn));
+            const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
             return (
               <Card key={item.productId} className={isOOS ? 'border-error/50 bg-error/5' : ''}>
                 <CardContent className="p-4">

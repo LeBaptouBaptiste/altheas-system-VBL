@@ -86,14 +86,21 @@ public class InvoicePdfService : IInvoicePdfService
             {
                 col.Item().Text(title).FontSize(28).Bold().FontColor(accentColor);
                 col.Item().PaddingTop(4)
-                    .Text($"N° {invoice.Id.ToString()[..8].ToUpperInvariant()}")
+                    .Text($"N° {invoice.Number}")
                     .FontSize(11).FontColor(MutedText);
                 col.Item().Text($"Émise le {invoice.Date.ToString("dd/MM/yyyy", FrCulture)}")
                     .FontSize(10).FontColor(MutedText);
                 if (isCreditNote && invoice.RelatedInvoiceId.HasValue)
                 {
+                    // Prefer the human-readable Number of the original invoice
+                    // when EF has loaded the RelatedInvoice navigation. Fall
+                    // back to a short Guid extract if not (defensive — every
+                    // caller in the codebase Includes it today).
+                    var relatedDisplay = !string.IsNullOrEmpty(invoice.RelatedInvoice?.Number)
+                        ? invoice.RelatedInvoice.Number
+                        : invoice.RelatedInvoiceId.Value.ToString()[..8].ToUpperInvariant();
                     col.Item().PaddingTop(2)
-                        .Text($"Réf. facture {invoice.RelatedInvoiceId.Value.ToString()[..8].ToUpperInvariant()}")
+                        .Text($"Réf. facture {relatedDisplay}")
                         .FontSize(9).FontColor(MutedText);
                 }
             });

@@ -14,8 +14,14 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.Slug).HasMaxLength(200).IsRequired();
         builder.Property(p => p.NameFr).HasMaxLength(300).IsRequired();
         builder.Property(p => p.NameEn).HasMaxLength(300).IsRequired();
+        builder.Property(p => p.NameMs).HasMaxLength(300);
+        builder.Property(p => p.NameAr).HasMaxLength(300);
         builder.Property(p => p.DescriptionFr).HasMaxLength(1000);
         builder.Property(p => p.DescriptionEn).HasMaxLength(1000);
+        builder.Property(p => p.DescriptionMs).HasMaxLength(1000);
+        builder.Property(p => p.DescriptionAr).HasMaxLength(1000);
+        // LongDescription columns are unbounded (text); EF maps them to TEXT
+        // by default — no explicit Property() needed.
         builder.Property(p => p.PriceHT).HasPrecision(18, 2);
         builder.Property(p => p.VatRate).HasConversion<string>().HasMaxLength(20);
         builder.Property(p => p.StockStatus).HasConversion<string>().HasMaxLength(20);
@@ -38,8 +44,12 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(c => c.Slug).HasMaxLength(200).IsRequired();
         builder.Property(c => c.NameFr).HasMaxLength(200).IsRequired();
         builder.Property(c => c.NameEn).HasMaxLength(200).IsRequired();
+        builder.Property(c => c.NameMs).HasMaxLength(200);
+        builder.Property(c => c.NameAr).HasMaxLength(200);
         builder.Property(c => c.DescriptionFr).HasMaxLength(1000);
         builder.Property(c => c.DescriptionEn).HasMaxLength(1000);
+        builder.Property(c => c.DescriptionMs).HasMaxLength(1000);
+        builder.Property(c => c.DescriptionAr).HasMaxLength(1000);
         builder.Property(c => c.Image).HasMaxLength(500);
 
         builder.HasIndex(c => c.Slug).IsUnique();
@@ -70,5 +80,11 @@ public class ProductSpecConfiguration : IEntityTypeConfiguration<ProductSpec>
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Label).HasMaxLength(200).IsRequired();
         builder.Property(s => s.Value).HasMaxLength(500).IsRequired();
+        builder.Property(s => s.LabelEn).HasMaxLength(200);
+        builder.Property(s => s.LabelMs).HasMaxLength(200);
+        builder.Property(s => s.LabelAr).HasMaxLength(200);
+        builder.Property(s => s.ValueEn).HasMaxLength(500);
+        builder.Property(s => s.ValueMs).HasMaxLength(500);
+        builder.Property(s => s.ValueAr).HasMaxLength(500);
     }
 }

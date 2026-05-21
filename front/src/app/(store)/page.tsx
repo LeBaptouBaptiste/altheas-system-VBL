@@ -95,7 +95,7 @@ export default function HomePage() {
                   <div className="max-w-2xl text-white">
                     <h1 className="text-3xl md:text-5xl mb-3">{localized(toLocalized(slide.titleFr, slide.titleEn))}</h1>
                     <p className="text-lg md:text-2xl mb-2 text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn))}</p>
-                    <p className="text-base md:text-lg mb-6 text-gray-200">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn))}</p>
+                    <p className="text-base md:text-lg mb-6 text-gray-200">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn, slide.descriptionMs, slide.descriptionAr))}</p>
                     <Link href={slide.link}>
                       <Button size="lg" className="bg-brand-primary hover:bg-brand-hover text-white px-8">
                         {localized(toLocalized(slide.ctaFr, slide.ctaEn))}
@@ -134,10 +134,10 @@ export default function HomePage() {
             <Link key={cat.id} href={`/category/${cat.slug}`} className="group">
               <Card className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow">
                 <div className="relative h-36 md:h-48">
-                  <Image src={getCategoryImageUrl(cat)} alt={localized(toLocalized(cat.nameFr, cat.nameEn))} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <Image src={getCategoryImageUrl(cat)} alt={localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr))} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                   <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/80 to-transparent" />
                   <h3 className="absolute bottom-3 start-3 end-3 text-white text-sm md:text-base font-semibold">
-                    {localized(toLocalized(cat.nameFr, cat.nameEn))}
+                    {localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr))}
                   </h3>
                 </div>
               </Card>
@@ -159,7 +159,7 @@ export default function HomePage() {
             {topProducts.map((product) => {
               const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
               const priceTTC = product.priceHT * (1 + vatRate);
-              const name = localized(toLocalized(product.nameFr, product.nameEn));
+              const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
               return (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow group">
                   <Link href={`/product/${product.slug}`}>
@@ -178,7 +178,7 @@ export default function HomePage() {
                         {name}
                       </h3>
                     </Link>
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, toIntlLocale(locale))}</span>
                       <Button

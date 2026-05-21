@@ -8,10 +8,19 @@ public class Product
     public string Slug { get; set; } = string.Empty;
     public string NameFr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    // MS / AR are nullable on purpose: the front falls back to FR when a
+    // localised value is missing, so older products without translations
+    // keep working after the migration.
+    public string? NameMs { get; set; }
+    public string? NameAr { get; set; }
     public string DescriptionFr { get; set; } = string.Empty;
     public string DescriptionEn { get; set; } = string.Empty;
+    public string? DescriptionMs { get; set; }
+    public string? DescriptionAr { get; set; }
     public string LongDescriptionFr { get; set; } = string.Empty;
     public string LongDescriptionEn { get; set; } = string.Empty;
+    public string? LongDescriptionMs { get; set; }
+    public string? LongDescriptionAr { get; set; }
     public decimal PriceHT { get; set; }
     public VatRate VatRate { get; set; } = VatRate.Standard;
     public int StockQty { get; set; }

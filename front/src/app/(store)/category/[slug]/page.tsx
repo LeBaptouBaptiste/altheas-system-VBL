@@ -74,12 +74,12 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
     <div>
       {/* Category Header */}
       <div className="relative h-48 md:h-64">
-        <Image src={getCategoryImageUrl(category)} alt={localized(toLocalized(category.nameFr, category.nameEn))} fill className="object-cover" />
+        <Image src={getCategoryImageUrl(category)} alt={localized(toLocalized(category.nameFr, category.nameEn, category.nameMs, category.nameAr))} fill className="object-cover" />
         <div className="absolute inset-0 bg-brand-dark/70" />
         <div className="absolute inset-0 flex items-center">
           <div className="container mx-auto px-4">
-            <h1 className="text-3xl md:text-4xl text-white">{localized(toLocalized(category.nameFr, category.nameEn))}</h1>
-            <p className="text-gray-200 mt-2 max-w-2xl">{localized(toLocalized(category.descriptionFr, category.descriptionEn))}</p>
+            <h1 className="text-3xl md:text-4xl text-white">{localized(toLocalized(category.nameFr, category.nameEn, category.nameMs, category.nameAr))}</h1>
+            <p className="text-gray-200 mt-2 max-w-2xl">{localized(toLocalized(category.descriptionFr, category.descriptionEn, category.descriptionMs, category.descriptionAr))}</p>
             <p className="text-brand-primary mt-1 text-sm">{sortedProducts.length} {t('category.products')}</p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
             const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
             const priceTTC = product.priceHT * (1 + vatRate);
             const isOOS = product.stockStatus === StockStatus.OutOfStock;
-            const name = localized(toLocalized(product.nameFr, product.nameEn));
+            const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
             return (
               <Card key={product.id} className={`overflow-hidden hover:shadow-lg transition-shadow group ${isOOS ? 'opacity-60' : ''}`}>
                 <Link href={`/product/${product.slug}`}>
@@ -125,7 +125,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                   <Link href={`/product/${product.slug}`}>
                     <h3 className="font-semibold text-brand-dark text-sm mb-1 line-clamp-2 hover:text-brand-primary transition-colors">{name}</h3>
                   </Link>
-                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
+                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
                   <div className="flex items-center justify-between">
                     <span className={`text-lg font-bold ${isOOS ? 'text-muted-foreground line-through' : 'text-brand-dark'}`}>
                       {formatPrice(priceTTC, locale === 'fr' ? 'fr-FR' : 'en-US')}

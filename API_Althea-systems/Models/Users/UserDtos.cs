@@ -18,13 +18,19 @@ public record UserDto(
     // Phase 7 (store credit): current available balance in cents EUR.
     // Used by /account to show the balance and by /checkout to cap the
     // "apply credit" input.
-    long CreditBalanceCents = 0
+    long CreditBalanceCents = 0,
+    // Two-letter locale code used for transactional emails. Null = system
+    // default (French). Editable via the account preferences screen.
+    string? PreferredLocale = null
 );
 
 public record UserUpdateRequest(
     string? Name,
     string? Email,
-    UserStatus? Status
+    UserStatus? Status,
+    // Customer can switch the email language without going through the full
+    // profile update — sent as null when not updating (record default).
+    string? PreferredLocale = null
 );
 
 public record AddressDto(

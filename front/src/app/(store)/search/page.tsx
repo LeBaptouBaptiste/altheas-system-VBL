@@ -230,7 +230,7 @@ function SearchContent() {
                     const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
                     const price = calculateTTC(product.priceHT, vatRate);
                     const isOOS = product.stockStatus === StockStatus.OutOfStock;
-                    const name = localized(toLocalized(product.nameFr, product.nameEn));
+                    const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
                     return (
                       <Card key={product.id} className={`overflow-hidden hover:shadow-md transition-shadow ${isOOS ? 'opacity-60' : ''}`}>
                         <Link href={`/product/${product.slug}`}>

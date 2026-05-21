@@ -72,12 +72,25 @@ public class EmailConfirmationSender : IEmailConfirmationSender
             ["confirmLink"] = link,
             // Hours, not seconds — the template phrasing is "within 24 h".
             ["tokenLifetimeHours"] = ((int)_options.TokenLifetime.TotalHours).ToString(),
-        });
+        }, user.PreferredLocale);
 
         await _emailSender.SendAsync(
             to: user.Email,
-            subject: "Confirmez votre adresse email — Althea Systems",
+            // Subject is also localised — the EmailTemplateRenderer is HTML-only,
+            // so for the subject we use a small inline switch. When a locale's
+            // welcome.{loc}.html doesn't exist yet, we still ship the matching
+            // French subject (so we don't promise English in the inbox preview
+            // and then deliver French content).
+            subject: LocalisedSubject(user.PreferredLocale),
             htmlBody: html,
             ct: ct);
     }
+
+    private static string LocalisedSubject(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "Confirm your email address — Althea Systems",
+        "ms" => "Sahkan alamat e-mel anda — Althea Systems",
+        "ar" => "تأكيد عنوان بريدك الإلكتروني — Althea Systems",
+        _ => "Confirmez votre adresse email — Althea Systems",
+    };
 }

@@ -51,6 +51,17 @@ public class UserService : IUserService
             }
         }
         if (request.Status.HasValue) user.Status = request.Status.Value;
+        if (request.PreferredLocale != null)
+        {
+            // Two-letter code only; reject anything else to keep the email
+            // renderer's locale-suffix lookup safe (no path injection via
+            // ../another-folder/welcome.html).
+            var loc = request.PreferredLocale.ToLowerInvariant();
+            if (loc is "fr" or "en" or "ms" or "ar")
+            {
+                user.PreferredLocale = loc;
+            }
+        }
 
         await _userRepository.UpdateAsync(user);
         return MapToDto(user);
@@ -290,7 +301,8 @@ public class UserService : IUserService
             .ThenByDescending(a => a.CreatedAt)
             .Select(MapAddress),
         user.PaymentMethods.Select(MapPaymentMethod),
-        user.CreditBalanceCents
+        user.CreditBalanceCents,
+        user.PreferredLocale
     );
 
     private static PaymentMethodDto MapPaymentMethod(UserPaymentMethod p) => new(

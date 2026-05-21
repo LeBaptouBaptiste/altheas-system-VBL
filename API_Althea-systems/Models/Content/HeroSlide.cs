@@ -6,12 +6,20 @@ public class HeroSlide
     public string Image { get; set; } = string.Empty;
     public string TitleFr { get; set; } = string.Empty;
     public string TitleEn { get; set; } = string.Empty;
+    public string? TitleMs { get; set; }
+    public string? TitleAr { get; set; }
     public string SubtitleFr { get; set; } = string.Empty;
     public string SubtitleEn { get; set; } = string.Empty;
+    public string? SubtitleMs { get; set; }
+    public string? SubtitleAr { get; set; }
     public string DescriptionFr { get; set; } = string.Empty;
     public string DescriptionEn { get; set; } = string.Empty;
+    public string? DescriptionMs { get; set; }
+    public string? DescriptionAr { get; set; }
     public string CtaFr { get; set; } = string.Empty;
     public string CtaEn { get; set; } = string.Empty;
+    public string? CtaMs { get; set; }
+    public string? CtaAr { get; set; }
     public string Link { get; set; } = string.Empty;
     public int DisplayOrder { get; set; }
     public bool Active { get; set; } = true;

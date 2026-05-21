@@ -76,6 +76,18 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("CtaAr")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CtaMs")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("DescriptionEn")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -83,6 +95,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("DescriptionFr")
                         .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DescriptionMs")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
@@ -99,6 +115,10 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("SubtitleAr")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("SubtitleEn")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -109,6 +129,14 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("SubtitleMs")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TitleAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("TitleEn")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -116,6 +144,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("TitleFr")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TitleMs")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
@@ -133,12 +165,18 @@ namespace API_Althea_systems.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContentAr")
+                        .HasColumnType("text");
+
                     b.Property<string>("ContentEn")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("ContentFr")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContentMs")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
@@ -149,6 +187,10 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("TitleAr")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("TitleEn")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -156,6 +198,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("TitleFr")
                         .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TitleMs")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
@@ -190,6 +236,11 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
@@ -211,6 +262,9 @@ namespace API_Althea_systems.Migrations
                         .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
 
                     b.HasIndex("OrderId");
 
@@ -532,6 +586,10 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("DescriptionEn")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -539,6 +597,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("DescriptionFr")
                         .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DescriptionMs")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
@@ -550,6 +612,10 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -557,6 +623,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("NameFr")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NameMs")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
@@ -590,6 +660,10 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("DescriptionEn")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -600,12 +674,19 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("DescriptionMs")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.PrimitiveCollection<string[]>("Images")
                         .IsRequired()
                         .HasColumnType("text[]");
 
                     b.Property<bool>("IsNew")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LongDescriptionAr")
+                        .HasColumnType("text");
 
                     b.Property<string>("LongDescriptionEn")
                         .IsRequired()
@@ -615,6 +696,13 @@ namespace API_Althea_systems.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("LongDescriptionMs")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -622,6 +710,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("NameFr")
                         .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("NameMs")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
@@ -692,11 +784,35 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("LabelAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LabelEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LabelMs")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Value")
                         .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ValueAr")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ValueEn")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ValueMs")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
@@ -804,6 +920,10 @@ namespace API_Althea_systems.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PreferredLocale")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
 
                     b.Property<string>("Role")
                         .IsRequired()

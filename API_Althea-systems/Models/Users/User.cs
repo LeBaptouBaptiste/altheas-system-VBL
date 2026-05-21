@@ -43,6 +43,15 @@ public class User
     /// </summary>
     public long CreditBalanceCents { get; set; }
 
+    /// <summary>
+    /// Customer's preferred locale for transactional emails (welcome, order
+    /// confirmation, 2FA code, password reset, etc.). Two-letter code:
+    /// <c>fr</c> / <c>en</c> / <c>ms</c> / <c>ar</c>. Null = use the system
+    /// default (French). Set on registration from <c>Accept-Language</c> or
+    /// the UI language picker; editable via the account preferences screen.
+    /// </summary>
+    public string? PreferredLocale { get; set; }
+
     public DateTime? LastLogin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

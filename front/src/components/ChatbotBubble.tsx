@@ -46,9 +46,7 @@ export function ChatbotBubble() {
       setMessages([{ role: 'bot', content: t('chatbot.welcome') }]);
     } catch (err) {
       console.error('Failed to create chat conversation', err);
-      toast.error(locale === 'fr'
-        ? 'Impossible de démarrer la conversation'
-        : 'Failed to start conversation');
+      toast.error(t('chatbot.error_start'));
     }
   };
 
@@ -75,9 +73,7 @@ export function ChatbotBubble() {
         ...prev,
         {
           role: 'bot',
-          content: locale === 'fr'
-            ? "Désolé, je n'ai pas pu répondre. Réessayez dans un instant ou créez un ticket."
-            : "Sorry, I couldn't reply. Try again in a moment or open a ticket.",
+          content: t('chatbot.error_reply'),
         },
       ]);
     } finally {
@@ -141,13 +137,11 @@ export function ChatbotBubble() {
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    {locale === 'fr'
-                      ? 'Connectez-vous pour discuter avec notre assistant.'
-                      : 'Log in to chat with our assistant.'}
+                    {t('chatbot.login_prompt')}
                   </p>
                   <Button asChild className="bg-brand-primary hover:bg-brand-hover text-white">
                     <Link href="/login">
-                      {locale === 'fr' ? 'Se connecter' : 'Log in'}
+                      {t('chatbot.login_button')}
                     </Link>
                   </Button>
                 </>
@@ -176,7 +170,7 @@ export function ChatbotBubble() {
                     </div>
                     <div className="rounded-xl px-3 py-2 text-sm bg-gray-100 text-muted-foreground inline-flex items-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>{locale === 'fr' ? 'Réflexion…' : 'Thinking…'}</span>
+                      <span>{t('chatbot.thinking')}</span>
                     </div>
                   </div>
                 )}

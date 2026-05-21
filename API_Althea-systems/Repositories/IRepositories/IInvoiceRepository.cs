@@ -25,4 +25,13 @@ public interface IInvoiceRepository
     /// amount (original total minus sum of existing credit notes).
     /// </summary>
     Task<IEnumerable<Invoice>> GetCreditNotesForInvoiceAsync(Guid originalInvoiceId);
+
+    /// <summary>
+    /// Count invoices (both regular invoices AND credit notes — they share
+    /// the same numbering sequence per VBL spec) issued for a given customer
+    /// within a [start, end) UTC range. Used by InvoiceService to compute the
+    /// next monthly sequence number when generating the human-readable
+    /// invoice Number.
+    /// </summary>
+    Task<int> CountByUserAndPeriodAsync(Guid userId, DateTime startInclusive, DateTime endExclusive);
 }

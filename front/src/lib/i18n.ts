@@ -215,6 +215,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.ticket_created': 'Un ticket a été créé. Notre équipe vous contactera par email.',
     'chatbot.welcome': 'Bonjour ! Je suis l\'assistant virtuel d\'Althea Systems. Comment puis-je vous aider ?',
     'chatbot.start': 'Démarrer la conversation',
+    'chatbot.error_start': 'Impossible de démarrer la conversation',
+    'chatbot.error_reply': "Désolé, je n'ai pas pu répondre. Réessayez dans un instant ou créez un ticket.",
+    'chatbot.login_prompt': 'Connectez-vous pour discuter avec notre assistant.',
+    'chatbot.login_button': 'Se connecter',
+    'chatbot.thinking': 'Réflexion…',
 
     // Static pages
     'cgu.title': 'Conditions Générales d\'Utilisation',
@@ -298,6 +303,13 @@ const translations: Record<Locale, Record<string, string>> = {
     '2fa.recovery_codes_file_header': 'Althea Systems — Codes de secours',
     '2fa.recovery_codes_file_intro_use': 'Chaque code peut être utilisé UNE seule fois si vous perdez accès à votre app d\'authentification.',
     '2fa.recovery_codes_file_intro_secure': 'Conservez ce fichier en lieu sûr.',
+    '2fa.toast_code_sent': 'Code envoyé par email',
+    '2fa.method_picker_prompt': 'Choisissez votre méthode d\'authentification à deux facteurs :',
+    '2fa.method_authenticator': 'Application authentificatrice',
+    '2fa.method_email_button': 'Email',
+    '2fa.method_compare': 'L\'application est plus rapide (codes locaux à 30 s). L\'email est plus simple mais nécessite l\'accès à votre boîte à chaque connexion.',
+    '2fa.verify_email_heading': 'Vérifiez votre email',
+    '2fa.verify_email_prompt': 'Saisissez le code à 6 chiffres que nous venons de vous envoyer par email pour activer la 2FA par email.',
 
     // Account/security section status
     '2fa.section_enabled_title': 'Authentification à deux facteurs activée',
@@ -573,6 +585,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.ticket_created': 'A ticket has been created. Our team will contact you by email.',
     'chatbot.welcome': 'Hello! I\'m the Althea Systems virtual assistant. How can I help you?',
     'chatbot.start': 'Start the conversation',
+    'chatbot.error_start': 'Failed to start conversation',
+    'chatbot.error_reply': "Sorry, I couldn't reply. Try again in a moment or open a ticket.",
+    'chatbot.login_prompt': 'Log in to chat with our assistant.',
+    'chatbot.login_button': 'Log in',
+    'chatbot.thinking': 'Thinking…',
 
     // Static pages
     'cgu.title': 'Terms & Conditions',
@@ -656,6 +673,13 @@ const translations: Record<Locale, Record<string, string>> = {
     '2fa.recovery_codes_file_header': 'Althea Systems — Recovery Codes',
     '2fa.recovery_codes_file_intro_use': 'Each code can be used ONCE if you lose access to your authenticator.',
     '2fa.recovery_codes_file_intro_secure': 'Keep this file in a secure location.',
+    '2fa.toast_code_sent': 'Code sent by email',
+    '2fa.method_picker_prompt': 'Pick your two-factor authentication method:',
+    '2fa.method_authenticator': 'Authenticator app',
+    '2fa.method_email_button': 'Email',
+    '2fa.method_compare': 'The app is faster (local 30 s codes). Email is simpler but requires mailbox access at every login.',
+    '2fa.verify_email_heading': 'Verify your email',
+    '2fa.verify_email_prompt': 'Enter the 6-digit code we just emailed you to activate email-based 2FA.',
 
     // Account/security section status
     '2fa.section_enabled_title': 'Two-factor authentication enabled',
@@ -908,6 +932,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.ticket_created': 'Tiket telah dibuat. Pasukan kami akan menghubungi anda melalui e-mel.',
     'chatbot.welcome': 'Halo! Saya pembantu maya Althea Systems. Bagaimana saya boleh membantu anda?',
     'chatbot.start': 'Mulakan perbualan',
+    'chatbot.error_start': 'Gagal memulakan perbualan',
+    'chatbot.error_reply': 'Maaf, saya tidak dapat membalas. Cuba lagi sebentar atau buka tiket sokongan.',
+    'chatbot.login_prompt': 'Log masuk untuk berbual dengan pembantu kami.',
+    'chatbot.login_button': 'Log masuk',
+    'chatbot.thinking': 'Memikirkan…',
     'cgu.title': 'Terma dan Syarat',
     'legal.title': 'Notis Undang-Undang',
     'about.title': 'Tentang Kami',
@@ -985,6 +1014,13 @@ const translations: Record<Locale, Record<string, string>> = {
     '2fa.recovery_codes_file_header': 'Althea Systems — Kod Pemulihan',
     '2fa.recovery_codes_file_intro_use': 'Setiap kod boleh digunakan SEKALI sahaja jika anda kehilangan akses kepada aplikasi pengesah anda.',
     '2fa.recovery_codes_file_intro_secure': 'Simpan fail ini di lokasi yang selamat.',
+    '2fa.toast_code_sent': 'Kod dihantar melalui e-mel',
+    '2fa.method_picker_prompt': 'Pilih kaedah pengesahan dua faktor anda:',
+    '2fa.method_authenticator': 'Aplikasi pengesah',
+    '2fa.method_email_button': 'E-mel',
+    '2fa.method_compare': 'Aplikasi lebih pantas (kod tempatan 30 saat). E-mel lebih mudah tetapi memerlukan akses peti mel pada setiap log masuk.',
+    '2fa.verify_email_heading': 'Sahkan e-mel anda',
+    '2fa.verify_email_prompt': 'Masukkan kod 6 digit yang baru kami hantar ke e-mel anda untuk mengaktifkan 2FA berasaskan e-mel.',
 
     // Account/security section status
     '2fa.section_enabled_title': 'Pengesahan dua faktor diaktifkan',
@@ -1236,6 +1272,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'chatbot.ticket_created': 'تم إنشاء تذكرة. سيتصل بك فريقنا عبر البريد الإلكتروني.',
     'chatbot.welcome': 'مرحباً! أنا المساعد الافتراضي لشركة Althea Systems. كيف يمكنني مساعدتك؟',
     'chatbot.start': 'ابدأ المحادثة',
+    'chatbot.error_start': 'فشل بدء المحادثة',
+    'chatbot.error_reply': 'عذراً، لم أتمكن من الرد. حاول مرة أخرى بعد قليل أو افتح تذكرة دعم.',
+    'chatbot.login_prompt': 'سجّل الدخول للدردشة مع مساعدنا.',
+    'chatbot.login_button': 'تسجيل الدخول',
+    'chatbot.thinking': 'جارٍ التفكير…',
     'cgu.title': 'الشروط والأحكام',
     'legal.title': 'إشعار قانوني',
     'about.title': 'نبذة عنا',
@@ -1313,6 +1354,13 @@ const translations: Record<Locale, Record<string, string>> = {
     '2fa.recovery_codes_file_header': 'Althea Systems — رموز الاسترداد',
     '2fa.recovery_codes_file_intro_use': 'يمكن استخدام كل رمز مرة واحدة فقط إذا فقدت الوصول إلى تطبيق المصادقة.',
     '2fa.recovery_codes_file_intro_secure': 'احتفظ بهذا الملف في مكان آمن.',
+    '2fa.toast_code_sent': 'تم إرسال الرمز بالبريد الإلكتروني',
+    '2fa.method_picker_prompt': 'اختر طريقة المصادقة الثنائية:',
+    '2fa.method_authenticator': 'تطبيق المصادقة',
+    '2fa.method_email_button': 'البريد الإلكتروني',
+    '2fa.method_compare': 'التطبيق أسرع (رموز محلية لمدة 30 ثانية). البريد الإلكتروني أبسط لكنه يتطلب الوصول إلى صندوق البريد عند كل تسجيل دخول.',
+    '2fa.verify_email_heading': 'تأكيد بريدك الإلكتروني',
+    '2fa.verify_email_prompt': 'أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه إليك للتو بالبريد الإلكتروني لتفعيل المصادقة الثنائية بالبريد.',
 
     // Account/security section status
     '2fa.section_enabled_title': 'تم تفعيل المصادقة الثنائية',
