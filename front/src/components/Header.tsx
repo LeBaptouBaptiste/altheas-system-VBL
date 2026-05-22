@@ -172,6 +172,7 @@ export function Header() {
                       <MobileLink href="/account/orders" icon={<Package className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.orders')}</MobileLink>
                       <Separator className="my-2" />
                       <MobileLink href="/cgu" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgu')}</MobileLink>
+                      <MobileLink href="/cgv" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgv')}</MobileLink>
                       <MobileLink href="/mentions-legales" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.legal')}</MobileLink>
                       <MobileLink href="/a-propos" icon={<Info className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.about')}</MobileLink>
                       <Separator className="my-2" />
@@ -186,6 +187,7 @@ export function Header() {
                       <MobileLink href="/register" icon={<User className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.register')}</MobileLink>
                       <Separator className="my-2" />
                       <MobileLink href="/cgu" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgu')}</MobileLink>
+                      <MobileLink href="/cgv" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgv')}</MobileLink>
                       <MobileLink href="/mentions-legales" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.legal')}</MobileLink>
                       <MobileLink href="/contact" icon={<MessageSquare className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.contact')}</MobileLink>
                       <MobileLink href="/a-propos" icon={<Info className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.about')}</MobileLink>

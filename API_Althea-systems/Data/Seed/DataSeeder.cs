@@ -1593,23 +1593,69 @@ public static class DataSeeder
         context.HeroSlides.AddRange(heroSlides);
 
         // ── Static Pages ─────────────────────────────────
+        // Static pages — full editorial content in all 4 locales. Sample
+        // texts plausible for a French B2B medical equipment site; for real
+        // production these MUST be reviewed by a lawyer (RGPD, LCEN, MDR
+        // EU 2017/745). The text content lives in StaticPageContent below
+        // to keep the seed concise.
         var staticPages = new List<Models.Content.StaticPage>
         {
-            new() { Id = Guid.NewGuid(), Slug = "cgu",
-                TitleFr = "Conditions Générales d'Utilisation", TitleEn = "Terms of Service",
-                TitleMs = "Terma Perkhidmatan", TitleAr = "شروط الخدمة",
-                ContentFr = "Contenu des CGU...", ContentEn = "Terms of Service content...",
-                ContentMs = "Kandungan Terma Perkhidmatan...", ContentAr = "محتوى شروط الخدمة..." },
-            new() { Id = Guid.NewGuid(), Slug = "mentions-legales",
-                TitleFr = "Mentions Légales", TitleEn = "Legal Notice",
-                TitleMs = "Notis Undang-undang", TitleAr = "إشعار قانوني",
-                ContentFr = "Contenu des mentions légales...", ContentEn = "Legal notice content...",
-                ContentMs = "Kandungan notis undang-undang...", ContentAr = "محتوى الإشعار القانوني..." },
-            new() { Id = Guid.NewGuid(), Slug = "a-propos",
-                TitleFr = "À Propos", TitleEn = "About Us",
-                TitleMs = "Tentang Kami", TitleAr = "من نحن",
-                ContentFr = "À propos d'Althea Systems...", ContentEn = "About Althea Systems...",
-                ContentMs = "Tentang Althea Systems...", ContentAr = "حول Althea Systems..." }
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Slug = "cgu",
+                TitleFr = "Conditions Générales d'Utilisation",
+                TitleEn = "Terms of Service",
+                TitleMs = "Terma Perkhidmatan",
+                TitleAr = "شروط الاستخدام",
+                ContentFr = StaticPageContent.CguFr,
+                ContentEn = StaticPageContent.CguEn,
+                ContentMs = StaticPageContent.CguMs,
+                ContentAr = StaticPageContent.CguAr,
+            },
+            // CGV — distinct page covering the SALES side (vs CGU which
+            // covers the USE side). French law (Code de commerce art L.441-1)
+            // requires CGV to be the unique basis of commercial negotiation
+            // in B2B — they need to live as a clearly identified document.
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Slug = "cgv",
+                TitleFr = "Conditions Générales de Vente",
+                TitleEn = "Terms of Sale",
+                TitleMs = "Terma Jualan",
+                TitleAr = "شروط البيع",
+                ContentFr = StaticPageContent.CgvFr,
+                ContentEn = StaticPageContent.CgvEn,
+                ContentMs = StaticPageContent.CgvMs,
+                ContentAr = StaticPageContent.CgvAr,
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Slug = "mentions-legales",
+                TitleFr = "Mentions Légales",
+                TitleEn = "Legal Notice",
+                TitleMs = "Notis Undang-undang",
+                TitleAr = "الإشعار القانوني",
+                ContentFr = StaticPageContent.LegalFr,
+                ContentEn = StaticPageContent.LegalEn,
+                ContentMs = StaticPageContent.LegalMs,
+                ContentAr = StaticPageContent.LegalAr,
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Slug = "a-propos",
+                TitleFr = "À Propos",
+                TitleEn = "About Us",
+                TitleMs = "Tentang Kami",
+                TitleAr = "من نحن",
+                ContentFr = StaticPageContent.AboutFr,
+                ContentEn = StaticPageContent.AboutEn,
+                ContentMs = StaticPageContent.AboutMs,
+                ContentAr = StaticPageContent.AboutAr,
+            },
         };
         context.StaticPages.AddRange(staticPages);
 

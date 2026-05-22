@@ -22,7 +22,8 @@ export default function AdminStaticPagesPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    titleFr: '', titleEn: '', contentFr: '', contentEn: '',
+    titleFr: '', titleEn: '', titleMs: '', titleAr: '',
+    contentFr: '', contentEn: '', contentMs: '', contentAr: '',
   });
 
   useEffect(() => {
@@ -43,7 +44,12 @@ export default function AdminStaticPagesPage() {
     setEditingId(page.id);
     setFormData({
       titleFr: page.titleFr, titleEn: page.titleEn,
+      // MS/AR can be null on legacy rows that predate the i18n extension —
+      // coerce to '' so the controlled input doesn't warn about
+      // null-vs-undefined-vs-empty.
+      titleMs: page.titleMs ?? '', titleAr: page.titleAr ?? '',
       contentFr: page.contentFr, contentEn: page.contentEn,
+      contentMs: page.contentMs ?? '', contentAr: page.contentAr ?? '',
     });
   };
 
@@ -51,7 +57,12 @@ export default function AdminStaticPagesPage() {
     try {
       const updated = await contentService.updatePage(pageId, {
         titleFr: formData.titleFr, titleEn: formData.titleEn,
+        // Empty strings are sent as null so the backend's "if not null,
+        // override" pattern in StaticPageController doesn't blank out an
+        // existing translation when the admin leaves a tab untouched.
+        titleMs: formData.titleMs || null, titleAr: formData.titleAr || null,
         contentFr: formData.contentFr, contentEn: formData.contentEn,
+        contentMs: formData.contentMs || null, contentAr: formData.contentAr || null,
       });
       setPages(prev => prev.map(p => p.id === pageId ? updated : p));
       setEditingId(null);
@@ -105,6 +116,8 @@ export default function AdminStaticPagesPage() {
                 <TabsList>
                   <TabsTrigger value="fr">Français</TabsTrigger>
                   <TabsTrigger value="en">English</TabsTrigger>
+                  <TabsTrigger value="ms">Bahasa Melayu</TabsTrigger>
+                  <TabsTrigger value="ar">العربية</TabsTrigger>
                 </TabsList>
                 <TabsContent value="fr" className="space-y-3 mt-3">
                   <div>
@@ -131,6 +144,46 @@ export default function AdminStaticPagesPage() {
                       className="w-full border rounded-md p-3 text-sm font-mono h-64 resize-y"
                       value={formData.contentEn}
                       onChange={e => setFormData(d => ({ ...d, contentEn: e.target.value }))}
+                    />
+                  </div>
+                </TabsContent>
+                <TabsContent value="ms" className="space-y-3 mt-3">
+                  <div>
+                    <Label>Tajuk</Label>
+                    <Input value={formData.titleMs} onChange={e => setFormData(d => ({ ...d, titleMs: e.target.value }))} placeholder={t('admin.optional_translation')} />
+                  </div>
+                  <div>
+                    <Label>Kandungan (Markdown)</Label>
+                    <textarea
+                      className="w-full border rounded-md p-3 text-sm font-mono h-64 resize-y"
+                      value={formData.contentMs}
+                      onChange={e => setFormData(d => ({ ...d, contentMs: e.target.value }))}
+                      placeholder={t('admin.optional_translation')}
+                    />
+                  </div>
+                </TabsContent>
+                {/* Arabic tab uses RTL on the inputs themselves so the caret
+                    and text alignment behave correctly. The surrounding UI
+                    stays LTR — the admin layout is locked to LTR even when
+                    the public site is in AR. */}
+                <TabsContent value="ar" className="space-y-3 mt-3">
+                  <div>
+                    <Label>العنوان</Label>
+                    <Input
+                      dir="rtl"
+                      value={formData.titleAr}
+                      onChange={e => setFormData(d => ({ ...d, titleAr: e.target.value }))}
+                      placeholder={t('admin.optional_translation')}
+                    />
+                  </div>
+                  <div>
+                    <Label>المحتوى (Markdown)</Label>
+                    <textarea
+                      dir="rtl"
+                      className="w-full border rounded-md p-3 text-sm font-mono h-64 resize-y"
+                      value={formData.contentAr}
+                      onChange={e => setFormData(d => ({ ...d, contentAr: e.target.value }))}
+                      placeholder={t('admin.optional_translation')}
                     />
                   </div>
                 </TabsContent>
