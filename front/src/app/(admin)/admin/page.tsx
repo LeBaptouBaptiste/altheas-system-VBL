@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/context/i18n-context';
 import { analyticsService, categoriesService } from '@/lib/api-services';
-import type { DashboardKpiDto, SalesAnalyticsDto, CategoryDto } from '@/lib/api-types';
+import type { DashboardKpiDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
 import { formatPrice, toIntlLocale } from '@/lib/money';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -48,32 +48,30 @@ export default function AdminDashboard() {
     );
   }
 
-  // KPI cards
+  // KPI cards — each value comes from a dedicated server-side field
+  // (no more mismatched mapping of `totalRevenue` onto "today/month").
   const kpiCards = [
-    { label: t('admin.revenue_today'), value: fmt(kpis.totalRevenue), icon: DollarSign, color: 'text-success' },
-    { label: t('admin.revenue_week'), value: fmt(kpis.averageOrderValue), icon: DollarSign, color: 'text-brand-primary' },
-    { label: t('admin.revenue_month'), value: fmt(kpis.totalRevenue), icon: DollarSign, color: 'text-brand-dark' },
-    { label: t('admin.orders_today'), value: String(kpis.totalOrders), icon: ShoppingCart, color: 'text-brand-primary' },
-    { label: t('admin.stock_alerts'), value: String(kpis.totalProducts), icon: AlertTriangle, color: 'text-warning' },
-    { label: t('admin.unread_messages'), value: String(kpis.totalCustomers), icon: Mail, color: 'text-error' },
+    { label: t('admin.revenue_today'), value: fmt(kpis.revenueToday), icon: DollarSign, color: 'text-success' },
+    { label: t('admin.revenue_week'), value: fmt(kpis.revenueWeek), icon: DollarSign, color: 'text-brand-primary' },
+    { label: t('admin.revenue_month'), value: fmt(kpis.revenueMonth), icon: DollarSign, color: 'text-brand-dark' },
+    { label: t('admin.orders_today'), value: String(kpis.ordersToday), icon: ShoppingCart, color: 'text-brand-primary' },
+    { label: t('admin.stock_alerts'), value: String(kpis.stockAlerts), icon: AlertTriangle, color: 'text-warning' },
+    { label: t('admin.unread_messages'), value: String(kpis.unreadMessages), icon: Mail, color: 'text-error' },
   ];
 
-  // Pie chart data: aggregate category breakdown from daily sales
-  const catBreakdown: Record<string, number> = {};
-  kpis.dailySales.forEach(d => {
-    Object.entries(d.categoryBreakdown).forEach(([catId, amount]) => {
-      catBreakdown[catId] = (catBreakdown[catId] || 0) + amount;
-    });
-  });
-  const pieData = Object.entries(catBreakdown)
+  // Pie chart: salesByCategory is a CategoryId → revenue map already
+  // aggregated server-side over the last 5 weeks. Just resolve names and
+  // sort by revenue descending so the biggest slice comes first.
+  const pieData = Object.entries(kpis.salesByCategory)
     .map(([catId, value]) => {
       const cat = categories.find(c => c.id === catId);
       return { name: cat ? localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr)) : catId, value };
     })
     .sort((a, b) => b.value - a.value);
 
-  // Bar chart: daily revenue
-  const barData = kpis.dailySales.map(d => ({
+  // Bar chart: salesByDay is already a 7-day array with zero-filled days,
+  // so the X-axis is continuous and the chart never collapses to one bar.
+  const barData = kpis.salesByDay.map(d => ({
     date: new Date(d.date).toLocaleDateString(toIntlLocale(locale), { weekday: 'short', day: 'numeric' }),
     revenue: d.revenue,
   }));
@@ -165,7 +163,7 @@ export default function AdminDashboard() {
               </Button>
             </Link>
             <Button size="sm" variant="outline" onClick={() => {
-              const csv = 'Date,Revenue,Orders\n' + kpis.dailySales.map(d => `${d.date},${d.revenue},${d.orderCount}`).join('\n');
+              const csv = 'Date,Revenue,Orders\n' + kpis.salesByDay.map(d => `${d.date},${d.revenue},${d.orderCount}`).join('\n');
               const blob = new Blob([csv], { type: 'text/csv' });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');

@@ -449,6 +449,14 @@ export interface StaticPageDto {
 
 // ── Analytics ─────────────────────────────────────────
 
+/** One day on the "sales by day" bar chart. Date is ISO `YYYY-MM-DD`. */
+export interface DailySalesDto {
+  date: string;
+  revenue: number;
+  orderCount: number;
+}
+
+/** Legacy shape from /analytics/sales (uses the SalesAnalytics table). */
 export interface SalesAnalyticsDto {
   date: string;
   revenue: number;
@@ -456,13 +464,28 @@ export interface SalesAnalyticsDto {
   categoryBreakdown: Record<string, number>;
 }
 
+/**
+ * Dashboard KPI payload. Every value here is computed directly from
+ * `Orders` on the server — no client-side massaging needed beyond
+ * locale-formatting the numbers.
+ */
 export interface DashboardKpiDto {
+  // KPI cards
+  revenueToday: number;
+  revenueWeek: number;
+  revenueMonth: number;
+  ordersToday: number;
+  stockAlerts: number;
+  unreadMessages: number;
+  // Charts
+  salesByDay: DailySalesDto[];          // last 7 days (today included), incl. zero days
+  salesByCategory: Record<string, number>; // categoryId → revenue, last 5 weeks
+  // Lifetime totals (kept for completeness, not displayed today)
   totalRevenue: number;
   totalOrders: number;
   totalCustomers: number;
   totalProducts: number;
   averageOrderValue: number;
-  dailySales: SalesAnalyticsDto[];
 }
 
 // ── Shipping ──────────────────────────────────────────
