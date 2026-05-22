@@ -54,10 +54,6 @@ export default function ContactPage() {
           <Button type="submit" className="w-full bg-brand-primary hover:bg-brand-hover text-white"><Send className="w-4 h-4 me-2" />{t('contact.send')}</Button>
         </form>
       </CardContent></Card>
-      <div className="mt-8 text-center">
-        <p className="text-muted-foreground mb-3">{t('contact.or_chat')}</p>
-        <Link href="/chatbot"><Button variant="outline" size="lg"><Bot className="w-5 h-5 me-2" />{t('contact.chatbot_cta')}</Button></Link>
-      </div>
     </div>
   );
 }
