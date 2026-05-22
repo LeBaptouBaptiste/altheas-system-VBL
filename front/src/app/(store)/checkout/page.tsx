@@ -554,7 +554,7 @@ export default function CheckoutPage() {
               <Label htmlFor="pay-card" className="cursor-pointer flex-1">{t('checkout.card')}</Label>
             </div>
 
-            <div className="flex items-center gap-3 p-4 border rounded-lg opacity-50 cursor-not-allowed bg-gray-50">
+            {/* <div className="flex items-center gap-3 p-4 border rounded-lg opacity-50 cursor-not-allowed bg-gray-50">
               <RadioGroupItem value="bank_transfer" id="pay-bank" disabled />
               <Building2 className="w-5 h-5 text-muted-foreground" />
               <Label htmlFor="pay-bank" className="flex-1 cursor-not-allowed text-muted-foreground">
@@ -574,7 +574,7 @@ export default function CheckoutPage() {
               <span className="text-xs px-2 py-1 rounded-full bg-warning/15 text-warning border border-warning/30">
                 {t('checkout.coming_soon')}
               </span>
-            </div>
+            </div> */}
           </RadioGroup>
 
           {/* Saved-cards picker (only shown if the user has cards on file).

@@ -117,10 +117,12 @@ export default function AdminOrdersPage() {
           <SelectContent>
             <SelectItem value="all">{t('admin.all_statuses')}</SelectItem>
             <SelectItem value={String(OrderStatus.Pending)}>{enumLabel('OrderStatus', OrderStatus.Pending, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Confirmed)}>{enumLabel('OrderStatus', OrderStatus.Confirmed, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Processing)}>{enumLabel('OrderStatus', OrderStatus.Processing, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Shipped)}>{enumLabel('OrderStatus', OrderStatus.Shipped, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Delivered)}>{enumLabel('OrderStatus', OrderStatus.Delivered, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Cancelled)}>{enumLabel('OrderStatus', OrderStatus.Cancelled, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Returned)}>{enumLabel('OrderStatus', OrderStatus.Returned, locale)}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -170,10 +172,12 @@ export default function AdminOrdersPage() {
                         <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={String(OrderStatus.Pending)}>{enumLabel('OrderStatus', OrderStatus.Pending, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Confirmed)}>{enumLabel('OrderStatus', OrderStatus.Confirmed, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Processing)}>{enumLabel('OrderStatus', OrderStatus.Processing, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Shipped)}>{enumLabel('OrderStatus', OrderStatus.Shipped, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Delivered)}>{enumLabel('OrderStatus', OrderStatus.Delivered, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Cancelled)}>{enumLabel('OrderStatus', OrderStatus.Cancelled, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Returned)}>{enumLabel('OrderStatus', OrderStatus.Returned, locale)}</SelectItem>
                         </SelectContent>
                       </Select>
                     </td>
