@@ -13,7 +13,7 @@ import { useI18n } from '@/context/i18n-context';
 import { ordersService } from '@/lib/api-services';
 import type { OrderDto } from '@/lib/api-types';
 import { toLocalized } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { OrderStatus, PaymentStatus, VatRate } from '@/lib/enums';
 import { enumLabel } from '@/lib/enums';
 import { toast } from 'sonner';
@@ -45,8 +45,8 @@ const PAYMENT_COLORS: Record<number, string> = {
 type OrderStatusValue = OrderDto['status'];
 
 export default function AdminOrdersPage() {
-  const { locale, localized } = useI18n();
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const { t, locale, localized } = useI18n();
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   const [ordersList, setOrdersList] = useState<OrderDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,10 +90,10 @@ export default function AdminOrdersPage() {
       if (detailOrder?.id === orderId) {
         setDetailOrder(updated);
       }
-      toast.success(locale === 'fr' ? 'Statut mis à jour' : 'Status updated');
+      toast.success(t('admin.status_updated'));
     } catch (err) {
       console.error('Failed to update order status', err);
-      toast.error(locale === 'fr' ? 'Erreur lors de la mise à jour' : 'Failed to update status');
+      toast.error(t('admin.update_status_failed'));
     }
   };
 
@@ -109,18 +109,20 @@ export default function AdminOrdersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher par n° ou client...' : 'Search by # or customer...'} className="pl-9" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('admin.search_orders_q')} className="ps-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
+            <SelectItem value="all">{t('admin.all_statuses')}</SelectItem>
             <SelectItem value={String(OrderStatus.Pending)}>{enumLabel('OrderStatus', OrderStatus.Pending, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Confirmed)}>{enumLabel('OrderStatus', OrderStatus.Confirmed, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Processing)}>{enumLabel('OrderStatus', OrderStatus.Processing, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Shipped)}>{enumLabel('OrderStatus', OrderStatus.Shipped, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Delivered)}>{enumLabel('OrderStatus', OrderStatus.Delivered, locale)}</SelectItem>
             <SelectItem value={String(OrderStatus.Cancelled)}>{enumLabel('OrderStatus', OrderStatus.Cancelled, locale)}</SelectItem>
+            <SelectItem value={String(OrderStatus.Returned)}>{enumLabel('OrderStatus', OrderStatus.Returned, locale)}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -131,13 +133,13 @@ export default function AdminOrdersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Commande' : 'Order'}</th>
-                  <th className="p-3 text-left">Client</th>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-right">Total TTC</th>
-                  <th className="p-3 text-center">{locale === 'fr' ? 'Paiement' : 'Payment'}</th>
+                  <th className="p-3 text-start">{t('admin.order_label_singular')}</th>
+                  <th className="p-3 text-start">Client</th>
+                  <th className="p-3 text-start">Date</th>
+                  <th className="p-3 text-end">Total TTC</th>
+                  <th className="p-3 text-center">{t('admin.payment_label')}</th>
                   <th className="p-3 text-center">Status</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,9 +154,9 @@ export default function AdminOrdersPage() {
                       <span className="text-brand-dark">{order.userName}</span>
                     </td>
                     <td className="p-3 text-muted-foreground">
-                      {new Date(order.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}
+                      {new Date(order.date).toLocaleDateString(toIntlLocale(locale))}
                     </td>
-                    <td className="p-3 text-right font-medium">{fmt(order.totalTTC)}</td>
+                    <td className="p-3 text-end font-medium">{fmt(order.totalTTC)}</td>
                     <td className="p-3 text-center">
                       <span className={`text-xs font-medium ${PAYMENT_COLORS[order.paymentStatus] || ''}`}>
                         {enumLabel('PaymentStatus', order.paymentStatus, locale)}
@@ -165,15 +167,17 @@ export default function AdminOrdersPage() {
                         {enumLabel('OrderStatus', order.status, locale)}
                       </Badge>
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-end">
                       <Select value={String(order.status)} onValueChange={v => handleStatusChange(order.id, Number(v) as OrderStatusValue)}>
                         <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={String(OrderStatus.Pending)}>{enumLabel('OrderStatus', OrderStatus.Pending, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Confirmed)}>{enumLabel('OrderStatus', OrderStatus.Confirmed, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Processing)}>{enumLabel('OrderStatus', OrderStatus.Processing, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Shipped)}>{enumLabel('OrderStatus', OrderStatus.Shipped, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Delivered)}>{enumLabel('OrderStatus', OrderStatus.Delivered, locale)}</SelectItem>
                           <SelectItem value={String(OrderStatus.Cancelled)}>{enumLabel('OrderStatus', OrderStatus.Cancelled, locale)}</SelectItem>
+                          <SelectItem value={String(OrderStatus.Returned)}>{enumLabel('OrderStatus', OrderStatus.Returned, locale)}</SelectItem>
                         </SelectContent>
                       </Select>
                     </td>
@@ -183,7 +187,7 @@ export default function AdminOrdersPage() {
             </table>
           </div>
           <div className="flex items-center justify-between p-3 border-t">
-            <span className="text-xs text-muted-foreground">{filtered.length} {locale === 'fr' ? 'commandes' : 'orders'}</span>
+            <span className="text-xs text-muted-foreground">{filtered.length} {t('admin.orders_word')}</span>
             <div className="flex gap-1">
               {Array.from({ length: totalPages }, (_, i) => (
                 <Button key={i} size="sm" variant={page === i + 1 ? 'default' : 'outline'} className={page === i + 1 ? 'bg-brand-primary text-white' : ''} onClick={() => setPage(i + 1)}>
@@ -202,7 +206,7 @@ export default function AdminOrdersPage() {
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle>{locale === 'fr' ? 'Commande' : 'Order'} #{detailOrder.id.split('-').pop()}</DialogTitle>
+                  <DialogTitle>{t('admin.order_label_singular')} #{detailOrder.id.split('-').pop()}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 text-sm">
                   <div className="grid grid-cols-2 gap-4">
@@ -212,14 +216,14 @@ export default function AdminOrdersPage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground mb-1">Date</p>
-                      <p>{new Date(detailOrder.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</p>
+                      <p>{new Date(detailOrder.date).toLocaleDateString(toIntlLocale(locale))}</p>
                     </div>
                   </div>
 
                   <Separator />
 
                   <div>
-                    <p className="font-medium mb-2">{locale === 'fr' ? 'Articles' : 'Items'}</p>
+                    <p className="font-medium mb-2">{t('admin.items_label')}</p>
                     {detailOrder.items.map((item, i) => {
                       const vatRate = VAT_RATE_VALUES[item.vatRate] || 0;
                       return (
@@ -230,7 +234,7 @@ export default function AdminOrdersPage() {
                       );
                     })}
                     <div className="flex justify-between py-1 text-muted-foreground">
-                      <span>{locale === 'fr' ? 'Livraison' : 'Shipping'}</span>
+                      <span>{t('admin.shipping_line')}</span>
                       <span>{fmt(detailOrder.shippingCost)}</span>
                     </div>
                     <Separator className="my-2" />
@@ -244,12 +248,12 @@ export default function AdminOrdersPage() {
 
                   <div>
                     <p className="font-medium mb-2 flex items-center gap-1">
-                      <Clock className="w-4 h-4" /> {locale === 'fr' ? 'Historique des statuts' : 'Status History'}
+                      <Clock className="w-4 h-4" /> {t('admin.status_history')}
                     </p>
                     <div className="space-y-2">
                       {detailOrder.statusHistory.map((sh, i) => (
                         <div key={i} className="flex items-center gap-3 text-xs">
-                          <span className="text-muted-foreground w-24">{new Date(sh.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
+                          <span className="text-muted-foreground w-24">{new Date(sh.date).toLocaleDateString(toIntlLocale(locale))}</span>
                           <Badge variant="outline" className={STATUS_COLORS[sh.from] || ''}>{enumLabel('OrderStatus', sh.from, locale)}</Badge>
                           <ChevronDown className="w-3 h-3 -rotate-90" />
                           <Badge variant="outline" className={STATUS_COLORS[sh.to] || ''}>{enumLabel('OrderStatus', sh.to, locale)}</Badge>
@@ -262,13 +266,13 @@ export default function AdminOrdersPage() {
 
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <p className="text-muted-foreground mb-1">{locale === 'fr' ? 'Adresse de facturation' : 'Billing Address'}</p>
+                      <p className="text-muted-foreground mb-1">{t('admin.billing_address_label')}</p>
                       <p>{detailOrder.billingAddress.firstName} {detailOrder.billingAddress.lastName}</p>
                       <p>{detailOrder.billingAddress.street}</p>
                       <p>{detailOrder.billingAddress.postalCode} {detailOrder.billingAddress.city}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground mb-1">{locale === 'fr' ? 'Adresse de livraison' : 'Shipping Address'}</p>
+                      <p className="text-muted-foreground mb-1">{t('admin.shipping_address_label')}</p>
                       <p>{detailOrder.shippingAddress.firstName} {detailOrder.shippingAddress.lastName}</p>
                       <p>{detailOrder.shippingAddress.street}</p>
                       <p>{detailOrder.shippingAddress.postalCode} {detailOrder.shippingAddress.city}</p>

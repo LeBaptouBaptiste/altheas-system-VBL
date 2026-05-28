@@ -1,5 +1,12 @@
 bin/
 obj/
 .vs/
+.idea/
 *.user
 *.suo
+**/.user
+.git
+.github
+**/appsettings.Development.json
+*.md
+**/.DS_Store

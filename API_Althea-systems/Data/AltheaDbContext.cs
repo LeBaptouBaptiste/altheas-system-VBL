@@ -6,6 +6,7 @@ using API_Althea_systems.Models.Invoices;
 using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Content;
 using API_Althea_systems.Models.Analytics;
+using API_Althea_systems.Models.Payments;
 
 namespace API_Althea_systems.Data;
 
@@ -19,6 +20,9 @@ public class AltheaDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Address> Addresses => Set<Address>();
     public DbSet<UserPaymentMethod> UserPaymentMethods => Set<UserPaymentMethod>();
+    public DbSet<UserRecoveryCode> UserRecoveryCodes => Set<UserRecoveryCode>();
+    public DbSet<EmailConfirmationToken> EmailConfirmationTokens => Set<EmailConfirmationToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     // Products
     public DbSet<Product> Products => Set<Product>();
@@ -46,6 +50,9 @@ public class AltheaDbContext : DbContext
 
     // Analytics
     public DbSet<SalesAnalytics> SalesAnalytics => Set<SalesAnalytics>();
+
+    // Payments
+    public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

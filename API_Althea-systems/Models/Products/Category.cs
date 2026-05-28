@@ -6,8 +6,14 @@ public class Category
     public string Slug { get; set; } = string.Empty;
     public string NameFr { get; set; } = string.Empty;
     public string NameEn { get; set; } = string.Empty;
+    // MS / AR nullable — front falls back to FR when unset (same pattern as
+    // Product). Keeps the model tolerant to partially-translated categories.
+    public string? NameMs { get; set; }
+    public string? NameAr { get; set; }
     public string DescriptionFr { get; set; } = string.Empty;
     public string DescriptionEn { get; set; } = string.Empty;
+    public string? DescriptionMs { get; set; }
+    public string? DescriptionAr { get; set; }
     public string Image { get; set; } = string.Empty;
     public Guid? ParentId { get; set; }
     public int DisplayOrder { get; set; }

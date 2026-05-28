@@ -5,8 +5,11 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
     container_name: althea-front
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     depends_on:
       - api
 
@@ -16,6 +19,8 @@ services:
       dockerfile: Dockerfile
     container_name: althea-api
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       ConnectionStrings__PostgreSQL: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
@@ -24,13 +29,28 @@ services:
       JwtSettings__SecretKey: ${JWT_SECRET_KEY}
       JwtSettings__Issuer: ${JWT_ISSUER}
       JwtSettings__Audience: ${JWT_AUDIENCE}
+      Encryption__Key: ${ENCRYPTION_KEY}
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      Smtp__Host: ${SMTP_HOST}
+      Smtp__Port: ${SMTP_PORT}
+      Smtp__Username: ${SMTP_USERNAME}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__From: ${SMTP_FROM}
+      Smtp__FromName: ${SMTP_FROM_NAME}
+      Smtp__UseStartTls: ${SMTP_USE_STARTTLS}
+      EmailConfirmation__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
+      PasswordReset__FrontendBaseUrl: ${EMAIL_CONFIRMATION_FRONTEND_BASE_URL}
+      Ollama__BaseUrl: "http://ollama:11434"
+      Ollama__Model: ${OLLAMA_MODEL:-qwen2.5:3b}
+      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
     depends_on:
       postgres:
         condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
@@ -55,6 +75,11 @@ services:
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -62,13 +87,109 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Stripe CLI sidecar — forwards Stripe webhook events from your test-mode
+  # account to the API container over the internal Docker network.
+  #
+  # Activated only with `docker compose --profile dev up` so it never runs
+  # in production (where Stripe POSTs directly to the public webhook URL
+  # registered in the dashboard).
+  #
+  # First-run setup:
+  #   1. docker compose --profile dev up -d
+  #   2. docker logs althea-stripe-cli  → copy the printed whsec_...
+  #   3. Put STRIPE_WEBHOOK_SECRET=whsec_... in .env
+  #   4. docker compose restart api  (picks up the new secret)
+  #   5. Trigger a test event:
+  #      docker exec althea-stripe-cli stripe trigger payment_intent.succeeded
+  #
+  # The secret is regenerated each time `stripe listen` starts. For a stable
+  # secret across restarts, register a webhook endpoint in the Stripe
+  # dashboard (any URL works for dev) and add `--use-configured-webhooks`
+  # to the command below.
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: althea-stripe-cli
+    profiles:
+      - dev
+    # tini-based init so SIGTERM from `docker compose down` reaches the CLI
+    # cleanly instead of hanging the shutdown.
+    init: true
+    command:
+      - listen
+      - --api-key=${STRIPE_SECRET_KEY}
+      - --forward-to=http://api:8080/api/webhooks/stripe
+      # --skip-verify : trust the internal Docker network; no TLS between
+      # the sidecar and the API (which serves plain HTTP on :8080 inside
+      # the network anyway).
+      - --skip-verify
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── Ollama (LLM backend for the customer chatbot) ─────────────────────
+  # Runs entirely on CPU by default — no GPU passthrough needed for the
+  # demo. The `ollama-init` sidecar (below) pulls the model on first
+  # `docker compose up`, then exits. The api container can start in
+  # parallel — until the pull completes the chatbot returns the polite
+  # "service unavailable" fallback from OllamaService's catch.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: althea-ollama
+    restart: unless-stopped
+    ports:
+      # Expose on host for `ollama pull` from outside Docker if desired.
+      # Internal services reach it via the Docker network at ollama:11434.
+      - "11434:11434"
+    volumes:
+      # Model cache (~2.6 GB for qwen3:4b). Persistent so a `docker compose
+      # down` doesn't force a re-download on next boot.
+      - ollama_data:/root/.ollama
+    healthcheck:
+      # /api/tags returns 200 once the daemon is ready to accept requests.
+      # ollama-init polls this before starting the pull, otherwise the very
+      # first `ollama pull` call races the daemon startup and 503s.
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  # One-shot model puller. `docker compose up` triggers it once; it waits
+  # for ollama to be ready, then `ollama pull <model>`, then exits. The
+  # next time you bring the stack up it runs again but the model is
+  # already in the cache — the pull is a fast no-op.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: althea-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      # OLLAMA_HOST tells the CLI which daemon to talk to (defaults to
+      # localhost:11434, which inside this container would point at the
+      # sidecar itself, not the actual ollama container).
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        MODEL="${OLLAMA_MODEL:-qwen2.5:3b}"
+        echo "[ollama-init] Pulling $$MODEL (this can take a few minutes on first run)…"
+        ollama pull "$$MODEL"
+        echo "[ollama-init] Model $$MODEL is ready."
+    restart: "no"
 
 volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  ollama_data:
 
 networks:
   default:
-    name: npm-network
-    external: true

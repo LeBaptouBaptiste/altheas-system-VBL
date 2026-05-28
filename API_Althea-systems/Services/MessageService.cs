@@ -3,6 +3,7 @@ using API_Althea_systems.Models.Messaging;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services.IServices;
+using API_Althea_systems.Services.Ollama;
 
 namespace API_Althea_systems.Services;
 
@@ -65,10 +66,20 @@ public class MessageService : IMessageService
 public class ChatService : IChatService
 {
     private readonly IMessageRepository _messageRepository;
+    private readonly IOllamaService _ollama;
+    private readonly IChatContextBuilder _contextBuilder;
+    private readonly ILogger<ChatService> _logger;
 
-    public ChatService(IMessageRepository messageRepository)
+    public ChatService(
+        IMessageRepository messageRepository,
+        IOllamaService ollama,
+        IChatContextBuilder contextBuilder,
+        ILogger<ChatService> logger)
     {
         _messageRepository = messageRepository;
+        _ollama = ollama;
+        _contextBuilder = contextBuilder;
+        _logger = logger;
     }
 
     public async Task<ChatConversationDto> GetConversationByIdAsync(Guid id)
@@ -100,24 +111,108 @@ public class ChatService : IChatService
 
     public async Task<ChatMessageDto> AddMessageAsync(Guid conversationId, ChatMessageCreateRequest request)
     {
-        _ = await _messageRepository.GetConversationByIdAsync(conversationId)
+        var conv = await _messageRepository.GetConversationByIdAsync(conversationId)
             ?? throw new NotFoundException("ChatConversation", conversationId);
 
-        var msg = new ChatMessage
+        // 1. Persist the user message first so it's never lost even if Ollama
+        //    blows up later. The conversation history needs it on disk before
+        //    we ship it to the model.
+        var userMsg = new ChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
             Role = ChatRole.User,
             Content = request.Content
         };
+        await _messageRepository.AddChatMessageAsync(userMsg);
 
-        await _messageRepository.AddChatMessageAsync(msg);
-        return new ChatMessageDto(msg.Id, msg.Role, msg.Content, msg.Timestamp);
+        // 2. Build the running history + per-turn context block.
+        //    The context block (customer profile, recent orders, catalog,
+        //    product matches) is prepended as an extra "system" message
+        //    right before the user's latest question — so the model sees
+        //    fresh facts every turn, even on a long conversation. The
+        //    locale (front's currently selected UI language) tells the
+        //    builder which language to instruct the model in.
+        var contextBlock = await _contextBuilder.BuildAsync(
+            conv.UserId, request.Content, request.Locale);
+
+        var history = conv.Messages
+            .OrderBy(m => m.Timestamp)
+            .Select(m => (
+                Role: m.Role == ChatRole.User ? "user" : "assistant",
+                Content: m.Content))
+            .ToList();
+        // System message with the live context — Ollama accepts multiple
+        // system entries; OllamaService keeps the configured persona prompt
+        // at index 0 and we slot this one immediately before the user's
+        // current question.
+        history.Add(("system", contextBlock));
+        history.Add(("user", request.Content));
+
+        string reply;
+        try
+        {
+            reply = await _ollama.GenerateReplyAsync(history);
+        }
+        catch (OllamaModelNotReadyException ex)
+        {
+            // Model isn't pulled yet (common right after `docker compose up`
+            // while ollama-init is still downloading the ~2 GB blob).
+            _logger.LogWarning(ex,
+                "Ollama model not pulled yet for conversation {ConversationId}.",
+                conversationId);
+            reply = FallbackWarmingUp(request.Locale);
+        }
+        catch (Exception ex)
+        {
+            // Don't let an LLM outage break the customer's chat — surface a
+            // polite fallback that still gets persisted (so the admin can
+            // see the failure in the conversation transcript and follow up).
+            _logger.LogError(ex,
+                "Ollama call failed for conversation {ConversationId}; returning fallback reply.",
+                conversationId);
+            reply = FallbackUnavailable(request.Locale);
+        }
+
+        // 3. Persist the bot reply. The endpoint returns the BOT message —
+        //    the front already shows the user's input optimistically, so it
+        //    just needs the assistant's answer to append.
+        var botMsg = new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            Role = ChatRole.Bot,
+            Content = reply
+        };
+        await _messageRepository.AddChatMessageAsync(botMsg);
+
+        return new ChatMessageDto(botMsg.Id, botMsg.Role, botMsg.Content, botMsg.Timestamp);
     }
 
     private static ChatConversationDto MapToDto(ChatConversation c) => new(
         c.Id, c.UserId, c.Email, c.Escalated, c.TicketId, c.CreatedAt,
         c.Messages.Select(m => new ChatMessageDto(m.Id, m.Role, m.Content, m.Timestamp)));
+
+    // ── Locale-aware fallback messages ───────────────────
+    // Used when Ollama is unavailable / the model isn't pulled yet. Keep
+    // them short and inline rather than going through the EmailTemplateRenderer
+    // — chat is real-time and the strings are stable.
+
+    private static string FallbackUnavailable(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "Sorry, our assistant is unavailable right now. You can open a support ticket and a team member will get back to you shortly.",
+        "ms" => "Maaf, pembantu kami tidak tersedia buat masa ini. Anda boleh buka tiket sokongan dan ahli pasukan kami akan menghubungi anda tidak lama lagi.",
+        "ar" => "عذراً، مساعدنا غير متاح في الوقت الحالي. يمكنك فتح تذكرة دعم وسيتواصل معك أحد أعضاء فريقنا قريباً.",
+        _ => "Désolé, notre assistant n'est pas disponible pour l'instant. Vous pouvez créer un ticket support et un membre de notre équipe vous répondra rapidement.",
+    };
+
+    private static string FallbackWarmingUp(string? locale) => (locale?.ToLowerInvariant()) switch
+    {
+        "en" => "Our assistant is initialising (downloading the model). Try again in one to two minutes — the next question will work.",
+        "ms" => "Pembantu kami sedang dimulakan (memuat turun model). Cuba semula dalam satu hingga dua minit — soalan seterusnya akan berfungsi.",
+        "ar" => "مساعدنا قيد التهيئة (جارٍ تنزيل النموذج). أعد المحاولة خلال دقيقة إلى دقيقتين، وسيعمل سؤالك التالي.",
+        _ => "Notre assistant est en cours d'initialisation (téléchargement du modèle). Réessayez dans une à deux minutes — la prochaine question fonctionnera.",
+    };
 }
 
 public class TicketService : ITicketService

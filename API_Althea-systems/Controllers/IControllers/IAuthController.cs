@@ -5,11 +5,13 @@ namespace API_Althea_systems.Controllers.IControllers;
 
 public interface IAuthController
 {
-    Task<ActionResult<AuthResponse>> Register(RegisterRequest request);
-    Task<ActionResult<AuthResponse>> Login(LoginRequest request);
+    Task<ActionResult<RegisterResponse>> Register(RegisterRequest request);
+    Task<ActionResult<LoginResponse>> Login(LoginRequest request);
+    Task<ActionResult<AuthResponse>> VerifyTwoFactorChallenge(VerifyTwoFactorChallengeRequest request);
+    Task<ActionResult<StepUpResponse>> StepUp(StepUpRequest request);
     Task<ActionResult<UserDto>> GetMe();
     Task<IActionResult> ConfirmEmail(ConfirmEmailRequest request);
+    Task<IActionResult> ResendConfirmation(ResendConfirmationRequest request);
     Task<IActionResult> ForgotPassword(ForgotPasswordRequest request);
     Task<IActionResult> ResetPassword(ResetPasswordRequest request);
-    Task<IActionResult> Verify2Fa(Verify2FaRequest request);
 }

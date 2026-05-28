@@ -1,0 +1,7 @@
+Templates ship here as plain .html files (one per email, e.g. welcome.html,
+invoice.html). The csproj's <Content> rule auto-copies them to the publish
+output. EmailTemplateRenderer loads them at boot.
+
+Phase 1 ships the infrastructure but no templates — those land with their
+consuming features in phases 2 (registration confirmation), 3 (invoice
+receipt) and 4 (2FA / security alerts).

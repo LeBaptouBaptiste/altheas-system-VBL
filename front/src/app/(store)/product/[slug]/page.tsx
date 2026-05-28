@@ -14,7 +14,7 @@ import { useCart } from '@/context/cart-context';
 import { productsService } from '@/lib/api-services';
 import type { ProductDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getImageUrl } from '@/lib/api-types';
-import { formatPrice, calculateTTC, calculateVAT } from '@/lib/money';
+import { formatPrice, calculateTTC, calculateVAT, toIntlLocale } from '@/lib/money';
 import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -32,7 +32,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const [similar, setSimilar] = useState<ProductDto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fmt = (n: number) => formatPrice(n, locale === 'fr' ? 'fr-FR' : 'en-US');
+  const fmt = (n: number) => formatPrice(n, toIntlLocale(locale));
 
   useEffect(() => {
     setLoading(true);
@@ -60,11 +60,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const priceTTC = calculateTTC(product.priceHT, vatRate);
   const vatAmount = calculateVAT(product.priceHT, vatRate);
   const isOOS = product.stockStatus === StockStatus.OutOfStock;
-  const name = localized(toLocalized(product.nameFr, product.nameEn));
+  const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
 
   const handleAddToCart = () => {
     addItem(product.id, qty);
-    toast.success(`${name} ${locale === 'fr' ? 'ajouté au panier' : 'added to cart'} (x${qty})`);
+    toast.success(t('cart.added_to_cart_qty').replace('{name}', name).replace('{qty}', String(qty)));
   };
 
   return (
@@ -75,7 +75,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         <span>/</span>
         {product.categories[0] && <>
           <Link href={`/category/${product.categories[0].slug}`} className="hover:text-brand-primary">
-            {localized(toLocalized(product.categories[0].nameFr, product.categories[0].nameEn))}
+            {localized(toLocalized(product.categories[0].nameFr, product.categories[0].nameEn, product.categories[0].nameMs, product.categories[0].nameAr))}
           </Link>
           <span>/</span>
         </>}
@@ -109,7 +109,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
           </div>
 
           <h1 className="text-2xl md:text-3xl text-brand-dark mb-2">{name}</h1>
-          <p className="text-muted-foreground mb-4">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
+          <p className="text-muted-foreground mb-4">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
 
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="text-3xl font-bold text-brand-dark mb-1">{fmt(priceTTC)}</div>
@@ -130,7 +130,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               </Button>
             </div>
             <Button size="lg" className="flex-1 bg-brand-primary hover:bg-brand-hover text-white" onClick={handleAddToCart} disabled={isOOS}>
-              <ShoppingCart className="w-5 h-5 mr-2" />
+              <ShoppingCart className="w-5 h-5 me-2" />
               {isOOS ? t('product.out_of_stock') : t('product.add_to_cart')}
             </Button>
           </div>
@@ -144,14 +144,18 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               <TabsTrigger value="specs">{t('product.specs')}</TabsTrigger>
             </TabsList>
             <TabsContent value="description" className="mt-4">
-              <p className="text-foreground leading-relaxed">{localized(toLocalized(product.longDescriptionFr, product.longDescriptionEn))}</p>
+              <p className="text-foreground leading-relaxed">{localized(toLocalized(product.longDescriptionFr, product.longDescriptionEn, product.longDescriptionMs, product.longDescriptionAr))}</p>
             </TabsContent>
             <TabsContent value="specs" className="mt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {product.specs.map((spec, i) => (
                   <div key={i} className="flex justify-between p-3 bg-gray-50 rounded">
-                    <span className="text-sm font-medium text-muted-foreground">{spec.label}</span>
-                    <span className="text-sm font-semibold">{spec.value}</span>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {localized(toLocalized(spec.label, spec.labelEn ?? spec.label, spec.labelMs, spec.labelAr))}
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {localized(toLocalized(spec.value, spec.valueEn ?? spec.value, spec.valueMs, spec.valueAr))}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -172,10 +176,10 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                 <Link key={p.id} href={`/product/${p.slug}`} className="group">
                   <Card className="overflow-hidden hover:shadow-md transition-shadow">
                     <div className="relative h-32">
-                      <Image src={getProductImageUrl(p)} alt={localized(toLocalized(p.nameFr, p.nameEn))} fill className="object-cover group-hover:scale-105 transition-transform" />
+                      <Image src={getProductImageUrl(p)} alt={localized(toLocalized(p.nameFr, p.nameEn, p.nameMs, p.nameAr))} fill className="object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <CardContent className="p-3">
-                      <h3 className="text-xs font-medium line-clamp-2 mb-1">{localized(toLocalized(p.nameFr, p.nameEn))}</h3>
+                      <h3 className="text-xs font-medium line-clamp-2 mb-1">{localized(toLocalized(p.nameFr, p.nameEn, p.nameMs, p.nameAr))}</h3>
                       <span className="text-sm font-bold text-brand-dark">{fmt(price)}</span>
                     </CardContent>
                   </Card>

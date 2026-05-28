@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,14 +13,14 @@ import { toast } from 'sonner';
 
 export default function RegisterPage() {
   const { t } = useI18n();
-  const { register, confirmEmail } = useAuth();
-  const router = useRouter();
+  const { register, resendConfirmation } = useAuth();
   const [step, setStep] = useState<'form' | 'confirm'>('form');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [error, setError] = useState('');
+  const [resending, setResending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,16 +29,19 @@ export default function RegisterPage() {
     if (password.length < 8) { setError(t('auth.password_rules')); return; }
     const result = await register(name, email, password);
     if (result.success) {
+      // Phase 2: registration creates the account but issues NO tokens — the
+      // user must click the confirmation link mailed to them.
       setStep('confirm');
     } else {
       setError(result.error || t('common.error'));
     }
   };
 
-  const handleConfirm = async () => {
-    await confirmEmail(email);
-    toast.success(t('auth.login') + ' ✓');
-    router.push('/');
+  const handleResend = async () => {
+    setResending(true);
+    await resendConfirmation(email);
+    setResending(false);
+    toast.success(t('auth.email_resent'));
   };
 
   if (step === 'confirm') {
@@ -47,9 +49,27 @@ export default function RegisterPage() {
       <div className="container mx-auto px-4 py-16 max-w-md">
         <Card><CardContent className="p-6 text-center space-y-4">
           <Mail className="w-12 h-12 mx-auto text-brand-primary" />
-          <h1 className="text-2xl text-brand-dark">{t('auth.confirm_email_title')}</h1>
-          <p className="text-muted-foreground">{t('auth.confirm_email_text')}</p>
-          <Button onClick={handleConfirm} className="bg-brand-primary hover:bg-brand-hover text-white">{t('auth.i_confirmed')}</Button>
+          <h1 className="text-2xl text-brand-dark">
+            {t('auth.check_inbox_title')}
+          </h1>
+          <p className="text-muted-foreground">
+            {t('auth.check_inbox_body').replace('{email}', email)}
+          </p>
+          <Button
+            onClick={handleResend}
+            disabled={resending}
+            variant="outline"
+            className="w-full"
+          >
+            {resending
+              ? t('auth.sending')
+              : t('auth.resend_email')}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            <Link href="/login" className="text-brand-primary hover:underline">
+              {t('auth.back_to_login')}
+            </Link>
+          </p>
         </CardContent></Card>
       </div>
     );

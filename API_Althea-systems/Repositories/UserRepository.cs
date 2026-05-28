@@ -35,6 +35,16 @@ public class UserRepository : IUserRepository
         return await _context.Users.AnyAsync(u => u.Email == email);
     }
 
+    public async Task<User?> GetByStripeCustomerIdAsync(string stripeCustomerId)
+    {
+        // Include PaymentMethods because the main caller (Stripe webhook)
+        // needs to dedupe attached methods before INSERTing — avoids a
+        // second roundtrip just to fetch them.
+        return await _context.Users
+            .Include(u => u.PaymentMethods)
+            .FirstOrDefaultAsync(u => u.StripeCustomerId == stripeCustomerId);
+    }
+
     public async Task<User> CreateAsync(User user)
     {
         _context.Users.Add(user);
@@ -45,7 +55,19 @@ public class UserRepository : IUserRepository
     public async Task UpdateAsync(User user)
     {
         user.UpdatedAt = DateTime.UtcNow;
-        _context.Users.Update(user);
+        // INTENTIONALLY no `_context.Users.Update(user)` here.
+        //
+        // All callers obtain `user` via GetByIdAsync / GetByEmailAsync /
+        // GetByStripeCustomerIdAsync — meaning the entity is ALREADY tracked
+        // by this DbContext. Calling Update() at this point cascades the
+        // Modified state to every navigation child, including newly Added
+        // ones (e.g. user.Addresses.Add(new Address { Id = NewGuid() })).
+        // EF then tries to UPDATE WHERE Id = <new-guid-not-yet-in-DB>, the
+        // statement affects 0 rows, and we get a DbUpdateConcurrencyException.
+        //
+        // The change tracker already does the right thing: SaveChanges
+        // detects modified properties on `user`, INSERTs newly-added
+        // navigation entities, DELETEs removed ones.
         await _context.SaveChangesAsync();
     }
 

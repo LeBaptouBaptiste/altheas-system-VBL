@@ -65,10 +65,21 @@ public class JwtMiddleware
 
             if (validatedToken is JwtSecurityToken jwtToken)
             {
+                // Single-purpose tokens (challenge / setup-required / step-up)
+                // must NOT be treated as valid authentication for normal endpoints.
+                // Only the dedicated endpoints that issue/consume them validate
+                // them explicitly via ITokenService.ValidateSpecialToken.
+                var purpose = jwtToken.Claims.FirstOrDefault(c => c.Type == "purpose")?.Value;
+                if (purpose != null && purpose != "access")
+                {
+                    return; // do not attach -> [Authorize] returns 401
+                }
+
                 // Attach claims to HttpContext for use in controllers/services
                 context.Items["UserId"] = jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
                 context.Items["UserEmail"] = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
                 context.Items["UserRole"] = jwtToken.Claims.FirstOrDefault(c => c.Type == "role")?.Value;
+                context.Items["UserAmr"] = jwtToken.Claims.FirstOrDefault(c => c.Type == "amr")?.Value;
             }
         }
         catch (SecurityTokenExpiredException)

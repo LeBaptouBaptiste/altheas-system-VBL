@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Products;
 using API_Althea_systems.Models.Shared;
 using API_Althea_systems.Services.IServices;
@@ -44,7 +45,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<ProductDto>> Create([FromBody] ProductCreateRequest request)
     {
         var product = await _productService.CreateAsync(request);
@@ -52,14 +53,14 @@ public class ProductController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<ActionResult<ProductDto>> Update(Guid id, [FromBody] ProductUpdateRequest request)
     {
         return Ok(await _productService.UpdateAsync(id, request));
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin"), RequireStepUp(StepUpPurpose.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await _productService.DeleteAsync(id);

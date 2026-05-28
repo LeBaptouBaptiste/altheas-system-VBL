@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, ArrowRight, ShoppingCart, Loader2 } from 'lucide-react';
+import { ArrowRight, ShoppingCart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { useCart } from '@/context/cart-context';
 import { contentService, productsService, categoriesService } from '@/lib/api-services';
 import type { HeroSlideDto, ProductDto, CategoryDto } from '@/lib/api-types';
 import { toLocalized, getProductImageUrl, getCategoryImageUrl, getImageUrl } from '@/lib/api-types';
-import { formatPrice } from '@/lib/money';
+import { formatPrice, toIntlLocale } from '@/lib/money';
 import { ProductStatus, StockStatus, VatRate } from '@/lib/enums';
 import { toast } from 'sonner';
 
@@ -31,6 +31,11 @@ export default function HomePage() {
   const [topProducts, setTopProducts] = useState<ProductDto[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [loading, setLoading] = useState(true);
+  // Pauses the carousel autoplay. Required for WCAG 2.2.2 ("Pause, Stop,
+  // Hide") on auto-rotating content; also a nicer UX when the user is
+  // reading a slide. Triggered on hover and on keyboard focus so both
+  // mouse and keyboard users benefit.
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -47,12 +52,17 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, [t]);
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  useEffect(() => {
+    if (paused || slides.length === 0) return;
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [slides.length, paused]);
 
   const handleAddToCart = (productId: string, name: string) => {
     addItem(productId);
-    toast.success(locale === 'fr' ? `${name} ajouté au panier` : `${name} added to cart`);
+    toast.success(t('cart.added_to_cart').replace('{name}', name));
   };
 
   if (loading) {
@@ -67,21 +77,29 @@ export default function HomePage() {
     <div>
       {/* Hero Carousel */}
       {slides.length > 0 && (
-        <section className="relative h-[400px] md:h-[550px] overflow-hidden bg-brand-light" aria-label="Hero carousel">
+        <section
+          className="relative h-[400px] md:h-[550px] overflow-hidden bg-brand-light"
+          aria-label="Hero carousel"
+          aria-roledescription="carousel"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
           {slides.map((slide, index) => (
             <div key={slide.id} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/90 to-brand-dark/40 z-10" />
-              <Image src={getImageUrl(slide.image)} alt={localized(toLocalized(slide.titleFr, slide.titleEn))} fill className="object-cover" priority={index === 0} />
+              <Image src={getImageUrl(slide.image)} alt={localized(toLocalized(slide.titleFr, slide.titleEn, slide.titleMs, slide.titleAr))} fill className="object-cover" priority={index === 0} />
               <div className="absolute inset-0 z-20 flex items-center">
                 <div className="container mx-auto px-4">
                   <div className="max-w-2xl text-white">
-                    <h1 className="text-3xl md:text-5xl mb-3">{localized(toLocalized(slide.titleFr, slide.titleEn))}</h1>
-                    <p className="text-lg md:text-2xl mb-2 text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn))}</p>
-                    <p className="text-base md:text-lg mb-6 text-gray-200">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn))}</p>
+                    <h1 className="text-3xl md:text-5xl mb-3">{localized(toLocalized(slide.titleFr, slide.titleEn, slide.titleMs, slide.titleAr))}</h1>
+                    <p className="text-lg md:text-2xl mb-2 text-brand-primary">{localized(toLocalized(slide.subtitleFr, slide.subtitleEn, slide.subtitleMs, slide.subtitleAr))}</p>
+                    <p className="text-base md:text-lg mb-6 text-gray-200">{localized(toLocalized(slide.descriptionFr, slide.descriptionEn, slide.descriptionMs, slide.descriptionAr))}</p>
                     <Link href={slide.link}>
                       <Button size="lg" className="bg-brand-primary hover:bg-brand-hover text-white px-8">
-                        {localized(toLocalized(slide.ctaFr, slide.ctaEn))}
-                        <ArrowRight className="ml-2 w-5 h-5" />
+                        {localized(toLocalized(slide.ctaFr, slide.ctaEn, slide.ctaMs, slide.ctaAr))}
+                        <ArrowRight className="ms-2 w-5 h-5" />
                       </Button>
                     </Link>
                   </div>
@@ -89,15 +107,15 @@ export default function HomePage() {
               </div>
             </div>
           ))}
-          <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full p-2 transition-colors" aria-label="Previous slide">
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
-          <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full p-2 transition-colors" aria-label="Next slide">
-            <ChevronRight className="w-6 h-6 text-white" />
-          </button>
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+          <div className="absolute bottom-4 start-1/2 -translate-x-1/2 z-30 flex gap-2">
             {slides.map((_, i) => (
-              <button key={i} onClick={() => setCurrentSlide(i)} className={`w-3 h-3 rounded-full transition-colors ${i === currentSlide ? 'bg-brand-primary' : 'bg-white/50'}`} aria-label={`Slide ${i + 1}`} />
+              <button
+                key={i}
+                onClick={() => setCurrentSlide(i)}
+                className={`w-3 h-3 rounded-full transition-colors ${i === currentSlide ? 'bg-brand-primary' : 'bg-white/50'}`}
+                aria-label={`Slide ${i + 1}`}
+                aria-current={i === currentSlide ? 'true' : undefined}
+              />
             ))}
           </div>
         </section>
@@ -116,10 +134,10 @@ export default function HomePage() {
             <Link key={cat.id} href={`/category/${cat.slug}`} className="group">
               <Card className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow">
                 <div className="relative h-36 md:h-48">
-                  <Image src={getCategoryImageUrl(cat)} alt={localized(toLocalized(cat.nameFr, cat.nameEn))} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <Image src={getCategoryImageUrl(cat)} alt={localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr))} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
                   <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/80 to-transparent" />
-                  <h3 className="absolute bottom-3 left-3 right-3 text-white text-sm md:text-base font-semibold">
-                    {localized(toLocalized(cat.nameFr, cat.nameEn))}
+                  <h3 className="absolute bottom-3 start-3 end-3 text-white text-sm md:text-base font-semibold">
+                    {localized(toLocalized(cat.nameFr, cat.nameEn, cat.nameMs, cat.nameAr))}
                   </h3>
                 </div>
               </Card>
@@ -141,13 +159,13 @@ export default function HomePage() {
             {topProducts.map((product) => {
               const vatRate = VAT_RATE_VALUES[product.vatRate] ?? 0.20;
               const priceTTC = product.priceHT * (1 + vatRate);
-              const name = localized(toLocalized(product.nameFr, product.nameEn));
+              const name = localized(toLocalized(product.nameFr, product.nameEn, product.nameMs, product.nameAr));
               return (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow group">
                   <Link href={`/product/${product.slug}`}>
                     <div className="relative h-48">
                       <Image src={getProductImageUrl(product)} alt={name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <div className="absolute top-2 left-2 flex gap-1">
+                      <div className="absolute top-2 start-2 flex gap-1">
                         {product.isNew && <Badge className="bg-brand-primary text-white">{t('product.new')}</Badge>}
                         {product.stockStatus === StockStatus.LowStock && <Badge className="bg-warning text-white">{t('product.low_stock')}</Badge>}
                         {product.stockStatus === StockStatus.OutOfStock && <Badge className="bg-error text-white">{t('product.out_of_stock')}</Badge>}
@@ -160,9 +178,9 @@ export default function HomePage() {
                         {name}
                       </h3>
                     </Link>
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn))}</p>
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{localized(toLocalized(product.descriptionFr, product.descriptionEn, product.descriptionMs, product.descriptionAr))}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, locale === 'fr' ? 'fr-FR' : 'en-US')}</span>
+                      <span className="text-lg font-bold text-brand-dark">{formatPrice(priceTTC, toIntlLocale(locale))}</span>
                       <Button
                         size="sm"
                         className="bg-brand-primary hover:bg-brand-hover text-white"

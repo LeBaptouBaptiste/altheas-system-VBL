@@ -17,6 +17,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.ShippingMethod).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.ShippingCost).HasPrecision(18, 2);
 
+        // Stripe IDs : pi_* (PaymentIntent) ~ 26 chars, status ~ 30 chars max.
+        // Both nullable: only populated when PaymentMethod == Card (Stripe flow).
+        builder.Property(o => o.StripePaymentIntentId).HasMaxLength(255);
+        builder.Property(o => o.StripePaymentStatus).HasMaxLength(50);
+        // Index speeds up the webhook handler's lookup-by-PaymentIntent-ID.
+        builder.HasIndex(o => o.StripePaymentIntentId);
+
         builder.HasOne(o => o.BillingAddress).WithMany().HasForeignKey(o => o.BillingAddressId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(o => o.ShippingAddress).WithMany().HasForeignKey(o => o.ShippingAddressId).OnDelete(DeleteBehavior.Restrict);
         builder.HasMany(o => o.Items).WithOne(i => i.Order).HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Cascade);

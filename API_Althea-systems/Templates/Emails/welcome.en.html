@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Confirm your email address — Althea Systems</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f7; padding: 24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background-color: #0F4C81; padding: 24px 32px;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600;">Althea Systems</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <h2 style="margin: 0 0 16px 0; font-size: 20px; color: #1f2937;">Hi {{firstName}},</h2>
+              <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+                Welcome to Althea Systems. To finish setting up your account
+                and access our professional medical equipment catalog, please
+                confirm your email address by clicking the button below.
+              </p>
+              <p style="margin: 24px 0; text-align: center;">
+                <a href="{{confirmLink}}"
+                   style="display: inline-block; background-color: #0F4C81; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px;">
+                  Confirm my email
+                </a>
+              </p>
+              <p style="margin: 16px 0; font-size: 13px; color: #6b7280; line-height: 1.6;">
+                This link is valid for {{tokenLifetimeHours}} hours. If the button doesn't work,
+                copy and paste the following URL into your browser:
+              </p>
+              <p style="margin: 8px 0 24px 0; font-size: 12px; color: #6b7280; word-break: break-all;">
+                {{confirmLink}}
+              </p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">
+                If you didn't initiate this sign-up, simply ignore this email —
+                no action is required and the link will expire on its own.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 16px 32px; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                Althea Systems · contact@altheasystems.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

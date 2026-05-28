@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
           <Mail className="w-12 h-12 mx-auto text-brand-primary" />
           <h1 className="text-2xl text-brand-dark">{t('auth.reset_password')}</h1>
           <p className="text-muted-foreground">{t('auth.reset_sent')}</p>
-          <Link href="/login"><Button variant="outline"><ArrowLeft className="w-4 h-4 mr-2" />{t('auth.login')}</Button></Link>
+          <Link href="/login"><Button variant="outline"><ArrowLeft className="w-4 h-4 me-2" />{t('auth.login')}</Button></Link>
         </CardContent></Card>
       </div>
     );
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
           <div><Label htmlFor="email">{t('auth.email')}</Label><Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div>
           <Button type="submit" className="w-full bg-brand-primary hover:bg-brand-hover text-white">{t('auth.reset_password')}</Button>
         </form>
-        <Link href="/login" className="block text-sm text-center mt-4 text-brand-primary hover:underline"><ArrowLeft className="w-3 h-3 inline mr-1" />{t('auth.login')}</Link>
+        <Link href="/login" className="block text-sm text-center mt-4 text-brand-primary hover:underline"><ArrowLeft className="w-3 h-3 inline me-1" />{t('auth.login')}</Link>
       </CardContent></Card>
     </div>
   );

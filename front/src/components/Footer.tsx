@@ -46,6 +46,7 @@ export function Footer() {
             <h4 className="mb-4">{t('footer.legal_links')}</h4>
             <ul className="space-y-2 text-sm">
               <li><Link href="/cgu" className="text-gray-300 hover:text-brand-primary transition-colors">{t('nav.cgu')}</Link></li>
+              <li><Link href="/cgv" className="text-gray-300 hover:text-brand-primary transition-colors">{t('nav.cgv')}</Link></li>
               <li><Link href="/mentions-legales" className="text-gray-300 hover:text-brand-primary transition-colors">{t('nav.legal')}</Link></li>
             </ul>
           </div>

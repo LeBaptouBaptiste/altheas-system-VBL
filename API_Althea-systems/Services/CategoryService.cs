@@ -50,8 +50,12 @@ public class CategoryService : ICategoryService
             Slug = request.Slug,
             NameFr = request.NameFr,
             NameEn = request.NameEn,
+            NameMs = request.NameMs,
+            NameAr = request.NameAr,
             DescriptionFr = request.DescriptionFr,
             DescriptionEn = request.DescriptionEn,
+            DescriptionMs = request.DescriptionMs,
+            DescriptionAr = request.DescriptionAr,
             Image = request.Image,
             ParentId = request.ParentId,
             DisplayOrder = request.DisplayOrder,
@@ -70,8 +74,12 @@ public class CategoryService : ICategoryService
         if (request.Slug != null) category.Slug = request.Slug;
         if (request.NameFr != null) category.NameFr = request.NameFr;
         if (request.NameEn != null) category.NameEn = request.NameEn;
+        if (request.NameMs != null) category.NameMs = request.NameMs;
+        if (request.NameAr != null) category.NameAr = request.NameAr;
         if (request.DescriptionFr != null) category.DescriptionFr = request.DescriptionFr;
         if (request.DescriptionEn != null) category.DescriptionEn = request.DescriptionEn;
+        if (request.DescriptionMs != null) category.DescriptionMs = request.DescriptionMs;
+        if (request.DescriptionAr != null) category.DescriptionAr = request.DescriptionAr;
         if (request.Image != null) category.Image = request.Image;
         if (request.ParentId != null) category.ParentId = request.ParentId;
         if (request.DisplayOrder.HasValue) category.DisplayOrder = request.DisplayOrder.Value;
@@ -89,6 +97,8 @@ public class CategoryService : ICategoryService
     }
 
     private static CategoryDto MapToDto(Category c, int productCount) => new(
-        c.Id, c.Slug, c.NameFr, c.NameEn, c.DescriptionFr, c.DescriptionEn,
+        c.Id, c.Slug,
+        c.NameFr, c.NameEn, c.NameMs, c.NameAr,
+        c.DescriptionFr, c.DescriptionEn, c.DescriptionMs, c.DescriptionAr,
         c.Image, c.ParentId, c.DisplayOrder, c.Active, productCount);
 }

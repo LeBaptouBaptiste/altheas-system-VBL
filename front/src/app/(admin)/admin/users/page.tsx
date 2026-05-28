@@ -14,6 +14,7 @@ import { usersService, ordersService } from '@/lib/api-services';
 import type { UserDto, OrderDto } from '@/lib/api-types';
 import { UserRole, UserStatus } from '@/lib/enums';
 import { enumLabel } from '@/lib/enums';
+import { toIntlLocale } from '@/lib/money';
 import { toast } from 'sonner';
 
 const STATUS_COLORS: Record<number, string> = {
@@ -22,7 +23,7 @@ const STATUS_COLORS: Record<number, string> = {
 };
 
 export default function AdminUsersPage() {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const [usersList, setUsersList] = useState<UserDto[]>([]);
   const [orders, setOrders] = useState<OrderDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,10 +70,10 @@ export default function AdminUsersPage() {
       setUsersList(prev => prev.map(u => u.id === userId ? updated : u));
       setConfirmAnon(null);
       setDetailUser(null);
-      toast.success(locale === 'fr' ? 'Utilisateur anonymisé (RGPD)' : 'User anonymized (GDPR)');
+      toast.success(t('admin.user_anonymized'));
     } catch (err) {
       console.error('Failed to anonymize user', err);
-      toast.error(locale === 'fr' ? 'Erreur lors de l\'anonymisation' : 'Failed to anonymize user');
+      toast.error(t('admin.anonymize_failed'));
     }
   };
 
@@ -88,13 +89,13 @@ export default function AdminUsersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={locale === 'fr' ? 'Rechercher un utilisateur...' : 'Search users...'} className="pl-9" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('admin.search_users')} className="ps-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{locale === 'fr' ? 'Tous statuts' : 'All statuses'}</SelectItem>
+            <SelectItem value="all">{t('admin.all_statuses')}</SelectItem>
             <SelectItem value={String(UserStatus.Active)}>{enumLabel('UserStatus', UserStatus.Active, locale)}</SelectItem>
             <SelectItem value={String(UserStatus.Inactive)}>{enumLabel('UserStatus', UserStatus.Inactive, locale)}</SelectItem>
           </SelectContent>
@@ -102,7 +103,7 @@ export default function AdminUsersPage() {
         <Select value={roleFilter} onValueChange={setRoleFilter}>
           <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{locale === 'fr' ? 'Tous rôles' : 'All roles'}</SelectItem>
+            <SelectItem value="all">{t('admin.all_roles')}</SelectItem>
             <SelectItem value={String(UserRole.Customer)}>{enumLabel('UserRole', UserRole.Customer, locale)}</SelectItem>
             <SelectItem value={String(UserRole.Admin)}>{enumLabel('UserRole', UserRole.Admin, locale)}</SelectItem>
           </SelectContent>
@@ -115,13 +116,13 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50">
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Utilisateur' : 'User'}</th>
-                  <th className="p-3 text-left">Email</th>
-                  <th className="p-3 text-center">{locale === 'fr' ? 'Rôle' : 'Role'}</th>
+                  <th className="p-3 text-start">{t('admin.user_label')}</th>
+                  <th className="p-3 text-start">Email</th>
+                  <th className="p-3 text-center">{t('admin.role_label')}</th>
                   <th className="p-3 text-center">Status</th>
-                  <th className="p-3 text-center">{locale === 'fr' ? 'Commandes' : 'Orders'}</th>
-                  <th className="p-3 text-left">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-center">{t('admin.orders_label')}</th>
+                  <th className="p-3 text-start">{t('admin.last_login')}</th>
+                  <th className="p-3 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,7 +137,7 @@ export default function AdminUsersPage() {
                     <td className="p-3 text-muted-foreground">{user.email}</td>
                     <td className="p-3 text-center">
                       {user.role === UserRole.Admin ? (
-                        <Badge className="bg-brand-primary/10 text-brand-primary"><Shield className="w-3 h-3 mr-1" />Admin</Badge>
+                        <Badge className="bg-brand-primary/10 text-brand-primary"><Shield className="w-3 h-3 me-1" />Admin</Badge>
                       ) : (
                         <Badge variant="outline">{enumLabel('UserRole', user.role, locale)}</Badge>
                       )}
@@ -147,8 +148,8 @@ export default function AdminUsersPage() {
                       </Badge>
                     </td>
                     <td className="p-3 text-center">{getUserOrders(user.id).length}</td>
-                    <td className="p-3 text-muted-foreground text-xs">{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US') : '-'}</td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-muted-foreground text-xs">{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString(toIntlLocale(locale)) : '-'}</td>
+                    <td className="p-3 text-end">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDetailUser(user)}>
                           <Eye className="w-3.5 h-3.5" />
@@ -179,26 +180,26 @@ export default function AdminUsersPage() {
               <div className="space-y-3 text-sm">
                 <div className="grid grid-cols-2 gap-3">
                   <div><p className="text-muted-foreground">Email</p><p>{detailUser.email}</p></div>
-                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Rôle' : 'Role'}</p><p>{enumLabel('UserRole', detailUser.role, locale)}</p></div>
+                  <div><p className="text-muted-foreground">{t('admin.role_label')}</p><p>{enumLabel('UserRole', detailUser.role, locale)}</p></div>
                   <div><p className="text-muted-foreground">Status</p><p>{enumLabel('UserStatus', detailUser.status, locale)}</p></div>
-                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Email confirmé' : 'Email confirmed'}</p><p>{detailUser.emailConfirmed ? 'Yes' : 'No'}</p></div>
-                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Créé le' : 'Created'}</p><p>{new Date(detailUser.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</p></div>
-                  <div><p className="text-muted-foreground">{locale === 'fr' ? 'Dernière connexion' : 'Last login'}</p><p>{detailUser.lastLogin ? new Date(detailUser.lastLogin).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US') : '-'}</p></div>
+                  <div><p className="text-muted-foreground">{t('admin.email_confirmed')}</p><p>{detailUser.emailConfirmed ? 'Yes' : 'No'}</p></div>
+                  <div><p className="text-muted-foreground">{t('admin.created_label')}</p><p>{new Date(detailUser.createdAt).toLocaleDateString(toIntlLocale(locale))}</p></div>
+                  <div><p className="text-muted-foreground">{t('admin.last_login')}</p><p>{detailUser.lastLogin ? new Date(detailUser.lastLogin).toLocaleDateString(toIntlLocale(locale)) : '-'}</p></div>
                 </div>
                 <Separator />
                 <div>
-                  <p className="font-medium mb-1">{locale === 'fr' ? 'Adresses' : 'Addresses'} ({detailUser.addresses.length})</p>
+                  <p className="font-medium mb-1">{t('admin.addresses_label')} ({detailUser.addresses.length})</p>
                   {detailUser.addresses.map(a => (
                     <div key={a.id} className="text-xs text-muted-foreground mb-1">
                       {a.label}: {a.street}, {a.postalCode} {a.city}
                     </div>
                   ))}
-                  {detailUser.addresses.length === 0 && <p className="text-xs text-muted-foreground">{locale === 'fr' ? 'Aucune adresse' : 'No addresses'}</p>}
+                  {detailUser.addresses.length === 0 && <p className="text-xs text-muted-foreground">{t('admin.no_addresses')}</p>}
                 </div>
                 <div>
-                  <p className="font-medium mb-1">{locale === 'fr' ? 'Commandes' : 'Orders'} ({getUserOrders(detailUser.id).length})</p>
+                  <p className="font-medium mb-1">{t('admin.orders_label')} ({getUserOrders(detailUser.id).length})</p>
                   {getUserOrders(detailUser.id).map(o => (
-                    <div key={o.id} className="text-xs text-muted-foreground">#{o.id.split('-').pop()} - {enumLabel('OrderStatus', o.status, locale)} - {new Date(o.date).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</div>
+                    <div key={o.id} className="text-xs text-muted-foreground">#{o.id.split('-').pop()} - {enumLabel('OrderStatus', o.status, locale)} - {new Date(o.date).toLocaleDateString(toIntlLocale(locale))}</div>
                   ))}
                 </div>
               </div>
@@ -211,17 +212,15 @@ export default function AdminUsersPage() {
       <Dialog open={!!confirmAnon} onOpenChange={() => setConfirmAnon(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-error">{locale === 'fr' ? 'Anonymiser cet utilisateur ?' : 'Anonymize this user?'}</DialogTitle>
+            <DialogTitle className="text-error">{t('admin.anonymize_q')}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {locale === 'fr'
-              ? 'Cette action est irréversible. Les données personnelles seront supprimées conformément au RGPD. Les commandes seront conservées de manière anonyme.'
-              : 'This action is irreversible. Personal data will be removed in compliance with GDPR. Orders will be kept anonymously.'}
+            {t('admin.anonymize_warning')}
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmAnon(null)}>{locale === 'fr' ? 'Annuler' : 'Cancel'}</Button>
+            <Button variant="outline" onClick={() => setConfirmAnon(null)}>{t('admin.cancel')}</Button>
             <Button variant="destructive" onClick={() => confirmAnon && handleAnonymize(confirmAnon)}>
-              {locale === 'fr' ? 'Anonymiser' : 'Anonymize'}
+              {t('admin.anonymize_action')}
             </Button>
           </DialogFooter>
         </DialogContent>

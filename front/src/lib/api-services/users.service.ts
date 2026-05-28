@@ -14,8 +14,12 @@ export const usersService = {
   delete: (id: string) =>
     api.delete(`/users/${id}`),
 
-  anonymize: (id: string) =>
-    api.post<UserDto>(`/users/${id}/anonymize`),
+  /**
+   * GDPR self-delete equivalent. Backend requires a step-up Action token —
+   * pass it via `stepUpToken` (callers should obtain it via `useStepUp()`).
+   */
+  anonymize: (id: string, stepUpToken?: string) =>
+    api.post<UserDto>(`/users/${id}/anonymize`, undefined, stepUpToken ? { stepUpToken } : undefined),
 
   // Addresses
   addAddress: (userId: string, data: Omit<AddressDto, 'id'>) =>
@@ -27,10 +31,28 @@ export const usersService = {
   deleteAddress: (userId: string, addressId: string) =>
     api.delete(`/users/${userId}/addresses/${addressId}`),
 
+  /**
+   * Marks the address as the user's default. Unsets the flag on others
+   * atomically. Returns the updated AddressDto with IsDefault=true.
+   */
+  setDefaultAddress: (userId: string, addressId: string) =>
+    api.put<AddressDto>(`/users/${userId}/addresses/${addressId}/default`, {}),
+
   // Payment methods
+  listPaymentMethods: (userId: string) =>
+    api.get<PaymentMethodDto[]>(`/users/${userId}/payment-methods`),
+
   addPaymentMethod: (userId: string, data: { type: string; label: string }) =>
     api.post<PaymentMethodDto>(`/users/${userId}/payment-methods`, data),
 
-  deletePaymentMethod: (userId: string, paymentMethodId: string) =>
-    api.delete(`/users/${userId}/payment-methods/${paymentMethodId}`),
+  /**
+   * Removes a saved card. Backend requires a step-up Action token
+   * ([RequireStepUp(Action)]) — pass it via `stepUpToken` (callers should
+   * obtain it via `useStepUp()`'s `withStepUp` wrapper).
+   */
+  deletePaymentMethod: (userId: string, paymentMethodId: string, stepUpToken?: string) =>
+    api.delete(
+      `/users/${userId}/payment-methods/${paymentMethodId}`,
+      stepUpToken ? { stepUpToken } : undefined,
+    ),
 };

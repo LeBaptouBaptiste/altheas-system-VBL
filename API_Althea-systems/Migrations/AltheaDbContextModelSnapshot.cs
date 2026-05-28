@@ -76,6 +76,18 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("CtaAr")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CtaMs")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("DescriptionEn")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -83,6 +95,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("DescriptionFr")
                         .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DescriptionMs")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
@@ -99,6 +115,10 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("SubtitleAr")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("SubtitleEn")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -109,6 +129,14 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("SubtitleMs")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TitleAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("TitleEn")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -116,6 +144,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("TitleFr")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TitleMs")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
@@ -133,12 +165,18 @@ namespace API_Althea_systems.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContentAr")
+                        .HasColumnType("text");
+
                     b.Property<string>("ContentEn")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("ContentFr")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContentMs")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
@@ -149,6 +187,10 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("TitleAr")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("TitleEn")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -156,6 +198,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("TitleFr")
                         .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TitleMs")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
@@ -190,6 +236,11 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
@@ -211,6 +262,9 @@ namespace API_Althea_systems.Migrations
                         .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
 
                     b.HasIndex("OrderId");
 
@@ -395,6 +449,14 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("StripePaymentIntentId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("StripePaymentStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -406,6 +468,8 @@ namespace API_Althea_systems.Migrations
                     b.HasIndex("BillingAddressId");
 
                     b.HasIndex("ShippingAddressId");
+
+                    b.HasIndex("StripePaymentIntentId");
 
                     b.HasIndex("UserId");
 
@@ -489,6 +553,27 @@ namespace API_Althea_systems.Migrations
                     b.ToTable("order_status_changes", (string)null);
                 });
 
+            modelBuilder.Entity("API_Althea_systems.Models.Payments.WebhookEvent", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("Type");
+
+                    b.ToTable("webhook_events", (string)null);
+                });
+
             modelBuilder.Entity("API_Althea_systems.Models.Products.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -501,6 +586,10 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("DescriptionEn")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -508,6 +597,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("DescriptionFr")
                         .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DescriptionMs")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
@@ -519,6 +612,10 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -526,6 +623,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("NameFr")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NameMs")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
@@ -559,6 +660,10 @@ namespace API_Althea_systems.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("DescriptionEn")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -569,12 +674,19 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("DescriptionMs")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.PrimitiveCollection<string[]>("Images")
                         .IsRequired()
                         .HasColumnType("text[]");
 
                     b.Property<bool>("IsNew")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LongDescriptionAr")
+                        .HasColumnType("text");
 
                     b.Property<string>("LongDescriptionEn")
                         .IsRequired()
@@ -584,6 +696,13 @@ namespace API_Althea_systems.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("LongDescriptionMs")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -591,6 +710,10 @@ namespace API_Althea_systems.Migrations
 
                     b.Property<string>("NameFr")
                         .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("NameMs")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
@@ -661,11 +784,35 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("LabelAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LabelEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LabelMs")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Value")
                         .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ValueAr")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ValueEn")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ValueMs")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
@@ -774,6 +921,10 @@ namespace API_Althea_systems.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PreferredLocale")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -784,11 +935,19 @@ namespace API_Althea_systems.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("TwoFactorEnabledAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("TwoFactorSecret")
-                        .HasColumnType("text");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -807,13 +966,31 @@ namespace API_Althea_systems.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Brand")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ExpMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ExpYear")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Label")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Last4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<string>("StripePaymentMethodId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -825,9 +1002,38 @@ namespace API_Althea_systems.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("StripePaymentMethodId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("user_payment_methods", (string)null);
+                });
+
+            modelBuilder.Entity("API_Althea_systems.Models.Users.UserRecoveryCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("user_recovery_codes", (string)null);
                 });
 
             modelBuilder.Entity("API_Althea_systems.Models.Invoices.Invoice", b =>
@@ -1013,6 +1219,17 @@ namespace API_Althea_systems.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("API_Althea_systems.Models.Users.UserRecoveryCode", b =>
+                {
+                    b.HasOne("API_Althea_systems.Models.Users.User", "User")
+                        .WithMany("RecoveryCodes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("API_Althea_systems.Models.Messaging.ChatConversation", b =>
                 {
                     b.Navigation("Messages");
@@ -1057,6 +1274,8 @@ namespace API_Althea_systems.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("PaymentMethods");
+
+                    b.Navigation("RecoveryCodes");
                 });
 #pragma warning restore 612, 618
         }

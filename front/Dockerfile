@@ -13,6 +13,12 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:5207/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# Stripe publishable key — baked into the bundle at build time (safe to ship,
+# it can only initiate payments). Default placeholder so `docker build` still
+# works without the var set; runtime obviously needs a real pk_test_*.
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_REPLACE_ME
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+
 RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using API_Althea_systems.Common.Auth;
 using API_Althea_systems.Models.Users;
 using API_Althea_systems.Services.IServices;
 
@@ -17,15 +18,31 @@ public class PaymentMethodController : ControllerBase
         _userService = userService;
     }
 
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<PaymentMethodDto>>> GetAll(Guid userId)
+    {
+        // Lists the user's saved payment methods. Used by /checkout to show a
+        // picker before the new-card form, and by /account/payments to manage.
+        HttpContext.RequireOwnershipOrAdmin(userId);
+        var user = await _userService.GetByIdAsync(userId);
+        return Ok(user.PaymentMethods);
+    }
+
     [HttpPost]
     public async Task<ActionResult<PaymentMethodDto>> Create(Guid userId, [FromBody] PaymentMethodCreateRequest request)
     {
+        HttpContext.RequireOwnershipOrAdmin(userId);
         return Created("", await _userService.AddPaymentMethodAsync(userId, request));
     }
 
+    // Supprimer une carte = opération sensible : la carte est détachée
+    // côté Stripe, et reverser cette action requiert de re-saisir le PAN.
+    // → step-up Action obligatoire (60s, single-use).
     [HttpDelete("{paymentMethodId:guid}")]
+    [RequireStepUp(StepUpPurpose.Action)]
     public async Task<IActionResult> Delete(Guid userId, Guid paymentMethodId)
     {
+        HttpContext.RequireOwnershipOrAdmin(userId);
         await _userService.DeletePaymentMethodAsync(userId, paymentMethodId);
         return NoContent();
     }

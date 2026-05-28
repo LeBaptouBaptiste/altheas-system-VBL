@@ -35,9 +35,13 @@ public class ContentService : IContentService
         {
             Id = Guid.NewGuid(), Image = request.Image,
             TitleFr = request.TitleFr, TitleEn = request.TitleEn,
+            TitleMs = request.TitleMs, TitleAr = request.TitleAr,
             SubtitleFr = request.SubtitleFr, SubtitleEn = request.SubtitleEn,
+            SubtitleMs = request.SubtitleMs, SubtitleAr = request.SubtitleAr,
             DescriptionFr = request.DescriptionFr, DescriptionEn = request.DescriptionEn,
+            DescriptionMs = request.DescriptionMs, DescriptionAr = request.DescriptionAr,
             CtaFr = request.CtaFr, CtaEn = request.CtaEn,
+            CtaMs = request.CtaMs, CtaAr = request.CtaAr,
             Link = request.Link, DisplayOrder = request.DisplayOrder, Active = request.Active
         };
         await _contentRepository.CreateHeroSlideAsync(slide);
@@ -52,12 +56,20 @@ public class ContentService : IContentService
         if (request.Image != null) slide.Image = request.Image;
         if (request.TitleFr != null) slide.TitleFr = request.TitleFr;
         if (request.TitleEn != null) slide.TitleEn = request.TitleEn;
+        if (request.TitleMs != null) slide.TitleMs = request.TitleMs;
+        if (request.TitleAr != null) slide.TitleAr = request.TitleAr;
         if (request.SubtitleFr != null) slide.SubtitleFr = request.SubtitleFr;
         if (request.SubtitleEn != null) slide.SubtitleEn = request.SubtitleEn;
+        if (request.SubtitleMs != null) slide.SubtitleMs = request.SubtitleMs;
+        if (request.SubtitleAr != null) slide.SubtitleAr = request.SubtitleAr;
         if (request.DescriptionFr != null) slide.DescriptionFr = request.DescriptionFr;
         if (request.DescriptionEn != null) slide.DescriptionEn = request.DescriptionEn;
+        if (request.DescriptionMs != null) slide.DescriptionMs = request.DescriptionMs;
+        if (request.DescriptionAr != null) slide.DescriptionAr = request.DescriptionAr;
         if (request.CtaFr != null) slide.CtaFr = request.CtaFr;
         if (request.CtaEn != null) slide.CtaEn = request.CtaEn;
+        if (request.CtaMs != null) slide.CtaMs = request.CtaMs;
+        if (request.CtaAr != null) slide.CtaAr = request.CtaAr;
         if (request.Link != null) slide.Link = request.Link;
         if (request.DisplayOrder.HasValue) slide.DisplayOrder = request.DisplayOrder.Value;
         if (request.Active.HasValue) slide.Active = request.Active.Value;
@@ -101,7 +113,9 @@ public class ContentService : IContentService
         {
             Id = Guid.NewGuid(), Slug = request.Slug,
             TitleFr = request.TitleFr, TitleEn = request.TitleEn,
-            ContentFr = request.ContentFr, ContentEn = request.ContentEn
+            TitleMs = request.TitleMs, TitleAr = request.TitleAr,
+            ContentFr = request.ContentFr, ContentEn = request.ContentEn,
+            ContentMs = request.ContentMs, ContentAr = request.ContentAr,
         };
         await _contentRepository.CreateStaticPageAsync(page);
         return MapPageDto(page);
@@ -115,8 +129,12 @@ public class ContentService : IContentService
         if (request.Slug != null) page.Slug = request.Slug;
         if (request.TitleFr != null) page.TitleFr = request.TitleFr;
         if (request.TitleEn != null) page.TitleEn = request.TitleEn;
+        if (request.TitleMs != null) page.TitleMs = request.TitleMs;
+        if (request.TitleAr != null) page.TitleAr = request.TitleAr;
         if (request.ContentFr != null) page.ContentFr = request.ContentFr;
         if (request.ContentEn != null) page.ContentEn = request.ContentEn;
+        if (request.ContentMs != null) page.ContentMs = request.ContentMs;
+        if (request.ContentAr != null) page.ContentAr = request.ContentAr;
 
         await _contentRepository.UpdateStaticPageAsync(page);
         return MapPageDto(page);
@@ -130,9 +148,16 @@ public class ContentService : IContentService
     }
 
     private static HeroSlideDto MapSlideDto(HeroSlide h) => new(
-        h.Id, h.Image, h.TitleFr, h.TitleEn, h.SubtitleFr, h.SubtitleEn,
-        h.DescriptionFr, h.DescriptionEn, h.CtaFr, h.CtaEn, h.Link, h.DisplayOrder, h.Active);
+        h.Id, h.Image,
+        h.TitleFr, h.TitleEn, h.TitleMs, h.TitleAr,
+        h.SubtitleFr, h.SubtitleEn, h.SubtitleMs, h.SubtitleAr,
+        h.DescriptionFr, h.DescriptionEn, h.DescriptionMs, h.DescriptionAr,
+        h.CtaFr, h.CtaEn, h.CtaMs, h.CtaAr,
+        h.Link, h.DisplayOrder, h.Active);
 
     private static StaticPageDto MapPageDto(StaticPage p) => new(
-        p.Id, p.Slug, p.TitleFr, p.TitleEn, p.ContentFr, p.ContentEn, p.UpdatedAt);
+        p.Id, p.Slug,
+        p.TitleFr, p.TitleEn, p.TitleMs, p.TitleAr,
+        p.ContentFr, p.ContentEn, p.ContentMs, p.ContentAr,
+        p.UpdatedAt);
 }

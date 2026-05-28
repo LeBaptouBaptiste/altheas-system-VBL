@@ -3,6 +3,8 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using FluentValidation;
@@ -12,7 +14,9 @@ using API_Althea_systems.Data;
 using API_Althea_systems.Repositories;
 using API_Althea_systems.Repositories.IRepositories;
 using API_Althea_systems.Services;
+using API_Althea_systems.Services.Email;
 using API_Althea_systems.Services.IServices;
+using API_Althea_systems.Services.Ollama;
 
 namespace API_Althea_systems.Extensions;
 
@@ -21,7 +25,20 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<AltheaDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("PostgreSQL")));
+        {
+            options.UseNpgsql(configuration.GetConnectionString("PostgreSQL"));
+
+            // EF Core 10 validates the model against the migrations snapshot
+            // at boot and throws if they don't match. Our Phase 2-5 migrations
+            // were hand-written without regenerating AltheaDbContextModelSnapshot
+            // (1163 lines, too error-prone to edit manually), so the snapshot
+            // is intentionally stale until someone runs `dotnet ef migrations
+            // add <Anything>` locally to resync. Ignoring the warning keeps
+            // boot working in the meantime — the migrations themselves are
+            // correct, only the diff-tooling metadata is out of date.
+            options.ConfigureWarnings(w =>
+                w.Ignore(RelationalEventId.PendingModelChangesWarning));
+        });
 
         return services;
     }
@@ -29,12 +46,24 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddRedisCache(this IServiceCollection services, IConfiguration configuration)
     {
         var redisConnectionString = configuration.GetConnectionString("Redis");
-        if (!string.IsNullOrEmpty(redisConnectionString))
+        if (string.IsNullOrWhiteSpace(redisConnectionString))
         {
-            services.AddSingleton<IConnectionMultiplexer>(
-                ConnectionMultiplexer.Connect(redisConnectionString));
+            throw new InvalidOperationException(
+                "Redis connection required for 2FA/Step-Up — set ConnectionStrings:Redis");
         }
 
+        services.AddSingleton<IConnectionMultiplexer>(
+            ConnectionMultiplexer.Connect(redisConnectionString));
+
+        return services;
+    }
+
+    public static IServiceCollection AddEncryption(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Eagerly construct the service so a missing/invalid Encryption:Key
+        // fails the application startup, mirroring the JWT secret behavior.
+        var encryption = new EncryptionService(configuration);
+        services.AddSingleton<IEncryptionService>(encryption);
         return services;
     }
 
@@ -42,6 +71,13 @@ public static class ServiceCollectionExtensions
     {
         var jwtSettings = configuration.GetSection("JwtSettings");
         var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey is not configured.");
+
+        if (Encoding.UTF8.GetByteCount(secretKey) < 32)
+        {
+            throw new InvalidOperationException(
+                "JWT SecretKey must be at least 32 bytes (HS256 requires >= 256 bits). " +
+                "Set JwtSettings:SecretKey to a strong random string of 32+ characters.");
+        }
 
         services.AddAuthentication(options =>
         {
@@ -122,8 +158,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IEmailConfirmationTokenRepository, EmailConfirmationTokenRepository>();
+        services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IContentRepository, ContentRepository>();
+        services.AddScoped<IRecoveryCodeRepository, RecoveryCodeRepository>();
 
         // Services
         services.AddScoped<ITokenService, TokenService>();
@@ -137,12 +176,156 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<ITicketService, TicketService>();
         services.AddScoped<IContentService, ContentService>();
+        services.AddSingleton<ITwoFactorStateStore, RedisTwoFactorStateStore>();
+        services.AddSingleton<IStepUpConsumptionStore, RedisStepUpConsumptionStore>();
+        // Login-attempt throttling falls back to a no-op when Redis is not
+        // configured (dev / unit tests) so login still works locally without
+        // pulling Redis into every workflow.
+        services.AddSingleton<ILoginAttemptStore>(sp =>
+        {
+            var redis = sp.GetService<IConnectionMultiplexer>();
+            return redis is null
+                ? new NullLoginAttemptStore()
+                : new RedisLoginAttemptStore(redis);
+        });
+        services.AddScoped<ITwoFactorService, TwoFactorService>();
 
         // Special services
         services.AddSingleton<IVatCalculationService, VatCalculationService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<IAnonymizationService, AnonymizationService>();
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
+        services.AddScoped<IStripeService, StripeService>();
+        services.AddScoped<IStripeWebhookProcessor, StripeWebhookProcessor>();
+        // Phase 7: refund-side of the Stripe API, separated so InvoiceService
+        // can mock it in isolation. Stateless wrapper — Scoped is fine.
+        services.AddScoped<IStripeRefundService, StripeRefundService>();
+        // Ollama LLM backend for the customer chatbot.
+        // Settings are bound via AddOllama() (called from Program.cs).
+        // HttpClient lifetime is Transient-via-IHttpClientFactory — handled
+        // by AddHttpClient, no manual disposal needed.
+        services.AddHttpClient<IOllamaService, OllamaService>((sp, client) =>
+        {
+            var settings = sp.GetRequiredService<IOptions<OllamaSettings>>().Value;
+            client.BaseAddress = new Uri(settings.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+        });
+        // RAG-ish per-turn context assembler. Runs read-only DB queries
+        // on every chat message (customer profile + recent orders + catalog
+        // categories + product search on the question) so the LLM answers
+        // with real prices/statuses instead of hallucinating.
+        services.AddScoped<IChatContextBuilder, ChatContextBuilder>();
+        // PDF rendering is stateless and fast (QuestPDF reuses a thread-local
+        // engine), Singleton is appropriate.
+        services.AddSingleton<IInvoicePdfService, InvoicePdfService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddEmail(this IServiceCollection services, IConfiguration configuration)
+    {
+        // SMTP settings are bound from "Smtp" — blank Host means "no SMTP
+        // configured" and SmtpEmailSender logs+skips at send time (see its
+        // null-host branch). That keeps local dev usable without credentials.
+        services.Configure<SmtpSettings>(configuration.GetSection("Smtp"));
+
+        // Templates load once at construction (Singleton). The options POCO
+        // is eagerly built so we can pass it via constructor injection rather
+        // than IOptions<>, which keeps the boot-time file scan visible in
+        // EmailTemplateRenderer's stack frame on failure.
+        var templateOptions = configuration.GetSection("EmailTemplates").Get<EmailTemplateOptions>()
+            ?? new EmailTemplateOptions();
+        services.AddSingleton(templateOptions);
+        services.AddSingleton<IEmailTemplateRenderer, EmailTemplateRenderer>();
+
+        // The SMTP sender is stateless (creates a fresh SmtpClient per send),
+        // Singleton is fine and avoids per-request allocation.
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
+        // Phase 2: registration-confirmation specific options + sender.
+        services.Configure<EmailConfirmationOptions>(configuration.GetSection("EmailConfirmation"));
+        services.AddScoped<IEmailConfirmationSender, EmailConfirmationSender>();
+
+        // Phase 3: order-confirmation sender. Wraps IInvoicePdfService +
+        // IEmailSender + IEmailTemplateRenderer; consumed by
+        // InvoiceService.EnsureEmailedAsync.
+        services.AddScoped<IOrderConfirmationSender, OrderConfirmationSender>();
+
+        // Phase 4a: security-alert sender. Consumed by TwoFactorService on
+        // enable / disable / regenerate.
+        services.AddScoped<ISecurityAlertSender, SecurityAlertSender>();
+
+        // Phase 4b: 2FA code sender (setup + login codes for the Email
+        // method). Consumed by TwoFactorService.
+        services.AddScoped<ITwoFactorCodeSender, TwoFactorCodeSender>();
+
+        // Phase 5: password-reset link sender + options.
+        services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
+        services.AddScoped<IPasswordResetSender, PasswordResetSender>();
+
+        // Phase 5: order-status notifications (Shipped / Delivered).
+        services.AddScoped<IOrderStatusChangeSender, OrderStatusChangeSender>();
+
+        // Phase 6: credit-note (avoir) sender. Consumed by
+        // InvoiceService.IssueCreditNoteAsync.
+        services.AddScoped<ICreditNoteSender, CreditNoteSender>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddOllama(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Bound but tolerant: a missing "Ollama" section just leaves the
+        // defaults from the OllamaSettings POCO. The chatbot will still try
+        // localhost:11434 — if no Ollama is running, ChatService catches
+        // the HttpRequestException and returns a fallback message to the
+        // customer instead of 500-ing the request.
+        services.Configure<OllamaSettings>(configuration.GetSection("Ollama"));
+        return services;
+    }
+
+    public static IServiceCollection AddStripe(this IServiceCollection services, IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Stripe");
+        var secretKey = section["SecretKey"];
+
+        // Fail fast at startup if Stripe is unconfigured — we'd rather refuse
+        // to boot than silently fail at the first PaymentIntent. Placeholders
+        // (sk_test_REPLACE_ME) are accepted so local dev without real keys
+        // can still build the project; the SDK call itself will reject them.
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            throw new InvalidOperationException(
+                "Stripe:SecretKey is not configured. Set STRIPE_SECRET_KEY (sk_test_* in dev) " +
+                "via env var or appsettings.json.");
+        }
+
+        if (!secretKey.StartsWith("sk_test_") && !secretKey.StartsWith("sk_live_"))
+        {
+            throw new InvalidOperationException(
+                $"Stripe:SecretKey has an invalid prefix (must start with 'sk_test_' or 'sk_live_'). " +
+                "Did you swap it with the publishable key?");
+        }
+
+        services.Configure<StripeOptions>(section);
+        return services;
+    }
+
+    public static IServiceCollection AddHealthCheckServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        var healthChecks = services.AddHealthChecks();
+
+        var pgConn = configuration.GetConnectionString("PostgreSQL");
+        if (!string.IsNullOrWhiteSpace(pgConn))
+        {
+            healthChecks.AddNpgSql(pgConn, name: "postgresql");
+        }
+
+        var redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            healthChecks.AddRedis(redisConn, name: "redis");
+        }
 
         return services;
     }

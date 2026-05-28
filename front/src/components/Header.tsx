@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ShoppingCart, Search, Menu, Globe, User, LogOut, Settings, Package, FileText, Info, MessageSquare, Bot } from 'lucide-react';
+import { ShoppingCart, Search, Menu, Globe, User, LogOut, Settings, Package, FileText, Info, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -51,12 +51,14 @@ export function Header() {
             )}
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
               <SelectTrigger className="h-7 w-[140px] border-white/20 bg-transparent text-white text-xs" aria-label="Language">
-                <Globe className="w-3 h-3 mr-1" />
+                <Globe className="w-3 h-3 me-1" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="fr">Français</SelectItem>
                 <SelectItem value="en">English</SelectItem>
+                <SelectItem value="ms">Bahasa Melayu</SelectItem>
+                <SelectItem value="ar">العربية</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -82,11 +84,11 @@ export function Header() {
           {/* Search Bar (Desktop) */}
           <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-2xl">
             <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder={t('header.search_placeholder')}
-                className="w-full pl-10 pr-4"
+                className="w-full ps-10 pe-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 aria-label={t('common.search')}
@@ -102,7 +104,7 @@ export function Header() {
                 <>
                   <Link href="/account">
                     <Button variant="ghost" size="sm" className="text-brand-dark hover:bg-brand-light">
-                      <User className="w-4 h-4 mr-1" />
+                      <User className="w-4 h-4 me-1" />
                       <span className="max-w-[100px] truncate">{user?.name?.split(' ')[0]}</span>
                     </Button>
                   </Link>
@@ -113,7 +115,7 @@ export function Header() {
               ) : (
                 <Link href="/login">
                   <Button variant="ghost" size="sm" className="text-brand-dark hover:bg-brand-light">
-                    <User className="w-4 h-4 mr-1" />
+                    <User className="w-4 h-4 me-1" />
                     {t('nav.login')}
                   </Button>
                 </Link>
@@ -125,7 +127,7 @@ export function Header() {
               <Button variant="ghost" size="icon" className="relative hover:bg-brand-light" aria-label={`${t('nav.cart')} (${itemCount})`}>
                 <ShoppingCart className="w-5 h-5 text-brand-dark" />
                 {itemCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-brand-primary text-white text-xs">
+                  <Badge className="absolute -top-1 -end-1 h-5 w-5 flex items-center justify-center p-0 bg-brand-primary text-white text-xs">
                     {itemCount}
                   </Badge>
                 )}
@@ -144,11 +146,11 @@ export function Header() {
                 <div className="p-4">
                   <form onSubmit={(e) => { handleSearch(e); setMobileOpen(false); }}>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         type="search"
                         placeholder={t('header.search_placeholder')}
-                        className="pl-10"
+                        className="ps-10"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />
@@ -161,7 +163,6 @@ export function Header() {
                   <MobileLink href="/categories" icon={<Package className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.categories')}</MobileLink>
                   <MobileLink href="/search" icon={<Search className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.search')}</MobileLink>
                   <MobileLink href="/contact" icon={<MessageSquare className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.contact')}</MobileLink>
-                  <MobileLink href="/chatbot" icon={<Bot className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.chatbot')}</MobileLink>
 
                   <Separator className="my-2" />
 
@@ -171,6 +172,7 @@ export function Header() {
                       <MobileLink href="/account/orders" icon={<Package className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.orders')}</MobileLink>
                       <Separator className="my-2" />
                       <MobileLink href="/cgu" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgu')}</MobileLink>
+                      <MobileLink href="/cgv" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgv')}</MobileLink>
                       <MobileLink href="/mentions-legales" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.legal')}</MobileLink>
                       <MobileLink href="/a-propos" icon={<Info className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.about')}</MobileLink>
                       <Separator className="my-2" />
@@ -185,6 +187,7 @@ export function Header() {
                       <MobileLink href="/register" icon={<User className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.register')}</MobileLink>
                       <Separator className="my-2" />
                       <MobileLink href="/cgu" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgu')}</MobileLink>
+                      <MobileLink href="/cgv" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.cgv')}</MobileLink>
                       <MobileLink href="/mentions-legales" icon={<FileText className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.legal')}</MobileLink>
                       <MobileLink href="/contact" icon={<MessageSquare className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.contact')}</MobileLink>
                       <MobileLink href="/a-propos" icon={<Info className="w-4 h-4" />} onClick={() => setMobileOpen(false)}>{t('nav.about')}</MobileLink>
@@ -202,7 +205,6 @@ export function Header() {
           <Link href="/categories" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.categories')}</Link>
           <Link href="/search" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.search')}</Link>
           <Link href="/contact" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.contact')}</Link>
-          <Link href="/chatbot" className="text-brand-dark hover:text-brand-primary transition-colors font-medium">{t('nav.chatbot')}</Link>
         </nav>
       </div>
     </header>

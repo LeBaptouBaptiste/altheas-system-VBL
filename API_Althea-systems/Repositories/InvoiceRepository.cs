@@ -49,4 +49,31 @@ public class InvoiceRepository : IInvoiceRepository
         await _context.SaveChangesAsync();
         return invoice;
     }
+
+    public async Task UpdateAsync(Invoice invoice)
+    {
+        _context.Invoices.Update(invoice);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<IEnumerable<Invoice>> GetCreditNotesForInvoiceAsync(Guid originalInvoiceId)
+    {
+        return await _context.Invoices
+            .Where(i => i.RelatedInvoiceId == originalInvoiceId
+                     && i.Type == InvoiceType.CreditNote)
+            .ToListAsync();
+    }
+
+    public async Task<int> CountByUserAndPeriodAsync(Guid userId, DateTime startInclusive, DateTime endExclusive)
+    {
+        // Join via Order because Invoice doesn't carry UserId directly. The
+        // result drives the monthly sequence for the next Number — counts
+        // both regular invoices and credit notes (single shared sequence per
+        // customer-month).
+        return await _context.Invoices
+            .Where(i => i.Date >= startInclusive
+                     && i.Date < endExclusive
+                     && i.Order.UserId == userId)
+            .CountAsync();
+    }
 }

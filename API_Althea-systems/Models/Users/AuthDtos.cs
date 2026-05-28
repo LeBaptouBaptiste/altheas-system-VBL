@@ -22,7 +22,14 @@ public record ResetPasswordRequest(
 
 public record ConfirmEmailRequest(string Token);
 
-public record Verify2FaRequest(string Code);
+public record ResendConfirmationRequest(string Email);
+
+/// <summary>
+/// Returned by POST /auth/register. Unlike before phase 2, registration
+/// does NOT issue access / refresh tokens — the user must confirm their
+/// email first via the link mailed to them.
+/// </summary>
+public record RegisterResponse(UserDto User);
 
 public record AuthResponse(
     string AccessToken,
@@ -31,3 +38,40 @@ public record AuthResponse(
 );
 
 public record RefreshTokenRequest(string RefreshToken);
+
+/// <summary>
+/// One of three mutually exclusive outcomes of a /auth/login call.
+/// Front-ends should pattern-match on <see cref="Outcome"/>.
+/// </summary>
+public enum LoginOutcome
+{
+    /// <summary>Credentials valid, no 2FA required — <c>Auth</c> is populated.</summary>
+    Authenticated,
+
+    /// <summary>Credentials valid but 2FA is on — caller must POST /auth/2fa/verify with <c>ChallengeToken</c>.</summary>
+    TwoFactorRequired,
+
+    /// <summary>Admin without 2FA — caller must complete /auth/2fa/setup + /enable using <c>SetupToken</c> before getting access.</summary>
+    TwoFactorSetupRequired,
+
+    /// <summary>
+    /// Password was correct but the user has not yet confirmed their email
+    /// via the link mailed at registration. The front should show a "Check
+    /// your inbox" screen with a "Resend confirmation" CTA pointing at
+    /// POST /auth/resend-confirmation. No tokens are issued.
+    /// </summary>
+    EmailConfirmationRequired,
+}
+
+public record LoginResponse(
+    LoginOutcome Outcome,
+    AuthResponse? Auth = null,
+    string? ChallengeToken = null,
+    string? SetupToken = null,
+    // Phase 4b: populated only when Outcome=TwoFactorRequired. Lets the
+    // front render the right copy on the challenge screen
+    // ("Code from your authenticator app" vs "Code emailed to you").
+    Common.Enums.TwoFactorMethod? TwoFactorMethod = null
+);
+
+public record VerifyTwoFactorChallengeRequest(string ChallengeToken, string Code);
