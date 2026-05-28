@@ -167,7 +167,10 @@ public class UserServiceTests
 
         await _sut.DeleteAddressAsync(user.Id, address.Id);
 
-        user.Addresses.Should().BeEmpty();
+        // Soft-delete: the row is kept (historic orders reference it via FK)
+        // but flagged Archived so it disappears from the UI.
+        address.Archived.Should().BeTrue();
+        user.Addresses.Where(a => !a.Archived).Should().BeEmpty();
     }
 
     [Fact]

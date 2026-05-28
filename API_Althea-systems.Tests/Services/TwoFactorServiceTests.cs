@@ -188,6 +188,7 @@ public class TwoFactorServiceTests
         var user = NewUser();
         var rawSecret = Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('=');
         user.TwoFactorEnabled = true;
+        user.TwoFactorMethod = TwoFactorMethod.Authenticator;
         user.TwoFactorEnabledAt = DateTime.UtcNow;
         user.TwoFactorSecret = _encryption.Encrypt(rawSecret);
 
@@ -237,6 +238,7 @@ public class TwoFactorServiceTests
     {
         var user = NewUser();
         user.TwoFactorEnabled = true;
+        user.TwoFactorMethod = TwoFactorMethod.Authenticator;
         user.TwoFactorEnabledAt = DateTime.UtcNow;
         user.TwoFactorSecret = _encryption.Encrypt(
             Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('='));
@@ -259,6 +261,7 @@ public class TwoFactorServiceTests
     {
         var user = NewUser();
         user.TwoFactorEnabled = true;
+        user.TwoFactorMethod = TwoFactorMethod.Authenticator;
         var raw = Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('=');
         user.TwoFactorSecret = _encryption.Encrypt(raw);
 
@@ -278,6 +281,7 @@ public class TwoFactorServiceTests
     {
         var user = NewUser();
         user.TwoFactorEnabled = true;
+        user.TwoFactorMethod = TwoFactorMethod.Authenticator;
         var raw = Base32Encoding.ToString(RandomNumberGenerator.GetBytes(20)).TrimEnd('=');
         user.TwoFactorSecret = _encryption.Encrypt(raw);
 

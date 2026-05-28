@@ -55,7 +55,7 @@ public class CategoryServiceTests
     [Fact]
     public async Task CreateAsync_ValidRequest_ReturnsCreatedCategory()
     {
-        var request = new CategoryCreateRequest("new-cat", "Nouvelle", "New", "Desc FR", "Desc EN", "img", null, 1, true);
+        var request = new CategoryCreateRequest("new-cat", "Nouvelle", "New", null, null, "Desc FR", "Desc EN", null, null, "img", null, 1, true);
         _categoryRepo.Setup(r => r.CreateAsync(It.IsAny<Category>())).ReturnsAsync((Category c) => c);
         _categoryRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(CreateTestCategory());
         _categoryRepo.Setup(r => r.GetProductCountAsync(It.IsAny<Guid>())).ReturnsAsync(0);

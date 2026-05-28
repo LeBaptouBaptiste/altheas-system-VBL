@@ -41,7 +41,7 @@ public class StripeWebhookProcessorTests
         _invoices
             .Setup(s => s.EnsureForOrderAsync(It.IsAny<Guid>()))
             .ReturnsAsync(new InvoiceDto(
-                Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow,
+                Guid.NewGuid(), Guid.NewGuid(), "INV-TEST-0001", DateTime.UtcNow,
                 0m, 0m, 0m, InvoiceStatus.Paid, InvoiceType.Invoice, null));
 
         _sut = new StripeWebhookProcessor(
