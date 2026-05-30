@@ -12,7 +12,7 @@ API **ASP.NET Core 10** · Front **Next.js 16 / React 19** · **PostgreSQL · Mo
 - [Architecture](#architecture)
 - [Stack technique](#stack-technique)
 - [Prérequis](#prérequis)
-- [Démarrage rapide (Docker)](#démarrage-rapide-docker)
+- [Installation](#installation)
 - [Configuration (.env)](#configuration-env)
 - [Services & ports](#services--ports)
 - [Comptes de démonstration](#comptes-de-démonstration)
@@ -85,34 +85,98 @@ L'API suit une **architecture en couches** : `Controllers` → `Services` → `R
 
 ---
 
-## Démarrage rapide (Docker)
+## Installation
+
+Étape par étape, du `git clone` à une plateforme qui tourne en local.
+
+### 1. Cloner le dépôt
 
 ```bash
-# 1. Cloner le dépôt
-git clone <url-du-depot> althea-systems && cd althea-systems
+git clone <url-du-depot> althea-systems
+cd althea-systems
+```
 
-# 2. Créer le fichier d'environnement à partir de l'exemple
+### 2. Préparer le fichier `.env`
+
+```bash
 cp .env.example .env
-#   → éditer .env : mots de passe, clés JWT/chiffrement, clés Stripe de test, SMTP
+```
 
-# 3. Lancer toute la stack
+Ouvrir `.env` et renseigner **au minimum** les valeurs suivantes (le reste a des défauts utilisables) :
+
+| Variable | Comment la renseigner |
+|---|---|
+| `POSTGRES_PASSWORD` | N'importe quel mot de passe (n'est utilisé qu'en local). |
+| `JWT_SECRET_KEY` | Chaîne aléatoire ≥ 32 caractères. Génération : `openssl rand -base64 48`. |
+| `ENCRYPTION_KEY` | Clé **base64 de 32 octets**. Génération : `openssl rand -base64 32`. |
+| `STRIPE_SECRET_KEY` | Clé secrète **test** : https://dashboard.stripe.com/test/apikeys (commence par `sk_test_…`). |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Clé publique **test** du **même compte** (commence par `pk_test_…`). |
+
+Variables **optionnelles** que vous pouvez laisser telles quelles :
+
+- **SMTP** (`SMTP_HOST`, `SMTP_USERNAME`, etc.) : laisser `SMTP_HOST` vide pour désactiver l'envoi d'e-mails. Sinon, voir les exemples Mailtrap / Brevo / Gmail commentés dans `.env.example`.
+- **`STRIPE_WEBHOOK_SECRET`** : à renseigner plus tard, à l'étape 5, **seulement** si vous voulez tester les paiements complets (webhooks).
+
+### 3. Lancer la stack
+
+```bash
 docker compose up -d --build
 ```
 
-Au premier démarrage, le sidecar `ollama-init` télécharge le modèle (`qwen2.5:3b`, quelques minutes) ; pendant ce temps le chatbot renvoie un message de repli poli. Une fois prêt :
+Le premier démarrage prend **~5 à 10 minutes** : build des images front + API, puis téléchargement du modèle Ollama (`qwen2.5:3b`, ~2,3 Go) par le sidecar `ollama-init`. En parallèle, l'API applique les **migrations EF Core** et **peuple automatiquement la base** (catalogue, clients de démo, commandes, conversations, tickets).
 
-- **Front** : http://localhost:3000
-- **API (Swagger)** : http://localhost:8080/swagger
-- **Healthcheck API** : http://localhost:8080/api/health
-
-> La base est **peuplée automatiquement** (seed) au démarrage : catalogue, clients de démo, commandes, conversations et tickets.
-
-Pour arrêter / réinitialiser :
+Pour suivre l'avancement :
 
 ```bash
-docker compose down          # arrêt (conserve les données)
-docker compose down -v       # arrêt + suppression des volumes (reset complet)
+docker compose logs -f api ollama-init
 ```
+
+> Tant que le modèle n'est pas téléchargé, le chatbot répond un message de repli localisé. C'est attendu.
+
+### 4. Vérifier que tout fonctionne
+
+Une fois la stack démarrée :
+
+| Vérification | URL / commande | Résultat attendu |
+|---|---|---|
+| Healthcheck API | `curl http://localhost:8080/api/health` | `200 OK` |
+| API (Swagger) | http://localhost:8080/swagger | UI Swagger |
+| Front | http://localhost:3000 | Page d'accueil Althea |
+| Connexion admin | http://localhost:3000 → se connecter avec `admin@altheasystems.com` / `Admin1234!` | Accès au back-office `/admin` |
+| Catalogue peuplé | http://localhost:3000 → page Catalogue | Produits visibles |
+
+### 5. (Optionnel) Activer les paiements Stripe
+
+Si vous voulez tester un paiement de bout en bout (avec validation côté serveur via webhook), il faut lancer le **sidecar Stripe CLI** qui relaie les événements de votre compte test vers l'API :
+
+```bash
+docker compose --profile dev up -d            # démarre aussi le sidecar stripe-cli
+docker logs althea-stripe-cli                 # copier le whsec_... affiché
+```
+
+Mettre la valeur copiée dans `.env` :
+
+```
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+Redémarrer l'API pour qu'elle prenne en compte le nouveau secret :
+
+```bash
+docker compose restart api
+```
+
+Tester avec une carte Stripe test : `4242 4242 4242 4242` (succès) ou `4000 0027 6000 3184` (3DS requis), date d'expiration future quelconque, CVC à 3 chiffres. Détails dans la section [Webhooks Stripe (dev)](#webhooks-stripe-dev).
+
+### 6. Arrêter, redémarrer, réinitialiser
+
+```bash
+docker compose down            # arrêt (conserve les volumes et les données)
+docker compose up -d           # redémarrer après un down
+docker compose down -v         # arrêt + suppression des volumes (reset complet)
+```
+
+En cas de problème, voir la section [Dépannage](#dépannage).
 
 ---
 
