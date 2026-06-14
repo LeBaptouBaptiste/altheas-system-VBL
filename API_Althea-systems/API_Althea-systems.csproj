@@ -30,7 +30,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
 
     <!-- Password Hashing -->
-    <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
 
     <!-- TOTP (RFC 6238) for two-factor authentication -->
     <PackageReference Include="Otp.NET" Version="1.4.0" />
